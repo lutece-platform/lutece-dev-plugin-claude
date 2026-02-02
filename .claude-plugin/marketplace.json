@@ -1,0 +1,15 @@
+{
+  "name": "lutece-plugins",
+  "description": "Marketplace for Lutece plugins",
+  "owner": {
+    "name": "Lutece"
+  },
+  "plugins": [
+    {
+      "name": "lutecepowers-v8",
+      "description": "Claude Code plugin for Lutece 8 framework development. Rules, skills, Agents, and references.",
+      "version": "1.0.3",
+      "source": "./"
+    }
+  ]
+}
