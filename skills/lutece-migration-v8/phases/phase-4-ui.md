@@ -277,6 +277,78 @@ If jQuery File Upload is used, replace with Uppy:
 
 ---
 
+## Step 6 — SuggestPOI / Address autocomplete migration (if applicable)
+
+If the plugin uses the `address-autocomplete` module for address autocomplete (SuggestPOI), the old jQuery-based integration must be replaced with the new LuteceAutoComplete-based version.
+
+**Reference (MANDATORY):** Read the v8 implementation in:
+- `~/.lutece-references/lutece-tech-module-address-autocomplete/webapp/WEB-INF/templates/skin/plugins/address/modules/autocomplete/include/suggestPOI.html`
+- `~/.lutece-references/lutece-tech-module-address-autocomplete/webapp/js/plugins/address/modules/autocomplete/suggestPOI.js`
+- `~/.lutece-references/lutece-form-plugin-forms/webapp/WEB-INF/templates/skin/plugins/forms/entries/fill_entry_type_geolocation.html`
+
+### Detect old patterns
+
+Search templates for:
+- Old JSP include: `autocomplete-js.jsp`
+- jQuery autocomplete: `$.autocomplete`, `$(…).autocomplete(`, `createAutocomplete(`
+- Old JSONP calls: `dataType: 'jsonp'` with address WS
+- Old jQuery selectors with `#labelAutocomplete`
+
+### Template migration (admin + skin)
+
+```html
+<!-- BEFORE (v7) — jQuery autocomplete via old JSP include -->
+<script src="jsp/plugins/address/modules/autocomplete/autocomplete-js.jsp"></script>
+<script>createAutocomplete('.my-address-input');</script>
+<input type="text" class="my-address-input" name="address" />
+
+<!-- AFTER (v8) — LuteceAutoComplete via FreeMarker macros -->
+<#include "/skin/plugins/address/modules/autocomplete/include/suggestPOI.html" />
+<@setupSuggestPOI />
+<@suggestPOIInput id="address_field" name="address" currentValue="${addressValue!}" required=false cssClass="form-control" />
+```
+
+### JavaScript migration
+
+```javascript
+// BEFORE (v7) — jQuery event handling
+$('#myField').on('autocompleteselect', function(event, ui) {
+    var label = ui.item.label;
+    var value = ui.item.value;
+});
+
+// AFTER (v8) — Vanilla JS with SuggestPOI class
+var suggestPoi = new SuggestPOI('#address_field', {
+    allowFreeText: false
+});
+document.getElementById('address_field').addEventListener(SuggestPOI.EVT_SELECT, function(event) {
+    var poi = event.detail.poi;
+    // poi.label, poi.id, poi.x, poi.y, poi.type
+});
+```
+
+### Key differences
+
+| v7 (jQuery) | v8 (LuteceAutoComplete) |
+|---|---|
+| `autocomplete-js.jsp` (scriptlet + jQuery) | `<@setupSuggestPOI />` macro (CDI bean + FreeMarker) |
+| `$.autocomplete({source:…})` | `new SuggestPOI(container, options)` |
+| JSONP data type | `fetch()` with JSON |
+| `autocompleteselect` jQuery event | `SuggestPOI.EVT_SELECT` (`suggestpoi:select`) custom event |
+| `ui.item.label` / `ui.item.value` | `event.detail.poi.label` / `.id` / `.x` / `.y` / `.type` |
+
+### Admin templates
+
+For admin templates, the include path differs:
+
+```html
+<#include "/admin/plugins/address/modules/autocomplete/include/suggestPOI.html" />
+```
+
+The macro usage is identical.
+
+---
+
 ## Verification
 
 Run the verification script:
@@ -285,6 +357,6 @@ Run the verification script:
 bash "${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8/scripts/verify-migration.sh"
 ```
 
-UI checks (JS01, JS02, TM01, TM02) must PASS or be accepted WARN.
+UI checks (JS01, JS02, TM01, TM02, TM05) must PASS or be accepted WARN.
 
 Mark task as completed ONLY when verification passes.

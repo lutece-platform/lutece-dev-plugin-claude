@@ -147,6 +147,8 @@ echo "--- Admin templates ---"
     grep -q 'jQuery\|\$(' "$file" 2>/dev/null && FLAGS="$FLAGS jquery"
     grep -q 'class="panel\|class="btn ' "$file" 2>/dev/null && FLAGS="$FLAGS bootstrap3"
     grep -q '@pageContainer\|@tform\|@table' "$file" 2>/dev/null && FLAGS="$FLAGS v8macros"
+    grep -q 'autocomplete-js\.jsp\|createAutocomplete\|\.autocomplete(' "$file" 2>/dev/null && FLAGS="$FLAGS old_suggestpoi"
+    grep -q '@suggestPOIInput\|@setupSuggestPOI\|new SuggestPOI' "$file" 2>/dev/null && FLAGS="$FLAGS v8_suggestpoi"
     echo "  $file ${FLAGS:+[${FLAGS# }]}"
 done
 if ! { find webapp/WEB-INF/templates/admin/ -name "*.html" 2>/dev/null || true; } | grep -q .; then
@@ -159,6 +161,8 @@ echo "--- Skin templates ---"
     FLAGS=""
     grep -q 'jQuery\|\$(' "$file" 2>/dev/null && FLAGS="$FLAGS jquery"
     grep -q '<@cTpl>' "$file" 2>/dev/null && FLAGS="$FLAGS v8wrap"
+    grep -q 'autocomplete-js\.jsp\|createAutocomplete\|\.autocomplete(' "$file" 2>/dev/null && FLAGS="$FLAGS old_suggestpoi"
+    grep -q '@suggestPOIInput\|@setupSuggestPOI\|new SuggestPOI' "$file" 2>/dev/null && FLAGS="$FLAGS v8_suggestpoi"
     echo "  $file ${FLAGS:+[${FLAGS# }]}"
 done
 if ! { find webapp/WEB-INF/templates/skin/ -name "*.html" 2>/dev/null || true; } | grep -q .; then
@@ -175,6 +179,7 @@ find webapp/ -name "*.jsp" 2>/dev/null | sort | while read -r file; do
     grep -q 'jsp:useBean' "$file" 2>/dev/null && FLAGS="$FLAGS useBean"
     grep -q '<%[^@]' "$file" 2>/dev/null && FLAGS="$FLAGS scriptlet"
     grep -q '\${ ' "$file" 2>/dev/null && FLAGS="$FLAGS EL"
+    grep -q 'autocomplete-js\.jsp\|createAutocomplete\|\.autocomplete(' "$file" 2>/dev/null && FLAGS="$FLAGS old_suggestpoi"
     echo "  $file ${FLAGS:+[${FLAGS# }]}"
 done
 if ! find webapp/ -name "*.jsp" 2>/dev/null | grep -q .; then

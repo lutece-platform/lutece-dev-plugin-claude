@@ -309,6 +309,13 @@ if [ -d "webapp/WEB-INF/templates/" ]; then
         | grep -v '(errors!)\|(infos!)\|(warnings!)') || TM04_MATCHES=""
 fi
 emit_result "TM04" "FAIL" "Unsafe errors/infos/warnings access → use (errors!)?size, (infos!)?size, (warnings!)?size" "$TM04_MATCHES"
+
+# TM05: Old jQuery-based SuggestPOI autocomplete (must migrate to LuteceAutoComplete)
+TM05_MATCHES=""
+if [ -d "webapp/" ]; then
+    TM05_MATCHES=$(grep -rn 'autocomplete-js\.jsp\|createAutocomplete\|\.autocomplete(' webapp/ --include="*.html" --include="*.jsp" 2>/dev/null) || TM05_MATCHES=""
+fi
+emit_result "TM05" "FAIL" "Old jQuery SuggestPOI → LuteceAutoComplete (@setupSuggestPOI + @suggestPOIInput macros)" "$TM05_MATCHES"
 echo ""
 
 # ─── Logging ──────────────────────────────────────────────
