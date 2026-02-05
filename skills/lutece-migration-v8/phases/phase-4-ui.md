@@ -258,15 +258,24 @@ Use ES6+: `const`/`let`, arrow functions, template literals, `async`/`await`.
 
 ---
 
-## Step 5 — Upload macro renames (if applicable)
+## Step 5 — Admin template macro renames (BO variants)
 
-If the plugin uses asynchronous upload macros:
+In **admin templates** (`templates/admin/**/*.html`), several macros must use their **BO** (Back-Office) variants:
 
 | v7 Macro | v8 Macro |
 |---------|---------|
-| `addFileInput` | `addFileBOInput` |
-| `addUploadedFilesBox` | `addBOUploadedFilesBox` |
-| `addFileInputAndfilesBox` | `addFileBOInputAndfilesBox` |
+| `@addRequiredJsFiles` | `@addRequiredBOJsFiles` |
+| `@addFileInput` | `@addFileBOInput` |
+| `@addUploadedFilesBox` | `@addBOUploadedFilesBox` |
+| `@addFileInputAndfilesBox` | `@addFileBOInputAndfilesBox` |
+
+**Automatic replacement:**
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8/scripts/replace-templates-bo.sh" .
+```
+
+This script replaces all FO macros with BO variants in `webapp/WEB-INF/templates/admin/`.
 
 If jQuery File Upload is used, replace with Uppy:
 ```html

@@ -139,6 +139,7 @@ Each check has: ID, category, pattern, search path, severity, and description.
 | TM02 | `jQuery\|\$(` | `webapp/WEB-INF/templates/` | WARN | No jQuery, use vanilla JS |
 | TM03 | `<@addFileInput \|<@addUploadedFilesBox\|<@addFileInputAndfilesBox` (excluding BO variants) | `webapp/WEB-INF/templates/` | WARN | Use v8 upload macros: `addFileBOInput`, `addBOUploadedFilesBox`, `addFileBOInputAndfilesBox` |
 | TM04 | `errors?size\|errors?has_content\|infos?size\|infos?has_content\|warnings?size\|warnings?has_content` (without `!` null-safety) | `webapp/WEB-INF/templates/` | FAIL | MANDATORY: Use `(errors!)?size`, `(infos!)?size`, `(warnings!)?size`. These variables are NOT pre-initialized in v8 — accessing without `!` causes 500 error |
+| TM06 | `<@addRequiredJsFiles` (without BO) in admin templates | `webapp/WEB-INF/templates/admin/` | FAIL | Must use `@addRequiredBOJsFiles` in back-office templates |
 
 ---
 
@@ -159,6 +160,9 @@ Each check has: ID, category, pattern, search path, severity, and description.
 | TS03 | `import org\.junit\.Assert` | `src/` | FAIL | Must be `org.junit.jupiter.api.Assertions` |
 | TS04 | `MokeHttpServletRequest` | `src/` | FAIL | Renamed to `MockHttpServletRequest` in v8 |
 | TS05 | `import org\.junit\.BeforeClass\|import org\.junit\.AfterClass` | `src/` | FAIL | Must be `@BeforeAll` / `@AfterAll` |
+| TS06 | `public void test*` without `@Test` on previous line | `src/test/` | FAIL | Every test method must have `@Test` annotation |
+| TS07 | `SpringContextService\.getBean` | `src/test/` | FAIL | Must use `@Inject` instead |
+| TS08 | `org\.springframework\.mock\.web` | `src/test/` | FAIL | Must use `fr.paris.lutece.test.mocks` |
 
 ---
 
@@ -176,6 +180,6 @@ Each check has: ID, category, pattern, search path, severity, and description.
 
 ## Summary
 
-- **Total checks**: 58
-- **FAIL severity**: 44 (will break compilation or runtime)
+- **Total checks**: 62
+- **FAIL severity**: 48 (will break compilation or runtime)
 - **WARN severity**: 14 (best practice, should fix)

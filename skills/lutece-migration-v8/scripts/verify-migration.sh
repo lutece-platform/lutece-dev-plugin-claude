@@ -301,6 +301,14 @@ if [ -d "webapp/WEB-INF/templates/" ]; then
 fi
 emit_result "TM03" "WARN" "Old upload macros → BO variants (addFileBOInput, etc.)" "$TM03_MATCHES"
 
+# TM06: @addRequiredJsFiles in admin templates (must be @addRequiredBOJsFiles)
+TM06_MATCHES=""
+if [ -d "webapp/WEB-INF/templates/admin/" ]; then
+    TM06_MATCHES=$(grep -rn '<@addRequiredJsFiles' webapp/WEB-INF/templates/admin/ --include="*.html" 2>/dev/null \
+        | grep -v 'addRequiredBOJsFiles') || TM06_MATCHES=""
+fi
+emit_result "TM06" "FAIL" "@addRequiredJsFiles in admin templates → @addRequiredBOJsFiles" "$TM06_MATCHES"
+
 # TM04: Unsafe access to errors/infos/warnings without null-safety operator (!)
 # These model variables are NOT pre-initialized in v8 — only exist after addError()/addInfo()/addWarning()
 TM04_MATCHES=""
@@ -330,6 +338,27 @@ check_grep "TS02" "tests" 'import org\.junit\.Before\b\|import org\.junit\.After
 check_grep "TS03" "tests" 'import org\.junit\.Assert' "src/" "FAIL" "JUnit 4 Assert → org.junit.jupiter.api.Assertions"
 check_grep "TS04" "tests" 'MokeHttpServletRequest' "src/" "FAIL" "MokeHttpServletRequest → MockHttpServletRequest"
 check_grep "TS05" "tests" 'import org\.junit\.BeforeClass\|import org\.junit\.AfterClass' "src/" "FAIL" "JUnit 4 @BeforeClass/@AfterClass → @BeforeAll/@AfterAll"
+
+# TS06: Test methods without @Test annotation
+TS06_MATCHES=""
+if [ -d "src/test/" ]; then
+    TS06_MATCHES=$(grep -rn 'public void test' src/test/ --include="*.java" 2>/dev/null | while read -r line; do
+        FILE=$(echo "$line" | cut -d: -f1)
+        LINENUM=$(echo "$line" | cut -d: -f2)
+        # Check if @Test is on the previous line
+        PREV_LINE=$((LINENUM - 1))
+        if ! sed -n "${PREV_LINE}p" "$FILE" 2>/dev/null | grep -q '@Test'; then
+            echo "$line"
+        fi
+    done) || TS06_MATCHES=""
+fi
+emit_result "TS06" "FAIL" "Test methods without @Test annotation" "$TS06_MATCHES"
+
+# TS07: SpringContextService.getBean in test files
+check_grep "TS07" "tests" 'SpringContextService\.getBean' "src/test/" "FAIL" "SpringContextService.getBean → @Inject in tests"
+
+# TS08: Spring mock imports in test files
+check_grep "TS08" "tests" 'org\.springframework\.mock\.web' "src/test/" "FAIL" "Spring mock imports → fr.paris.lutece.test.mocks"
 echo ""
 
 # ─── Structure ────────────────────────────────────────────
