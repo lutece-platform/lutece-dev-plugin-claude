@@ -17,7 +17,17 @@
 9. Update `lutece-core` dependency version to `8.0.0-SNAPSHOT` (for plugins/modules)
 10. Update all Lutece dependency versions using the **dependency version map from Phase 0**. Each dependency's v8 version was already verified and extracted — use those exact versions. Do NOT guess or hardcode versions
 11. Add new dependencies if needed (JCache API, classgraph, etc.)
-12. Remove `<springVersion>` property if present
+12. If the scan shows `ACTION_REQUIRED: Add library-lutece-unit-testing`, add it:
+    ```xml
+    <dependency>
+        <groupId>fr.paris.lutece.plugins</groupId>
+        <artifactId>library-lutece-unit-testing</artifactId>
+        <type>jar</type>
+        <scope>test</scope>
+    </dependency>
+    ```
+    The version is managed by the parent POM — do NOT specify a `<version>`.
+13. Remove `<springVersion>` property if present
 
 ## Library-specific POM Changes
 

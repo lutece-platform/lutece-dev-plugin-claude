@@ -1,10 +1,8 @@
 # Lutecepowers
 
-AI coding agent plugin for **Lutece 8** framework development. Works with **Claude Code** and **OpenCode**.
+Claude Code plugin for **Lutece 8** framework development.
 
 ## Installation
-
-### Claude Code
 
 ```bash
 /plugin marketplace add lutece-platform/lutece-dev-plugin-claude
@@ -12,17 +10,13 @@ AI coding agent plugin for **Lutece 8** framework development. Works with **Clau
 # install in user scope
 ```
 
-### OpenCode
-
-See [.opencode/INSTALL.md](.opencode/INSTALL.md) — clone, symlink plugin + skills, restart OpenCode.
-
 ## What it does
 
 At session start, the plugin automatically:
 
-1. **Clones/updates reference repos** — 21 Lutece v8 repositories into `~/.lutece-references/` (shared script: `scripts/setup-references.sh`)
-2. **Copies rules** — Detects if the current project is a Lutece plugin and copies coding constraint rules into `.claude/rules/` (or equivalent)
-3. **Injects context** — Bootstrap message (Claude Code) or system prompt injection (OpenCode) with architecture patterns and available skills
+1. **Clones/updates reference repos** — 21 Lutece v8 repositories into `~/.lutece-references/`
+2. **Copies rules** — Detects if the current project is a Lutece plugin and copies coding constraint rules into `.claude/rules/`
+3. **Injects context** — Bootstrap message with architecture patterns and available skills
 
 ## Skills
 
@@ -73,7 +67,6 @@ At session start, the plugin automatically:
 | `replace-spring-simple.sh` | Spring → CDI annotation replacements |
 | `verify-migration.sh` | All verification checks → PASS/FAIL report |
 | `add-liquibase-headers.sh` | Liquibase headers on SQL files |
-| `setup-references.sh` | Clone/update 21 Lutece v8 reference repos |
 
 ## Rules
 
@@ -90,17 +83,6 @@ Rules are short constraints (5-15 lines) automatically loaded when the agent tou
 | `plugin-descriptor` | `**/plugins/*.xml` — Mandatory tags, core-version-dependency |
 | `messages-properties` | global — i18n key conventions |
 | `dependency-references` | global — Auto-fetch Lutece dep sources, v8 branch detection |
-
-## Platform compatibility
-
-| Feature | Claude Code | OpenCode |
-|---------|-------------|----------|
-| Session init (refs + rules) | SessionStart hook | `session.created` event |
-| System prompt context | Hook echo | `experimental.chat.system.transform` |
-| Skills | Native `/skill` | Native `skill` tool (via symlink) |
-| Agent (v8-reviewer) | Native Task delegation | Not yet supported |
-| Rules (path-scoped) | Native `.claude/rules/` | Copied but no path-scoping |
-| Scripts (bash) | Native Bash tool | Native shell |
 
 ## Tests
 

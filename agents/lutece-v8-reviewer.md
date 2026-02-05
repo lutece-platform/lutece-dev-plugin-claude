@@ -1,7 +1,7 @@
 ---
 name: v8-reviewer
 description: "Review a Lutece plugin for v8 compliance. Runs verification scripts first, then performs semantic analysis that scripts cannot do (CDI scope correctness, producer quality, singleton patterns, reflection-instantiated classes). Use proactively after a v8 migration or on any Lutece 8 project to verify conformity."
-tools: Read, Grep, Glob, Bash, AskUserQuestion
+tools: Read, Grep, Glob, Bash, AskUserQuestion, mcp__ide__getDiagnostics
 model: opus
 color: orange
 ---
@@ -68,7 +68,8 @@ Create a task list for the semantic checks only:
 3. Analyze CDI injection vs static lookup
 4. Analyze CDI Producers quality
 5. Analyze cache service defensive overrides
-6. Compile final report
+6. Collect IDE diagnostics (if available)
+7. Compile final report
 ```
 
 These checks require reading code, understanding context, and comparing against references. The script cannot do them.
@@ -172,6 +173,36 @@ For each class extending `AbstractCacheableService`:
 
 Reference: `FormsCacheService` in `~/.lutece-references/lutece-form-plugin-forms/`
 
+### S6. IDE diagnostics (`mcp__ide__getDiagnostics`)
+
+**This check is optional.** The `mcp__ide__getDiagnostics` MCP tool may not be available in all contexts (e.g., headless CLI, plugin agent sandbox). Attempt it; if the tool call fails or is not recognized, skip this check and mark it `N/A` in the report.
+
+**How it works:** The tool accepts a `uri` parameter (file URI, e.g. `file:///absolute/path/to/File.java`) and returns LSP diagnostics (errors, warnings, info) from the IDE's language servers (Java, XML, etc.).
+
+**Procedure:**
+
+1. From the scan-project.sh output, collect all Java source files under `src/java/` (not test files).
+2. For each file, call `mcp__ide__getDiagnostics` with the file URI.
+3. Collect diagnostics with severity `Error` or `Warning`. Ignore `Information` and `Hint`.
+4. Group findings by file. Each diagnostic has: severity, message, line number, range.
+
+**What to report:**
+
+| IDE Severity | Report Severity | Include? |
+|-------------|----------------|----------|
+| Error | FAIL | Always — these prevent compilation |
+| Warning | WARN | Only if related to migration (unused imports, type mismatches, missing methods) |
+
+Skip warnings that are purely stylistic (naming conventions, raw types, unchecked casts) unless they indicate a real migration issue.
+
+**Batch strategy:** If the project has more than 30 Java files, prioritize:
+1. Files flagged by verify-migration.sh (FAIL/WARN)
+2. Service classes (`*Service.java`)
+3. DAO classes (`*DAO.java`)
+4. Web layer (`*JspBean.java`, `*XPage.java`)
+
+Limit to 50 files maximum to avoid excessive tool calls.
+
 ---
 
 ## Report format
@@ -196,6 +227,7 @@ Output the report using this exact structure:
 | S3 | Injection vs Static Lookup | PASS/WARN | 0 |
 | S4 | Producer Quality | PASS/WARN | 0 |
 | S5 | Cache Defensive Guards | PASS/WARN | 0 |
+| S6 | IDE Diagnostics | PASS/FAIL/N/A | 0 |
 | | **Total semantic** | | **X** |
 
 ## All Findings

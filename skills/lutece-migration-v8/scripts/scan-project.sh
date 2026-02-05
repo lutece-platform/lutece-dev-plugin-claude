@@ -258,6 +258,17 @@ echo "dao_free_calls: $DAO_FREE"
 echo "deprecated_cache_methods: $DEPRECATED_CACHE"
 echo "deprecated_getModel: $DEPRECATED_GETMODEL"
 
+# Test dependencies
+USES_LUTECE_TEST_CASE=$({ grep -rl 'LuteceTestCase' src/test/ 2>/dev/null || true; } | wc -l)
+HAS_UNIT_TESTING_DEP=$(grep -c 'library-lutece-unit-testing' pom.xml 2>/dev/null || echo "0")
+USES_COMMONS_LANG=$({ grep -rl 'org\.apache\.commons\.lang\.[^3]' src/ 2>/dev/null || true; } | wc -l)
+echo "uses_LuteceTestCase: $USES_LUTECE_TEST_CASE"
+echo "has_unit_testing_dep: $HAS_UNIT_TESTING_DEP"
+echo "uses_commons_lang_v2: $USES_COMMONS_LANG"
+if [ "$USES_LUTECE_TEST_CASE" -gt 0 ] && [ "$HAS_UNIT_TESTING_DEP" -eq 0 ]; then
+    echo "ACTION_REQUIRED: Add library-lutece-unit-testing dependency (scope=test) to pom.xml"
+fi
+
 # Migration scope assessment
 echo ""
 echo "=== MIGRATION SCOPE ==="

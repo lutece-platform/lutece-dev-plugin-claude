@@ -85,6 +85,15 @@ replace_and_count \
     'jakarta.transaction' \
     'javax.transaction → jakarta.transaction'
 
+# --- commons-lang → commons-lang3 ---
+# Match org.apache.commons.lang. but NOT org.apache.commons.lang3. (already correct)
+CL_COUNT=$({ grep -rl 'org\.apache\.commons\.lang\.' "$SRC_DIR" --include="*.java" 2>/dev/null | while read -r f; do grep -l 'org\.apache\.commons\.lang\.[^3]' "$f" 2>/dev/null; done || true; } | sort -u | wc -l)
+if [ "$CL_COUNT" -gt 0 ]; then
+    find "$SRC_DIR" -name "*.java" -exec sed -i 's/org\.apache\.commons\.lang\.\([^3]\)/org.apache.commons.lang3.\1/g' {} +
+    echo "  commons-lang → commons-lang3: $CL_COUNT files"
+    TOTAL=$((TOTAL + CL_COUNT))
+fi
+
 # --- FileItem → MultipartItem ---
 FI_COUNT=$({ grep -rl 'org\.apache\.commons\.fileupload\.FileItem' "$SRC_DIR" --include="*.java" 2>/dev/null || true; } | wc -l)
 if [ "$FI_COUNT" -gt 0 ]; then
