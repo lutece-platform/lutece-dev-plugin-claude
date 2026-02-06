@@ -2,6 +2,8 @@
 
 Claude Code plugin for **Lutece 8** framework development.
 
+> 🚀 **New:** `lutece-migration-v8-agent-teams` — v7→v8 migration redesigned for **Agent Teams (Swarm Mode)**. Parallel teammates, 9 bash scripts, JSON-driven task decomposition. Enable with `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` then run `/lutece-migration-v8-agent-teams`.
+
 ## Installation
 
 ```bash
@@ -23,7 +25,7 @@ At session start, the plugin automatically:
 | Skill | Description |
 |-------|-------------|
 | `lutece-patterns` | Architecture reference: layered design, CDI patterns, CRUD lifecycle, pagination, XPages, daemons, security checklist |
-| `lutece-migration-v8` | Migration v7 → v8 (Spring → CDI/Jakarta). 6 phases, 5 scripts for mechanical work + AI for the rest |
+| `lutece-migration-v8-agent-teams` | Migration v7 → v8 via **Agent Teams** (Swarm Mode). Parallel teammates, 9 scripts, JSON-driven task decomposition. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
 | `lutece-scaffold` | Interactive plugin scaffold generator. Optional XPage, Cache, RBAC, Site features |
 | `lutece-site` | Interactive site generator with database config and plugin dependencies |
 | `lutece-dao` | DAO + Home layer patterns: DAOUtil lifecycle, SQL constants, CDI lookup |
@@ -38,35 +40,69 @@ At session start, the plugin automatically:
 
 | Agent | Model | Description |
 |-------|-------|-------------|
-| `lutece-v8-reviewer` | Opus | Read-only compliance reviewer. Runs `scan-project.sh` + `verify-migration.sh`, then semantic analysis (CDI scopes, singletons, producers, cache guards). Produces a structured PASS/WARN/FAIL report. |
+| `lutece-v8-reviewer` | Opus | Read-only compliance reviewer. Runs `scan-project.sh` + `verify-migration.sh`, then semantic analysis (CDI scopes, singletons, producers, cache guards), then full build with tests. Produces a structured PASS/WARN/FAIL report. |
 
-## Migration flow (`/lutece-migration-v8`)
+## Migration flow (`/lutece-migration-v8-agent-teams`)
 
 **Input:** a Lutece v7 plugin/module/library (Spring, javax, XML context).
 
-**Architecture:** scripts handle the mechanical 80%, AI handles the intelligent 20% (CDI scopes, producers, events, templates).
+**Architecture:** Team Lead orchestrates, specialized teammates execute in parallel. 9 bash scripts handle mechanical work, AI handles intelligent decisions (CDI scopes, producers, events).
 
-| Phase | What |
-|-------|------|
-| 0 — Scan | `scan-project.sh` → structured inventory. Verify all Lutece deps have v8 versions. |
-| 1 — POM | Parent → `8.0.0-SNAPSHOT`, remove Spring/EhCache, update dependency versions |
-| 2 — Java | `replace-imports.sh` + `replace-spring-simple.sh` → then CDI scopes, producers, events, cache, REST, deprecated APIs |
-| 3 — Web | web.xml namespace, plugin descriptor, beans.xml, SQL Liquibase headers |
-| 4 — UI | JSP scriptlet→EL, admin templates→v8 macros, jQuery→vanilla JS, SuggestPOI→LuteceAutoComplete |
-| 5 — Tests | JUnit 4→5, assertion order, mock class renames |
-| 6 — Build | `verify-migration.sh`, `mvn clean install` (max 5 iterations), v8-reviewer agent |
+| Phase | What | Who |
+|-------|------|-----|
+| A — Scan | `scan-project.sh` → JSON inventory, dependency v8 check | @lead |
+| B — Task Decomposition | `task-splitter.sh` → per-teammate JSON task files | @lead |
+| C — Spawn Teammates | @config-migrator, @java-migrator (×1-3), @template-migrator, @test-migrator, @verifier | @lead |
+| D — Task Dependencies | @config-migrator → @java-migrator(s) → @template-migrator + @test-migrator → @verifier final build | @lead |
+| E — Monitoring | `progress-report.sh`, mailbox messaging, blocker resolution | @lead |
+| F — Final Gate | 0 FAIL on `verify-migration.sh`, green build, v8-reviewer agent | @verifier + @lead |
 
-**Output:** migrated v8 plugin with green build and clean compliance report.
+```mermaid
+graph TD
+    L(["@lead — orchestrator"])
 
-### Migration scripts
+    L -->|"delegates"| C["@config-migrator"]
+    L -->|"delegates"| J["@java-migrator ×1-3"]
+    L -->|"delegates"| T["@template-migrator"]
+    L -->|"delegates"| TE["@test-migrator"]
+    L -->|"delegates"| V["@verifier"]
+
+    C -.->|"unblocks"| J
+    J -.->|"unblocks"| T
+    J -.->|"unblocks"| TE
+    T -.->|"unblocks"| V
+    TE -.->|"unblocks"| V
+    V -->|"delegates"| R{{"lutece-v8-reviewer agent"}}
+
+    R -.->|"findings"| V
+    V -.->|"reports issues"| L
+```
+
+### Teammates
+
+| Teammate | Count | Role |
+|----------|-------|------|
+| @config-migrator | 1 | POM, beans.xml, context XML → JSON, plugin descriptor, web.xml, SQL Liquibase |
+| @java-migrator | 1-3 | `migrate-java-mechanical.sh` then CDI scopes, producers, events, cache, deprecated API |
+| @template-migrator | 0-1 | `migrate-template-mechanical.sh` then JSP, admin/skin templates, jQuery→vanilla JS |
+| @test-migrator | 0-1 | JUnit 4→5, mock renames, CDI test extensions |
+| @verifier | 1 | Continuous `verify-file.sh`, final `verify-migration.sh`, `mvn clean install`, reviewer agent |
+
+### Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `scan-project.sh` | Full project scan → structured inventory |
-| `replace-imports.sh` | javax → jakarta mass replacement |
-| `replace-spring-simple.sh` | Spring → CDI annotation replacements |
-| `verify-migration.sh` | All verification checks → PASS/FAIL report |
+| `scan-project.sh` | Full project scan → structured JSON |
+| `task-splitter.sh` | JSON scan → per-teammate task files |
+| `migrate-java-mechanical.sh` | javax→jakarta + Spring→CDI on file list |
+| `migrate-template-mechanical.sh` | BO macros + null-safety + namespace |
+| `extract-context-beans.sh` | Spring context XML → JSON catalog |
+| `verify-migration.sh` | 70+ checks, optional `--json` mode |
+| `verify-file.sh` | Per-file verification subset |
 | `add-liquibase-headers.sh` | Liquibase headers on SQL files |
+| `progress-report.sh` | Migration progress dashboard |
+
+**Output:** migrated v8 plugin with green build and clean compliance report.
 
 ## Rules
 
@@ -74,9 +110,11 @@ Rules are short constraints (5-15 lines) automatically loaded when the agent tou
 
 | Rule | Scope |
 |------|-------|
+| `java-conventions` | `**/*.java` — Jakarta EE, CDI (not Spring), forbidden libraries, DAOUtil, logging |
 | `web-bean` | `**/web/**/*.java` — JspBean/XPage: CDI, CRUD lifecycle, security tokens |
 | `service-layer` | `**/service/**/*.java` — CDI scopes, injection, events, cache |
 | `dao-patterns` | `**/business/**/*.java` — DAOUtil lifecycle, SQL constants, Home facade |
+| `testing` | `**/test/**/*.java` + `pom.xml` — Build/test commands, JUnit 5, test base classes |
 | `template-back-office` | `**/templates/admin/**/*.html` — v8 Freemarker macros, BS5/Tabler |
 | `template-front-office` | `**/templates/skin/**/*.html` — BS5 classes, vanilla JS, no jQuery |
 | `jsp-admin` | `**/*.jsp` — JSP boilerplate, bean naming |

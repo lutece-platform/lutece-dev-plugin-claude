@@ -1,0 +1,356 @@
+#!/bin/bash
+# scan-project.sh — Scan a Lutece project and output a structured JSON migration inventory
+# Usage: bash scan-project.sh [project_root]
+# Output: JSON to stdout (pipe to .migration/scan.json)
+# Dependencies: jq (optional, falls back to manual JSON)
+
+set -euo pipefail
+
+PROJECT_ROOT="${1:-.}"
+cd "$PROJECT_ROOT"
+
+if [ ! -f "pom.xml" ]; then
+    echo '{"error": "No pom.xml found"}' >&2
+    exit 1
+fi
+
+# ─── Helpers ─────────────────────────────────────────────
+
+json_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr '\n' ' '
+}
+
+# Safe grep-count: returns 0 when no match instead of crashing with pipefail
+gcount() { { grep "$@" || true; } | wc -l; }
+gfiles() { { grep "$@" || true; } | sort; }
+
+# ─── Project Info ────────────────────────────────────────
+
+PROJECT_TYPE="unknown"
+grep -q '<type>lutece-plugin</type>\|<packaging>lutece-plugin</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="plugin"
+grep -q '<type>lutece-module</type>\|<packaging>lutece-module</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="module"
+grep -q '<type>lutece-library</type>\|<packaging>lutece-library</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="library"
+
+ARTIFACT=$(grep -m1 '<artifactId>' pom.xml | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d ' ')
+VERSION=$(grep -m1 '<version>' pom.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d ' ')
+PARENT_VERSION=$(sed -n '/<parent>/,/<\/parent>/p' pom.xml | grep '<version>' | head -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d ' ')
+
+# ─── Lutece Dependencies ────────────────────────────────
+
+DEPS_JSON="["
+FIRST_DEP=true
+# Extract artifactId + version pairs for fr.paris.lutece dependencies
+while IFS= read -r dep_line; do
+    [ -z "$dep_line" ] && continue
+    DEP_AID=$(echo "$dep_line" | grep -oP '(?<=<artifactId>)[^<]+' || true)
+    DEP_VER=$(echo "$dep_line" | grep -oP '(?<=<version>)[^<]+' || true)
+    DEP_TYPE=$(echo "$dep_line" | grep -oP '(?<=<type>)[^<]+' || true)
+    [ -z "$DEP_AID" ] && continue
+    [ "$DEP_AID" = "lutece-global-pom" ] && continue
+    $FIRST_DEP || DEPS_JSON="$DEPS_JSON,"
+    FIRST_DEP=false
+
+    # Check if v8 version exists in references
+    V8_STATUS="unknown"
+    V8_BRANCH=""
+    V8_VERSION=""
+    if [ -d "$HOME/.lutece-references/$DEP_AID" ]; then
+        V8_STATUS="available"
+        V8_BRANCH=$(cd "$HOME/.lutece-references/$DEP_AID" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        V8_VERSION=$(grep -oP '(?<=<version>)[^<]+' "$HOME/.lutece-references/$DEP_AID/pom.xml" 2>/dev/null | head -1 || true)
+    fi
+
+    DEPS_JSON="$DEPS_JSON{\"artifactId\":\"$DEP_AID\",\"version\":\"${DEP_VER:-unspecified}\",\"type\":\"${DEP_TYPE:-jar}\",\"v8Status\":\"$V8_STATUS\",\"v8Branch\":\"$V8_BRANCH\",\"v8Version\":\"$V8_VERSION\"}"
+done < <(
+    # Extract dependency blocks for fr.paris.lutece
+    awk '/<dependency>/{block=""} /<dependency>/,/<\/dependency>/{block=block $0 "\n"} /<\/dependency>/{if(block ~ /fr\.paris\.lutece/) print block}' pom.xml
+)
+DEPS_JSON="$DEPS_JSON]"
+
+# ─── Java Files Analysis ────────────────────────────────
+
+JAVA_JSON="["
+TEST_JSON="["
+FIRST_JAVA=true
+FIRST_TEST=true
+
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+
+    # Determine if test file
+    IS_TEST=false
+    echo "$file" | grep -q 'src/test/' && IS_TEST=true
+
+    # Package extraction
+    PKG=$(grep -m1 '^package ' "$file" 2>/dev/null | sed 's/package \(.*\);/\1/' | tr -d ' ' || echo "")
+
+    # Counts
+    JAVAX_COUNT=$(grep -c 'import javax\.\(servlet\|validation\|annotation\.PostConstruct\|annotation\.PreDestroy\|inject\|enterprise\|ws\.rs\|xml\.bind\)' "$file" 2>/dev/null || true)
+    SPRING_COUNT=$(grep -c 'import org\.springframework' "$file" 2>/dev/null || true)
+    SPRING_LOOKUP=$(grep -c 'SpringContextService' "$file" 2>/dev/null || true)
+    GETINSTANCE_COUNT=$(grep -c '\.getInstance( )' "$file" 2>/dev/null || true)
+
+    # Flags
+    HAS_EVENTS=false
+    grep -q 'EventRessourceListener\|LuteceUserEventManager\|QueryListenersService\|AbstractEventManager' "$file" 2>/dev/null && HAS_EVENTS=true
+
+    HAS_CACHE=false
+    grep -q 'AbstractCacheableService\|net\.sf\.ehcache\|putInCache\|getFromCache\|removeKey' "$file" 2>/dev/null && HAS_CACHE=true
+
+    HAS_REST=false
+    grep -q '@Path\|@GET\|@POST\|@PUT\|@DELETE' "$file" 2>/dev/null && HAS_REST=true
+
+    HAS_CDI=false
+    grep -q '@ApplicationScoped\|@RequestScoped\|@SessionScoped\|@Dependent\|@Inject\|@Named\|@Produces' "$file" 2>/dev/null && HAS_CDI=true
+
+    # Deprecated patterns
+    DEPRECATED="["
+    FIRST_DP=true
+    grep -q 'getModel( )' "$file" 2>/dev/null && { $FIRST_DP || DEPRECATED="$DEPRECATED,"; FIRST_DP=false; DEPRECATED="$DEPRECATED\"getModel\""; }
+    grep -q 'daoUtil\.free( )' "$file" 2>/dev/null && { $FIRST_DP || DEPRECATED="$DEPRECATED,"; FIRST_DP=false; DEPRECATED="$DEPRECATED\"daoUtilFree\""; }
+    grep -q '\.getInstance( )' "$file" 2>/dev/null && { $FIRST_DP || DEPRECATED="$DEPRECATED,"; FIRST_DP=false; DEPRECATED="$DEPRECATED\"getInstance\""; }
+    grep -q 'new HashMap' "$file" 2>/dev/null && grep -q 'MVCAdminJspBean\|MVCApplication' "$file" 2>/dev/null && { $FIRST_DP || DEPRECATED="$DEPRECATED,"; FIRST_DP=false; DEPRECATED="$DEPRECATED\"newHashMap\""; }
+    grep -q 'SecurityTokenService' "$file" 2>/dev/null && { $FIRST_DP || DEPRECATED="$DEPRECATED,"; FIRST_DP=false; DEPRECATED="$DEPRECATED\"securityToken\""; }
+    grep -q 'org\.apache\.commons\.fileupload' "$file" 2>/dev/null && { $FIRST_DP || DEPRECATED="$DEPRECATED,"; FIRST_DP=false; DEPRECATED="$DEPRECATED\"fileupload\""; }
+    grep -q 'AbstractPaginatorJspBean' "$file" 2>/dev/null && { $FIRST_DP || DEPRECATED="$DEPRECATED,"; FIRST_DP=false; DEPRECATED="$DEPRECATED\"abstractPaginator\""; }
+    DEPRECATED="$DEPRECATED]"
+
+    # Class type detection
+    CLASS_TYPE="other"
+    grep -q 'class.*DAO\b\|implements.*IDAO\|implements.*I[A-Z].*DAO' "$file" 2>/dev/null && CLASS_TYPE="dao"
+    grep -q 'extends.*MVCAdminJspBean\|JspBean' "$file" 2>/dev/null && CLASS_TYPE="jspbean"
+    grep -q 'extends.*MVCApplication\|XPage' "$file" 2>/dev/null && CLASS_TYPE="xpage"
+    grep -q 'class.*Service\b' "$file" 2>/dev/null && [ "$CLASS_TYPE" = "other" ] && CLASS_TYPE="service"
+    grep -q 'extends.*PluginDefaultImplementation' "$file" 2>/dev/null && CLASS_TYPE="plugin"
+    grep -q 'extends.*AbstractEntryType' "$file" 2>/dev/null && CLASS_TYPE="entrytype"
+    grep -q 'extends.*AbstractDaemonThread\|extends.*Daemon\b' "$file" 2>/dev/null && CLASS_TYPE="daemon"
+    # Test class detection
+    $IS_TEST && CLASS_TYPE="test"
+    # Interface detection
+    grep -q '^public interface\|^protected interface' "$file" 2>/dev/null && CLASS_TYPE="interface"
+    # Home class detection (static facade)
+    grep -q 'class.*Home\b' "$file" 2>/dev/null && grep -q 'private.*Home( )' "$file" 2>/dev/null && CLASS_TYPE="home"
+
+    FILE_JSON="{\"path\":\"$file\",\"classType\":\"$CLASS_TYPE\",\"package\":\"$PKG\",\"javaxImports\":$JAVAX_COUNT,\"springImports\":$SPRING_COUNT,\"springLookups\":$SPRING_LOOKUP,\"getInstanceCalls\":$GETINSTANCE_COUNT,\"eventPatterns\":$HAS_EVENTS,\"cachePatterns\":$HAS_CACHE,\"restPatterns\":$HAS_REST,\"existingCDI\":$HAS_CDI,\"deprecatedPatterns\":$DEPRECATED}"
+
+    if $IS_TEST; then
+        $FIRST_TEST || TEST_JSON="$TEST_JSON,"
+        FIRST_TEST=false
+        TEST_JSON="$TEST_JSON$FILE_JSON"
+    else
+        $FIRST_JAVA || JAVA_JSON="$JAVA_JSON,"
+        FIRST_JAVA=false
+        JAVA_JSON="$JAVA_JSON$FILE_JSON"
+    fi
+done < <(find src/ -name "*.java" 2>/dev/null | sort)
+JAVA_JSON="$JAVA_JSON]"
+TEST_JSON="$TEST_JSON]"
+
+# ─── Context XML Files ──────────────────────────────────
+
+CTX_JSON="["
+FIRST_CTX=true
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    BEAN_COUNT=$(grep -c '<bean ' "$file" 2>/dev/null || true)
+    $FIRST_CTX || CTX_JSON="$CTX_JSON,"
+    FIRST_CTX=false
+    CTX_JSON="$CTX_JSON{\"path\":\"$file\",\"beanCount\":$BEAN_COUNT}"
+done < <(find webapp/ -name "*_context.xml" 2>/dev/null | sort)
+CTX_JSON="$CTX_JSON]"
+
+# ─── Admin Templates ────────────────────────────────────
+
+ADMIN_TPL_JSON="["
+FIRST_AT=true
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    FLAGS="["
+    FIRST_FL=true
+    grep -q 'jQuery\|\$(' "$file" 2>/dev/null && { $FIRST_FL || FLAGS="$FLAGS,"; FIRST_FL=false; FLAGS="$FLAGS\"jquery\""; }
+    grep -q 'class="panel\|class="btn ' "$file" 2>/dev/null && { $FIRST_FL || FLAGS="$FLAGS,"; FIRST_FL=false; FLAGS="$FLAGS\"bootstrap3\""; }
+    grep -q '@pageContainer\|@tform\|@table' "$file" 2>/dev/null && { $FIRST_FL || FLAGS="$FLAGS,"; FIRST_FL=false; FLAGS="$FLAGS\"v8macros\""; }
+    grep -q 'autocomplete-js\.jsp\|createAutocomplete\|\.autocomplete(' "$file" 2>/dev/null && { $FIRST_FL || FLAGS="$FLAGS,"; FIRST_FL=false; FLAGS="$FLAGS\"old_suggestpoi\""; }
+    grep -q '@suggestPOIInput\|@setupSuggestPOI' "$file" 2>/dev/null && { $FIRST_FL || FLAGS="$FLAGS,"; FIRST_FL=false; FLAGS="$FLAGS\"v8_suggestpoi\""; }
+    FLAGS="$FLAGS]"
+    $FIRST_AT || ADMIN_TPL_JSON="$ADMIN_TPL_JSON,"
+    FIRST_AT=false
+    ADMIN_TPL_JSON="$ADMIN_TPL_JSON{\"path\":\"$file\",\"flags\":$FLAGS}"
+done < <({ find webapp/WEB-INF/templates/admin/ -name "*.html" 2>/dev/null || true; } | sort)
+ADMIN_TPL_JSON="$ADMIN_TPL_JSON]"
+
+# ─── Skin Templates ─────────────────────────────────────
+
+SKIN_TPL_JSON="["
+FIRST_ST=true
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    FLAGS="["
+    FIRST_FL=true
+    grep -q 'jQuery\|\$(' "$file" 2>/dev/null && { $FIRST_FL || FLAGS="$FLAGS,"; FIRST_FL=false; FLAGS="$FLAGS\"jquery\""; }
+    grep -q '<@cTpl>' "$file" 2>/dev/null && { $FIRST_FL || FLAGS="$FLAGS,"; FIRST_FL=false; FLAGS="$FLAGS\"v8wrap\""; }
+    FLAGS="$FLAGS]"
+    $FIRST_ST || SKIN_TPL_JSON="$SKIN_TPL_JSON,"
+    FIRST_ST=false
+    SKIN_TPL_JSON="$SKIN_TPL_JSON{\"path\":\"$file\",\"flags\":$FLAGS}"
+done < <({ find webapp/WEB-INF/templates/skin/ -name "*.html" 2>/dev/null || true; } | sort)
+SKIN_TPL_JSON="$SKIN_TPL_JSON]"
+
+# ─── JSP Files ───────────────────────────────────────────
+
+JSP_JSON="["
+FIRST_JSP=true
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    FLAGS="["
+    FIRST_FL=true
+    grep -q 'jsp:useBean' "$file" 2>/dev/null && { $FIRST_FL || FLAGS="$FLAGS,"; FIRST_FL=false; FLAGS="$FLAGS\"useBean\""; }
+    grep -q '<%[^@-]' "$file" 2>/dev/null && { $FIRST_FL || FLAGS="$FLAGS,"; FIRST_FL=false; FLAGS="$FLAGS\"scriptlet\""; }
+    grep -q '\${' "$file" 2>/dev/null && { $FIRST_FL || FLAGS="$FLAGS,"; FIRST_FL=false; FLAGS="$FLAGS\"EL\""; }
+    FLAGS="$FLAGS]"
+    $FIRST_JSP || JSP_JSON="$JSP_JSON,"
+    FIRST_JSP=false
+    JSP_JSON="$JSP_JSON{\"path\":\"$file\",\"flags\":$FLAGS}"
+done < <(find webapp/ -name "*.jsp" 2>/dev/null | sort)
+JSP_JSON="$JSP_JSON]"
+
+# ─── SQL Files ───────────────────────────────────────────
+
+SQL_JSON="["
+FIRST_SQL=true
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    HAS_HEADER=false
+    head -1 "$file" 2>/dev/null | grep -q 'liquibase formatted sql' && HAS_HEADER=true
+    $FIRST_SQL || SQL_JSON="$SQL_JSON,"
+    FIRST_SQL=false
+    SQL_JSON="$SQL_JSON{\"path\":\"$file\",\"liquibaseHeader\":$HAS_HEADER}"
+done < <(find src/ -name "*.sql" 2>/dev/null | sort)
+SQL_JSON="$SQL_JSON]"
+
+# ─── REST Files ──────────────────────────────────────────
+
+REST_JSON="["
+FIRST_REST=true
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    $FIRST_REST || REST_JSON="$REST_JSON,"
+    FIRST_REST=false
+    REST_JSON="$REST_JSON\"$file\""
+done < <(gfiles -rln '@Path\|@GET\|@POST\|@PUT\|@DELETE' src/ --include="*.java" 2>/dev/null)
+REST_JSON="$REST_JSON]"
+
+# ─── Properties Files ───────────────────────────────────
+
+PROPS_JSON="["
+FIRST_PROP=true
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    $FIRST_PROP || PROPS_JSON="$PROPS_JSON,"
+    FIRST_PROP=false
+    PROPS_JSON="$PROPS_JSON\"$file\""
+done < <(find src/ webapp/ -name "*.properties" 2>/dev/null | sort)
+PROPS_JSON="$PROPS_JSON]"
+
+# ─── Summary Counts ──────────────────────────────────────
+
+JAVA_FILES=$(find src/ -name "*.java" -not -path '*/test/*' 2>/dev/null | wc -l)
+TEST_FILES=$(find src/ -name "*.java" -path '*/test/*' 2>/dev/null | wc -l)
+CONTEXT_FILES=$(find webapp/ -name "*_context.xml" 2>/dev/null | wc -l)
+SPRING_LOOKUPS=$(gcount -rn 'SpringContextService' src/ --include="*.java" 2>/dev/null)
+GETINSTANCE_CALLS=$(gcount -rn '\.getInstance( )' src/ --include="*.java" 2>/dev/null)
+JAVAX_IMPORTS=$(gcount -rn 'import javax\.\(servlet\|validation\|annotation\.PostConstruct\|annotation\.PreDestroy\|inject\|enterprise\|ws\.rs\|xml\.bind\)' src/ --include="*.java" 2>/dev/null)
+EVENT_LISTENERS=$(gcount -rln 'EventRessourceListener\|LuteceUserEventManager\|QueryListenersService\|AbstractEventManager' src/ --include="*.java" 2>/dev/null)
+CACHE_SERVICES=$(gcount -rln 'AbstractCacheableService\|net\.sf\.ehcache' src/ --include="*.java" 2>/dev/null)
+ADMIN_TEMPLATES=$({ find webapp/WEB-INF/templates/admin/ -name "*.html" 2>/dev/null || true; } | wc -l)
+SKIN_TEMPLATES=$({ find webapp/WEB-INF/templates/skin/ -name "*.html" 2>/dev/null || true; } | wc -l)
+JSP_COUNT=$(find webapp/ -name "*.jsp" 2>/dev/null | wc -l)
+SQL_COUNT=$(find src/ -name "*.sql" 2>/dev/null | wc -l)
+REST_COUNT=$(gcount -rln '@Path\|@GET\|@POST\|@PUT\|@DELETE' src/ --include="*.java" 2>/dev/null)
+DAO_FREE=$(gcount -rn 'daoUtil\.free( )' src/ --include="*.java" 2>/dev/null)
+DEPRECATED_GETMODEL=$(gcount -rn 'getModel( )' src/ --include="*.java" 2>/dev/null)
+DEPRECATED_HASHMAP=$({ grep -rln 'new HashMap' src/ --include="*.java" -not -path '*/test/*' 2>/dev/null || true; } | while read -r f; do grep -l 'MVCAdminJspBean\|MVCApplication' "$f" 2>/dev/null; done | wc -l)
+FILEUPLOAD_REFS=$(gcount -rn 'org\.apache\.commons\.fileupload' src/ --include="*.java" 2>/dev/null)
+
+TOTAL_ISSUES=$((SPRING_LOOKUPS + GETINSTANCE_CALLS + JAVAX_IMPORTS + EVENT_LISTENERS + CACHE_SERVICES + DAO_FREE + DEPRECATED_GETMODEL + FILEUPLOAD_REFS))
+
+# Migration scope
+SCOPE="ALREADY_MIGRATED"
+[ "$TOTAL_ISSUES" -gt 0 ] && SCOPE="SMALL"
+[ "$TOTAL_ISSUES" -ge 20 ] && SCOPE="MEDIUM"
+[ "$TOTAL_ISSUES" -ge 100 ] && SCOPE="LARGE"
+
+# Test dependency check
+HAS_UNIT_TESTING_DEP=false
+grep -q 'library-lutece-unit-testing' pom.xml 2>/dev/null && HAS_UNIT_TESTING_DEP=true
+USES_LUTECE_TEST_CASE=$({ grep -rl 'LuteceTestCase' src/test/ 2>/dev/null || true; } | wc -l)
+
+# ─── Recommended Teammates ───────────────────────────────
+
+JAVA_TEAMMATES=1
+[ "$JAVA_FILES" -gt 30 ] && JAVA_TEAMMATES=2
+[ "$JAVA_FILES" -gt 60 ] && JAVA_TEAMMATES=3
+
+TEMPLATE_TEAMMATES=0
+[ $((ADMIN_TEMPLATES + SKIN_TEMPLATES + JSP_COUNT)) -gt 0 ] && TEMPLATE_TEAMMATES=1
+
+TEST_TEAMMATES=0
+[ "$TEST_FILES" -gt 0 ] && TEST_TEAMMATES=1
+
+TOTAL_TEAMMATES=$((1 + JAVA_TEAMMATES + TEMPLATE_TEAMMATES + TEST_TEAMMATES + 1))
+
+# ─── Output JSON ─────────────────────────────────────────
+
+cat << ENDJSON
+{
+  "project": {
+    "type": "$PROJECT_TYPE",
+    "artifact": "$ARTIFACT",
+    "version": "$VERSION",
+    "parentVersion": "$PARENT_VERSION"
+  },
+  "dependencies": $DEPS_JSON,
+  "files": {
+    "java": $JAVA_JSON,
+    "tests": $TEST_JSON,
+    "contextXml": $CTX_JSON,
+    "adminTemplates": $ADMIN_TPL_JSON,
+    "skinTemplates": $SKIN_TPL_JSON,
+    "jsp": $JSP_JSON,
+    "sql": $SQL_JSON,
+    "rest": $REST_JSON,
+    "properties": $PROPS_JSON
+  },
+  "summary": {
+    "javaFiles": $JAVA_FILES,
+    "testFiles": $TEST_FILES,
+    "contextXmlFiles": $CONTEXT_FILES,
+    "springLookups": $SPRING_LOOKUPS,
+    "getInstanceCalls": $GETINSTANCE_CALLS,
+    "javaxImports": $JAVAX_IMPORTS,
+    "eventListeners": $EVENT_LISTENERS,
+    "cacheServices": $CACHE_SERVICES,
+    "adminTemplates": $ADMIN_TEMPLATES,
+    "skinTemplates": $SKIN_TEMPLATES,
+    "jspFiles": $JSP_COUNT,
+    "sqlFiles": $SQL_COUNT,
+    "restFiles": $REST_COUNT,
+    "daoFreeCalls": $DAO_FREE,
+    "deprecatedGetModel": $DEPRECATED_GETMODEL,
+    "deprecatedNewHashMap": $DEPRECATED_HASHMAP,
+    "fileuploadRefs": $FILEUPLOAD_REFS,
+    "totalMigrationPoints": $TOTAL_ISSUES,
+    "scope": "$SCOPE",
+    "hasUnitTestingDep": $HAS_UNIT_TESTING_DEP,
+    "usesLuteceTestCase": $USES_LUTECE_TEST_CASE,
+    "recommendedTeammates": {
+      "config": 1,
+      "java": $JAVA_TEAMMATES,
+      "template": $TEMPLATE_TEAMMATES,
+      "test": $TEST_TEAMMATES,
+      "verifier": 1,
+      "total": $TOTAL_TEAMMATES
+    }
+  }
+}
+ENDJSON

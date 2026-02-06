@@ -263,6 +263,192 @@ public class MyQueryListener
 
 ---
 
+## 6. Firing Events from CDI Beans with @Inject Event<T>
+
+When firing events from CDI-managed beans (classes with `@ApplicationScoped`, `@RequestScoped`, etc.), prefer `@Inject Event<T>` over programmatic `CDI.current().getBeanManager().getEvent()` access.
+
+```java
+@ApplicationScoped
+public class MyService
+{
+    @Inject
+    private Event<ResourceEvent> _resourceEvent;
+
+    public void updateResource( int resourceId, String resourceType )
+    {
+        // Update logic...
+
+        // Fire event with qualifier
+        ResourceEvent event = new ResourceEvent( );
+        event.setIdResource( String.valueOf( resourceId ) );
+        event.setTypeResource( resourceType );
+        _resourceEvent.select( new TypeQualifier( EventAction.UPDATE ) ).fire( event );
+    }
+}
+```
+
+**When to use @Inject Event<T>:**
+- In CDI-managed beans (`@ApplicationScoped`, `@RequestScoped`, `@SessionScoped`, `@Dependent`)
+- When firing multiple events of the same type in the class
+- For cleaner, more testable code
+
+**When to use CDI.current().getBeanManager().getEvent():**
+- In static contexts (Home classes, utility classes with private constructor)
+- When firing events infrequently (once or twice in the entire class)
+
+---
+
+## 7. Typed Qualifiers for Events
+
+For custom event types that need action-based filtering, use `@Type` qualifiers:
+
+```java
+// Define custom event class
+public class FormResponseEvent
+{
+    private int _nIdFormResponse;
+    private String _strAction;
+
+    public FormResponseEvent( int nIdFormResponse, String strAction )
+    {
+        _nIdFormResponse = nIdFormResponse;
+        _strAction = strAction;
+    }
+
+    // getters/setters...
+}
+
+// Fire with typed qualifier
+@ApplicationScoped
+public class FormService
+{
+    @Inject
+    private Event<FormResponseEvent> _formResponseEvent;
+
+    public void createFormResponse( FormResponse response )
+    {
+        // Create logic...
+        _formResponseEvent.select( new TypeQualifier( EventAction.CREATE ) )
+                          .fire( new FormResponseEvent( response.getId( ), "create" ) );
+    }
+
+    public void updateFormResponse( FormResponse response )
+    {
+        // Update logic...
+        _formResponseEvent.select( new TypeQualifier( EventAction.UPDATE ) )
+                          .fire( new FormResponseEvent( response.getId( ), "update" ) );
+    }
+
+    public void deleteFormResponse( int nIdFormResponse )
+    {
+        // Delete logic...
+        _formResponseEvent.select( new TypeQualifier( EventAction.REMOVE ) )
+                          .fire( new FormResponseEvent( nIdFormResponse, "delete" ) );
+    }
+}
+
+// Observe with typed qualifier — separate handlers for different actions
+@ApplicationScoped
+public class FormResponseIndexer
+{
+    public void onFormResponseCreated( @Observes @Type( EventAction.CREATE ) FormResponseEvent event )
+    {
+        // Index new form response
+    }
+
+    public void onFormResponseUpdated( @Observes @Type( EventAction.UPDATE ) FormResponseEvent event )
+    {
+        // Re-index updated form response
+    }
+
+    public void onFormResponseDeleted( @Observes @Type( EventAction.REMOVE ) FormResponseEvent event )
+    {
+        // Remove from index
+    }
+}
+```
+
+**Custom qualifiers for domain-specific filtering:**
+
+```java
+// Define custom qualifier annotation
+@Qualifier
+@Retention( RetentionPolicy.RUNTIME )
+@Target( { ElementType.FIELD, ElementType.PARAMETER, ElementType.TYPE } )
+public @interface FormType
+{
+    String value( );
+}
+
+// Fire with custom qualifier
+_formResponseEvent.select( new FormType.Literal( "contact" ) )
+                  .fire( new FormResponseEvent( responseId, "create" ) );
+
+// Observe with custom qualifier
+public void onContactFormResponse( @Observes @FormType( "contact" ) FormResponseEvent event )
+{
+    // Handle contact form responses only
+}
+```
+
+---
+
+## 8. Already-Migrated Listeners in lutece-core v8
+
+The following listeners are **already migrated to CDI @Observes in lutece-core v8**. Plugins do NOT need to migrate these — they are handled by the core:
+
+| Listener Class | Event Type | Location |
+|----------------|-----------|----------|
+| `PageEventListener` | `PageEvent` | `fr.paris.lutece.portal.service.page.PageEventListener` |
+| `PluginEventListener` | `PluginEvent` | `fr.paris.lutece.portal.service.plugin.PluginEventListener` |
+| `QueryEventListener` (core impl) | `QueryEvent` | `fr.paris.lutece.portal.service.search.QueryEventListener` |
+| `PortletEventListener` | `PortletEvent` | `fr.paris.lutece.portal.service.portlet.PortletEventListener` |
+| `LuteceUserEventManager` | `LuteceUserEvent` | `fr.paris.lutece.portal.service.security.LuteceUserEventManager` |
+| `ResourceEventManager` | `ResourceEvent` | `fr.paris.lutece.portal.service.event.ResourceEventManager` |
+
+**What this means for plugin migration:**
+- If a plugin **fires** these events (e.g., `PageEventManager.firePageCreated()`), migrate the firing code to CDI events
+- If a plugin **listens** to these events by implementing core listener interfaces, migrate to `@Observes`
+- The core's own handling of these events is already done — no need to migrate core listeners
+
+**Example — Plugin fires PageEvent:**
+```java
+// Plugin code (needs migration)
+// BEFORE
+PageEventManager.firePageCreated( page );
+
+// AFTER
+CDI.current( ).getBeanManager( ).getEvent( )
+    .select( PageEvent.class, new TypeQualifier( EventAction.CREATE ) ).fire( pageEvent );
+```
+
+**Example — Plugin observes PageEvent:**
+```java
+// Plugin code (needs migration)
+// BEFORE
+public class MyPageListener implements PageEventListener
+{
+    public MyPageListener( )
+    {
+        PageEventManager.register( this );
+    }
+    @Override
+    public void processPageEvent( PageEvent event ) { ... }
+}
+
+// AFTER
+@ApplicationScoped
+public class MyPageListener
+{
+    public void processPageEvent( @Observes @Type( EventAction.CREATE ) PageEvent event )
+    {
+        // handle page creation
+    }
+}
+```
+
+---
+
 ## Reference
 
 See the forms plugin for a complete v8 event implementation:

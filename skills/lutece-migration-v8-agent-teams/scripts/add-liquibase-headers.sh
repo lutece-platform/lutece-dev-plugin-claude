@@ -8,7 +8,6 @@ PROJECT_ROOT="${1:-.}"
 PLUGIN_NAME="${2:-unknown}"
 
 if [ "$PLUGIN_NAME" = "unknown" ]; then
-    # Try to extract from pom.xml
     if [ -f "$PROJECT_ROOT/pom.xml" ]; then
         PLUGIN_NAME=$(grep -m1 '<artifactId>' "$PROJECT_ROOT/pom.xml" | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d ' ')
     fi
@@ -23,16 +22,12 @@ TOTAL=0
 
 { find "$PROJECT_ROOT/src" -name "*.sql" 2>/dev/null || true; } | sort | while read -r file; do
     [ -z "$file" ] && continue
-    # Check if header already present
     if head -1 "$file" | grep -q 'liquibase formatted sql'; then
         echo "  SKIP: $file (header exists)"
         continue
     fi
 
-    # Derive changeset name from filename
     SCRIPT_NAME=$(basename "$file")
-
-    # Insert 3-line header at top
     sed -i "1i\\-- liquibase formatted sql\\n-- changeset ${PLUGIN_NAME}:${SCRIPT_NAME}\\n-- preconditions onFail:MARK_RAN onError:WARN\\n" "$file"
 
     echo "  ADDED: $file"

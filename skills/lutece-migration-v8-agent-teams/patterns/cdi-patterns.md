@@ -697,6 +697,30 @@ protected void addElementsToModel( MyDTO dto, User user, Locale locale, Models m
 
 The `Models` interface supports `put(String, Object)` and `get(String)`, so most code using `Map.put()` works unchanged after the type change.
 
+## 16b. Models Injection (Mandatory in v8)
+
+In v8, `getModel()` returns an **unmodifiable map**. You MUST use `@Inject Models` instead.
+
+### Before (v7)
+```java
+Map<String, Object> model = getModel();
+model.put("items", listItems);
+```
+
+### After (v8)
+```java
+@Inject
+private Models _models;
+
+// In action/view method:
+_models.put("items", listItems);
+// _models is RequestScoped — automatically available to templates
+```
+
+- `Models` is `@RequestScoped` — one instance per request
+- `models.asMap()` returns the underlying map (read-only view)
+- NEVER use `new HashMap<>()` in JspBeans/XPages
+
 ## 17. Configuration
 
 ### @ConfigProperty in CDI beans
@@ -710,6 +734,25 @@ private String _myProperty;
 ```
 
 **Note:** `AppPropertiesService.getProperty()` still works in v8. MicroProfile Config is optional but preferred in CDI beans.
+
+### @ConfigProperty (MicroProfile Config) — Priority Hierarchy
+
+Config sources (descending priority):
+1. (400) System properties
+2. (300) Environment variables
+3. (200) Lutece config files (AppPropertiesService)
+4. (100) META-INF/microprofile-config.properties
+
+Usage:
+```java
+@Inject @ConfigProperty(name = "myplugin.some.key", defaultValue = "default")
+private String _strSomeKey;
+```
+
+Or programmatic:
+```java
+ConfigProvider.getConfig().getValue("key", String.class);
+```
 
 ### AppPropertiesService -> MicroProfile Config (in libraries)
 
@@ -816,6 +859,73 @@ AppLogService.info(MyClass.class.getName() + " : message " + variable);
 AppLogService.info("{} : message {}", MyClass.class.getName(), variable);
 ```
 
+## 20. RedirectScope
+
+Custom CDI scope that survives exactly one redirect (2 requests max).
+
+```java
+@RedirectScoped
+@Named
+public class MyRedirectBean implements Serializable {
+    private String _strMessage;
+    // getters/setters
+}
+```
+
+Use case: pass data from an @Action (POST) to the redirect target @View (GET).
+- Bean MUST implement Serializable
+- Lives for max 2 requests (action + redirect target)
+- Alternative to session storage for transient redirect data
+
+## 21. Pager Injection
+
+Replaces `AbstractPaginatorJspBean` and manual pagination. Allows `@RequestScoped` instead of `@SessionScoped`.
+
+```java
+@Inject
+@Pager( listBookmark = MARK_ITEMS, defaultItemsPerPage = PROPERTY_DEFAULT_LIST_ITEM_PER_PAGE )
+private IPager<Integer, MyItem> _pager;
+```
+
+### Lazy loading (IDs first, load page on demand)
+```java
+_pager.setIdList( listItemIds );
+model = _pager.getPaginatedListModel( request, (ids) -> loadItemsByIds(ids), getLocale() );
+```
+
+### Explicit loading (full list)
+```java
+_pager.withBaseUrl( getHomeUrl( request ) )
+      .withListItem( fullItemList )
+      .populateModels( request, _models, getLocale() );
+```
+
+## 22. @LutecePriority for CDI Alternatives
+
+When multiple implementations of an interface exist, use @Alternative + @LutecePriority.
+
+```java
+@ApplicationScoped
+@Alternative
+@LutecePriority(configKey = "myplugin.impl.priority")
+public class MyImplA implements IMyService { }
+```
+
+Priority value comes from configuration file, not hardcoded. Higher value wins.
+
+## 23. Eager CDI Bean Initialization
+
+CDI beans are lazy by default. To force eager loading at startup:
+
+```java
+@ApplicationScoped
+public class MyEagerService {
+    public void onStartup(@Observes @Initialized(ApplicationScoped.class) ServletContext ctx) {
+        // runs at application startup
+    }
+}
+```
+
 ## Key Imports Reference
 
 ```java
@@ -851,6 +961,7 @@ import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.ServletContext;
 
 // REST
 import jakarta.ws.rs.*;
@@ -861,7 +972,16 @@ import jakarta.validation.ConstraintViolation;
 
 // Config
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.config.ConfigProvider;
 
 // Cache
 import javax.cache.Cache; // NOTE: javax, NOT jakarta
+
+// Lutece-specific CDI
+import fr.paris.lutece.portal.web.cdi.mvc.Models;
+import fr.paris.lutece.portal.web.cdi.scope.RedirectScoped;
+import fr.paris.lutece.portal.web.cdi.mvc.Pager;
+import fr.paris.lutece.portal.web.cdi.IPager;
+import fr.paris.lutece.portal.service.util.CdiHelper;
+import fr.paris.lutece.portal.service.cdi.LutecePriority;
 ```

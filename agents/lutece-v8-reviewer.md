@@ -46,15 +46,15 @@ Read the output. You now have the absolute path to the plugin root. Use this lit
 Using the `PLUGIN_ROOT` path from Step 0, run both scripts in sequence:
 
 ```bash
-bash "<PLUGIN_ROOT>/skills/lutece-migration-v8/scripts/scan-project.sh" .
-bash "<PLUGIN_ROOT>/skills/lutece-migration-v8/scripts/verify-migration.sh" .
+bash "<PLUGIN_ROOT>/skills/lutece-migration-v8-agent-teams/scripts/scan-project.sh" .
+bash "<PLUGIN_ROOT>/skills/lutece-migration-v8-agent-teams/scripts/verify-migration.sh" .
 ```
 
 (Replace `<PLUGIN_ROOT>` with the actual absolute path from Step 0.)
 
 Parse the output:
 - **scan-project.sh** gives the project inventory (type, files, dependencies, migration scope). Use this as context for Phase B.
-- **verify-migration.sh** gives PASS/FAIL/WARN for 58 checks (POM, javax, Spring, events, cache, deprecated API, DAO, CDI patterns, web config, JSP, templates, logging, tests, structure). Collect all FAIL and WARN items — these go directly into the final report under their respective categories.
+- **verify-migration.sh** gives PASS/FAIL/WARN for 70+ checks (POM, javax, Spring, events, cache, deprecated API, deprecated libraries, DAO, CDI patterns, web config, JSP, templates, logging, tests, structure). Collect all FAIL and WARN items — these go directly into the final report under their respective categories.
 
 The script covers report checks **1, 2, 3 (partial), 4 (partial), 6, 7 (partial), 8, 9, 10** mechanically. Do NOT re-grep for patterns the script already checked.
 
@@ -205,6 +205,23 @@ Limit to 50 files maximum to avoid excessive tool calls.
 
 ---
 
+## Phase C — Build & Tests
+
+After completing semantic analysis, run the full build with tests:
+
+```bash
+mvn clean lutece:exploded antrun:run -Dlutece-test-hsql test -q 2>&1
+```
+
+Record the result:
+- **BUILD SUCCESS** + all tests pass → `Build: PASS`
+- **BUILD FAILURE** (compilation) → `Build: FAIL (compile)` — extract the first error message, file, and line
+- **Tests fail** → `Build: FAIL (tests)` — extract failing test class, method, and error message
+
+Include the build result in the report. Do NOT attempt to fix build/test failures — just report them.
+
+---
+
 ## Report format
 
 Output the report using this exact structure:
@@ -229,6 +246,13 @@ Output the report using this exact structure:
 | S5 | Cache Defensive Guards | PASS/WARN | 0 |
 | S6 | IDE Diagnostics | PASS/FAIL/N/A | 0 |
 | | **Total semantic** | | **X** |
+
+## Build & Tests
+
+| Step | Result | Details |
+|------|--------|---------|
+| Compile + Tests | PASS/FAIL | <error summary if FAIL> |
+| Tests run | X | X passed, Y failed, Z skipped |
 
 ## All Findings
 
