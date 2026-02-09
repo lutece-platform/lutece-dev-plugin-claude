@@ -53,10 +53,10 @@ while IFS= read -r ctx_file; do
     while IFS= read -r bean_line; do
         [ -z "$bean_line" ] && continue
 
-        BEAN_ID=$(echo "$bean_line" | grep -oP 'id="\K[^"]+' || echo "")
-        BEAN_CLASS=$(echo "$bean_line" | grep -oP 'class="\K[^"]+' || echo "")
-        BEAN_SCOPE=$(echo "$bean_line" | grep -oP 'scope="\K[^"]+' || echo "singleton")
-        BEAN_NAME=$(echo "$bean_line" | grep -oP 'name="\K[^"]+' || echo "")
+        BEAN_ID=$(echo "$bean_line" | grep -oP 'id="\K[^"]+' | tr -d '\r' || echo "")
+        BEAN_CLASS=$(echo "$bean_line" | grep -oP 'class="\K[^"]+' | tr -d '\r' || echo "")
+        BEAN_SCOPE=$(echo "$bean_line" | grep -oP 'scope="\K[^"]+' | tr -d '\r' || echo "singleton")
+        BEAN_NAME=$(echo "$bean_line" | grep -oP 'name="\K[^"]+' | tr -d '\r' || echo "")
 
         [ -z "$BEAN_CLASS" ] && [ -z "$BEAN_ID" ] && continue
 
@@ -78,8 +78,8 @@ while IFS= read -r ctx_file; do
             FIRST_CA=true
             while IFS= read -r ca_line; do
                 [ -z "$ca_line" ] && continue
-                CA_REF=$(echo "$ca_line" | grep -oP 'ref="\K[^"]+' || echo "")
-                CA_VAL=$(echo "$ca_line" | grep -oP 'value="\K[^"]+' || echo "")
+                CA_REF=$(echo "$ca_line" | grep -oP 'ref="\K[^"]+' | tr -d '\r' || echo "")
+                CA_VAL=$(echo "$ca_line" | grep -oP 'value="\K[^"]+' | tr -d '\r' || echo "")
                 $FIRST_CA || CA_JSON="$CA_JSON,"
                 FIRST_CA=false
                 if [ -n "$CA_REF" ]; then
@@ -96,9 +96,9 @@ while IFS= read -r ctx_file; do
             FIRST_PR=true
             while IFS= read -r pr_line; do
                 [ -z "$pr_line" ] && continue
-                PR_NAME=$(echo "$pr_line" | grep -oP 'name="\K[^"]+' || echo "")
-                PR_REF=$(echo "$pr_line" | grep -oP 'ref="\K[^"]+' || echo "")
-                PR_VAL=$(echo "$pr_line" | grep -oP 'value="\K[^"]+' || echo "")
+                PR_NAME=$(echo "$pr_line" | grep -oP 'name="\K[^"]+' | tr -d '\r' || echo "")
+                PR_REF=$(echo "$pr_line" | grep -oP 'ref="\K[^"]+' | tr -d '\r' || echo "")
+                PR_VAL=$(echo "$pr_line" | grep -oP 'value="\K[^"]+' | tr -d '\r' || echo "")
                 [ -z "$PR_NAME" ] && continue
                 $FIRST_PR || PR_JSON="$PR_JSON,"
                 FIRST_PR=false
@@ -121,7 +121,7 @@ while IFS= read -r ctx_file; do
                 $FIRST_REF || REF_JSON="$REF_JSON,"
                 FIRST_REF=false
                 REF_JSON="$REF_JSON\"$ref_val\""
-            done < <(echo "$BLOCK" | grep -oP 'ref="\K[^"]+' | sort -u)
+            done < <(echo "$BLOCK" | grep -oP 'ref="\K[^"]+' | tr -d '\r' | sort -u)
             REF_JSON="$REF_JSON]"
             REFS="$REF_JSON"
         fi

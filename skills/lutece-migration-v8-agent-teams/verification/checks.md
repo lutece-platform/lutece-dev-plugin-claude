@@ -99,6 +99,7 @@
 | CD02 | FAIL | new CaptchaSecurityService() | `new CaptchaSecurityService()` | *.java |
 | CD03 | WARN | CompletableFuture.runAsync | `CompletableFuture\.runAsync` | *.java |
 | CD04 | FAIL | commons.fileupload | `org\.apache\.commons\.fileupload` | *.java |
+| CD05 | WARN | Constructor self-registration (lazy CDI bean) | `registerIndexer\|registerCacheableService\|registerProvider` in files without `@Observes @Initialized` | *.java |
 
 ## MVC / New Patterns (MV) — v2 additions
 
@@ -149,8 +150,8 @@
 
 | ID | Severity | Description | Pattern | Files |
 |----|----------|-------------|---------|-------|
-| LG01 | WARN | String concat in logging | `AppLogService\..*+ ` | *.java |
-| LG02 | WARN | Unnecessary isDebugEnabled | `isDebugEnabled\|isInfoEnabled` | *.java |
+| LG01 | FAIL | String concat in logging | `AppLogService\..*+ ` | *.java |
+| LG02 | FAIL | Unnecessary isDebugEnabled | `isDebugEnabled\|isInfoEnabled` | *.java |
 
 ## Tests (TS)
 
@@ -171,9 +172,9 @@
 
 | Severity | Count |
 |----------|-------|
-| FAIL | ~52 |
-| WARN | ~18 |
-| **Total** | **~70** |
+| FAIL | ~54 |
+| WARN | ~17 |
+| **Total** | **~71** |
 
 ## verify-file.sh Check Mapping
 

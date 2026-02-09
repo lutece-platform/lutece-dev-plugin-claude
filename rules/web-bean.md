@@ -17,6 +17,12 @@ paths:
 - `@Named("plugin.xpage.name")` + `@Controller` + extend `MVCApplication`
 - Declared in plugin.xml `<applications>`
 
+## Models — MANDATORY
+
+- **NEVER use `getModel()`** — it is deprecated.
+- **NEVER use `new HashMap<>()`** to build the model manually.
+- **ALWAYS inject `Models`** via `@Inject` and use `_models.put(key, value)` then pass `_models.getModel()` to templates. Note: `_models.getModel()` and `_models.asMap()` both return an **unmodifiable** map — all `put()` calls must go through the `Models` object, never directly on the returned map.
+
 ## CRUD Lifecycle — Strict Naming
 
 | Method | Role | Returns |

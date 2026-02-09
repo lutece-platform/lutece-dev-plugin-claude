@@ -103,7 +103,7 @@ If tests fail:
    - `ClassCastException` → javax/jakarta mismatch in test
    - `NullPointerException` in `getModel()` → must use `@Inject Models`
 
-## Phase 5: V8 Compliance Review
+## Phase 5: V8 Compliance Review (MANDATORY)
 
 After BUILD SUCCESS, delegate to the reviewer agent:
 
@@ -114,6 +114,8 @@ Delegate to the lutece-v8-reviewer agent to review this project for v8 complianc
 Process the reviewer's findings:
 - **FAIL items**: Must be fixed — report to Lead for teammate reassignment
 - **WARN items**: Should be attempted — report to Lead
+
+**Do NOT proceed to Phase 6 until the reviewer has run and all FAIL items are resolved.**
 
 ## Phase 6: Final Cleanup
 

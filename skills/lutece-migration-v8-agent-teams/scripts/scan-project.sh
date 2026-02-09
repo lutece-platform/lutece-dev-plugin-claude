@@ -17,7 +17,7 @@ fi
 # ─── Helpers ─────────────────────────────────────────────
 
 json_escape() {
-    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr '\n' ' '
+    printf '%s' "$1" | tr -d '\r' | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr '\n' ' '
 }
 
 # Safe grep-count: returns 0 when no match instead of crashing with pipefail
@@ -31,9 +31,9 @@ grep -q '<type>lutece-plugin</type>\|<packaging>lutece-plugin</packaging>' pom.x
 grep -q '<type>lutece-module</type>\|<packaging>lutece-module</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="module"
 grep -q '<type>lutece-library</type>\|<packaging>lutece-library</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="library"
 
-ARTIFACT=$(grep -m1 '<artifactId>' pom.xml | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d ' ')
-VERSION=$(grep -m1 '<version>' pom.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d ' ')
-PARENT_VERSION=$(sed -n '/<parent>/,/<\/parent>/p' pom.xml | grep '<version>' | head -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d ' ')
+ARTIFACT=$(grep -m1 '<artifactId>' pom.xml | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d ' \r')
+VERSION=$(grep -m1 '<version>' pom.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d ' \r')
+PARENT_VERSION=$(sed -n '/<parent>/,/<\/parent>/p' pom.xml | grep '<version>' | head -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d ' \r')
 
 # ─── Lutece Dependencies ────────────────────────────────
 
@@ -42,9 +42,9 @@ FIRST_DEP=true
 # Extract artifactId + version pairs for fr.paris.lutece dependencies
 while IFS= read -r dep_line; do
     [ -z "$dep_line" ] && continue
-    DEP_AID=$(echo "$dep_line" | grep -oP '(?<=<artifactId>)[^<]+' || true)
-    DEP_VER=$(echo "$dep_line" | grep -oP '(?<=<version>)[^<]+' || true)
-    DEP_TYPE=$(echo "$dep_line" | grep -oP '(?<=<type>)[^<]+' || true)
+    DEP_AID=$(echo "$dep_line" | grep -oP '(?<=<artifactId>)[^<]+' | tr -d '\r' || true)
+    DEP_VER=$(echo "$dep_line" | grep -oP '(?<=<version>)[^<]+' | tr -d '\r' || true)
+    DEP_TYPE=$(echo "$dep_line" | grep -oP '(?<=<type>)[^<]+' | tr -d '\r' || true)
     [ -z "$DEP_AID" ] && continue
     [ "$DEP_AID" = "lutece-global-pom" ] && continue
     $FIRST_DEP || DEPS_JSON="$DEPS_JSON,"
@@ -57,7 +57,7 @@ while IFS= read -r dep_line; do
     if [ -d "$HOME/.lutece-references/$DEP_AID" ]; then
         V8_STATUS="available"
         V8_BRANCH=$(cd "$HOME/.lutece-references/$DEP_AID" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-        V8_VERSION=$(grep -oP '(?<=<version>)[^<]+' "$HOME/.lutece-references/$DEP_AID/pom.xml" 2>/dev/null | head -1 || true)
+        V8_VERSION=$(grep -oP '(?<=<version>)[^<]+' "$HOME/.lutece-references/$DEP_AID/pom.xml" 2>/dev/null | head -1 | tr -d '\r' || true)
     fi
 
     DEPS_JSON="$DEPS_JSON{\"artifactId\":\"$DEP_AID\",\"version\":\"${DEP_VER:-unspecified}\",\"type\":\"${DEP_TYPE:-jar}\",\"v8Status\":\"$V8_STATUS\",\"v8Branch\":\"$V8_BRANCH\",\"v8Version\":\"$V8_VERSION\"}"
@@ -82,7 +82,7 @@ while IFS= read -r file; do
     echo "$file" | grep -q 'src/test/' && IS_TEST=true
 
     # Package extraction
-    PKG=$(grep -m1 '^package ' "$file" 2>/dev/null | sed 's/package \(.*\);/\1/' | tr -d ' ' || echo "")
+    PKG=$(grep -m1 '^package ' "$file" 2>/dev/null | sed 's/package \(.*\);/\1/' | tr -d ' \r' || echo "")
 
     # Counts
     JAVAX_COUNT=$(grep -c 'import javax\.\(servlet\|validation\|annotation\.PostConstruct\|annotation\.PreDestroy\|inject\|enterprise\|ws\.rs\|xml\.bind\)' "$file" 2>/dev/null || true)

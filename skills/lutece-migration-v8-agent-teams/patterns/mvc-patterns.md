@@ -97,7 +97,7 @@ In v8, CSRF protection is automatic via `SecurityTokenFilterSite` / `SecurityTok
 ### What happens automatically
 - Token generated on `@View` (GET request)
 - Token validated on `@Action` (POST request)
-- Requires using `getModel()` or `@Inject Models` (token attached there)
+- Requires `@Inject Models` (token attached there). **NEVER use `getModel()`** — it is deprecated and returns an unmodifiable map in v8
 
 ### Confirmation pages (special case)
 For actions that need a confirmation dialog before executing:

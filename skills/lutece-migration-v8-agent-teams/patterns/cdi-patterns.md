@@ -913,18 +913,41 @@ public class MyImplA implements IMyService { }
 
 Priority value comes from configuration file, not hardcoded. Higher value wins.
 
-## 23. Eager CDI Bean Initialization
+## 23. Eager CDI Bean Initialization (Constructor Self-Registration)
 
-CDI beans are lazy by default. To force eager loading at startup:
+**Migration trap:** In Spring, beans declared in `_context.xml` were eagerly instantiated at startup. In CDI, `@ApplicationScoped` beans are **lazy** — they are only created when first injected. If nothing injects the bean, its constructor never runs.
+
+This silently breaks the **self-registration pattern** where a bean registers itself with a global service in its constructor:
 
 ```java
+// BROKEN in CDI — constructor never called because bean is never injected
 @ApplicationScoped
-public class MyEagerService {
-    public void onStartup(@Observes @Initialized(ApplicationScoped.class) ServletContext ctx) {
-        // runs at application startup
+public class MySearchIndexer implements SearchIndexer {
+    public MySearchIndexer() {
+        IndexationService.registerIndexer(this);  // NEVER EXECUTES
     }
 }
 ```
+
+**Fix:** Move self-registration to a CDI startup observer:
+
+```java
+@ApplicationScoped
+public class MySearchIndexer implements SearchIndexer {
+    /**
+     * CDI startup observer — registers the indexer when the application starts
+     */
+    public void onStartup(@Observes @Initialized(ApplicationScoped.class) ServletContext ctx) {
+        IndexationService.registerIndexer(this);
+    }
+}
+```
+
+Common self-registration calls affected by this pattern:
+- `IndexationService.registerIndexer(this)`
+- `CacheService.registerCacheableService(this)`
+- `ImageResourceManager.registerProvider(this)`
+- Any `SomeService.register*(this)` in a constructor
 
 ## Key Imports Reference
 

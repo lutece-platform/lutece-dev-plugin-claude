@@ -112,7 +112,7 @@ check_pom "PM07" '<springVersion>' "FAIL" "springVersion property in pom.xml"
 # PM06: parent version must be 8.0.0-SNAPSHOT
 TOTAL=$((TOTAL + 1))
 if [ -f "pom.xml" ]; then
-    PARENT_VER=$(sed -n '/<parent>/,/<\/parent>/p' pom.xml | grep '<version>' | head -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d ' ')
+    PARENT_VER=$(sed -n '/<parent>/,/<\/parent>/p' pom.xml | grep '<version>' | head -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d ' \r')
     if [ "$PARENT_VER" = "8.0.0-SNAPSHOT" ]; then
         emit "PM06" "PASS" "Parent version is 8.0.0-SNAPSHOT" 0
     else
@@ -216,6 +216,19 @@ else emit "CD01" "WARN" "Static _instance/_singleton on CDI-managed classes" "$C
 check_grep "CD02" 'new CaptchaSecurityService()' "src/" "FAIL" "new CaptchaSecurityService() -> @Inject"
 check_grep "CD03" 'CompletableFuture\.runAsync' "src/" "WARN" "CompletableFuture.runAsync -> @Asynchronous"
 check_grep "CD04" 'org\.apache\.commons\.fileupload' "src/" "FAIL" "commons.fileupload -> MultipartItem"
+
+# CD05: Constructor self-registration without @Observes @Initialized (lazy CDI bean trap)
+CD05_MATCHES=""
+if [ -d "src/" ]; then
+    CD05_MATCHES=$(grep -rln 'registerIndexer\|registerCacheableService\|registerProvider\|IndexationService\.register\|CacheService\.register\|ImageResourceManager\.register' src/ --include="*.java" 2>/dev/null | while read -r f; do
+        if ! grep -q '@Observes' "$f" 2>/dev/null; then
+            echo "$f: self-registration without @Observes @Initialized (CDI bean is lazy, constructor never called)"
+        fi
+    done) || CD05_MATCHES=""
+fi
+COUNT=0; [ -n "$CD05_MATCHES" ] && COUNT=$(echo "$CD05_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "CD05" "PASS" "No lazy bean self-registration trap" 0
+else emit "CD05" "WARN" "Constructor self-registration without @Observes @Initialized" "$COUNT" "$CD05_MATCHES"; fi
 echo ""
 
 # ─── MVC / New Patterns (v2 additions) ──────────────────
@@ -366,10 +379,10 @@ echo ""
 
 # ─── Logging ─────────────────────────────────────────────
 echo "CATEGORY: Logging"
-check_grep "LG01" 'AppLogService\.\(info\|error\|debug\|warn\).*+ ' "src/" "WARN" "String concat in logging -> parameterized {}"
+check_grep "LG01" 'AppLogService\.\(info\|error\|debug\|warn\).*+ ' "src/" "FAIL" "String concat in logging -> parameterized {}"
 
 # LG02: Unnecessary isDebugEnabled checks
-check_grep "LG02" 'isDebugEnabled\|isInfoEnabled' "src/" "WARN" "Unnecessary isDebugEnabled (log4j2 handles this)"
+check_grep "LG02" 'isDebugEnabled\|isInfoEnabled' "src/" "FAIL" "Unnecessary isDebugEnabled (log4j2 handles this)"
 echo ""
 
 # ─── Tests ───────────────────────────────────────────────

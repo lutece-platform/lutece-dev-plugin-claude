@@ -9,7 +9,7 @@ PLUGIN_NAME="${2:-unknown}"
 
 if [ "$PLUGIN_NAME" = "unknown" ]; then
     if [ -f "$PROJECT_ROOT/pom.xml" ]; then
-        PLUGIN_NAME=$(grep -m1 '<artifactId>' "$PROJECT_ROOT/pom.xml" | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d ' ')
+        PLUGIN_NAME=$(grep -m1 '<artifactId>' "$PROJECT_ROOT/pom.xml" | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d ' \r')
     fi
 fi
 

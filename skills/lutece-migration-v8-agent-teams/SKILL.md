@@ -139,10 +139,10 @@ While teammates work:
 
 ## PHASE F — Final Gate
 
-When the Verifier reports:
+When the Verifier reports ALL of the following (it must have completed through Phase 5):
 - **BUILD SUCCESS** (both compile and tests)
-- **Reviewer agent**: all FAIL items resolved
 - **verify-migration.sh**: 0 FAIL
+- **Reviewer agent**: all FAIL items resolved (the Verifier runs this in Phase 5 — do NOT conclude before it completes)
 
 Then:
 1. Ask the Verifier to run final cleanup (.migration/ removal, context XML deletion)
@@ -150,7 +150,7 @@ Then:
    - `verify-migration.sh` results (PASS/FAIL/WARN counts)
    - Build result (`mvn clean install` — compile + tests)
    - Number of test classes, tests run, tests passed/failed/skipped
-   - Reviewer agent verdict (if run)
+   - Reviewer agent verdict (PASS/FAIL/WARN counts)
    - List of files modified
 3. Clean up the team
 4. **STOP.** Do NOT commit. The user decides when and how to commit.
@@ -194,7 +194,7 @@ All in `${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8-agent-teams/patterns/`:
 | `cdi-patterns.md` | CDI scopes, injection, producers, Models, Pager, RedirectScope | Java Migrators (always) |
 | `events-patterns.md` | Event/listener migration | Java Migrators (if events) |
 | `cache-patterns.md` | EhCache→JCache | Java Migrators (if cache) |
-| `deprecated-api.md` | getInstance, getModel table | Java Migrators (if deprecated) |
+| `deprecated-api.md` | getInstance, getModel table | Java Migrators (ALWAYS for JspBean/XPage — getModel() migration is MANDATORY) |
 | `mvc-patterns.md` | @RequestParam, CSRF auto-filter, @ModelAttribute | Java Migrators (if JspBean/XPage) |
 | `template-macros.md` | v8 Freemarker macro quick reference | Template Migrator |
 | `fileupload-patterns.md` | FileItem→MultipartItem | Java Migrators (if fileupload) |
