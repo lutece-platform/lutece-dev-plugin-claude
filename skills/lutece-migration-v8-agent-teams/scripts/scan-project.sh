@@ -30,6 +30,10 @@ PROJECT_TYPE="unknown"
 grep -q '<type>lutece-plugin</type>\|<packaging>lutece-plugin</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="plugin"
 grep -q '<type>lutece-module</type>\|<packaging>lutece-module</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="module"
 grep -q '<type>lutece-library</type>\|<packaging>lutece-library</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="library"
+# Detect libraries using jar packaging with library- artifactId convention
+if [ "$PROJECT_TYPE" = "unknown" ]; then
+    grep -q '<packaging>jar</packaging>' pom.xml 2>/dev/null && grep -q 'library-' pom.xml 2>/dev/null && PROJECT_TYPE="library"
+fi
 
 ARTIFACT=$(grep -m1 '<artifactId>' pom.xml | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d ' \r')
 VERSION=$(grep -m1 '<version>' pom.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d ' \r')
@@ -156,7 +160,7 @@ while IFS= read -r file; do
     $FIRST_CTX || CTX_JSON="$CTX_JSON,"
     FIRST_CTX=false
     CTX_JSON="$CTX_JSON{\"path\":\"$file\",\"beanCount\":$BEAN_COUNT}"
-done < <(find webapp/ -name "*_context.xml" 2>/dev/null | sort)
+done < <({ find webapp/ -name "*_context.xml" 2>/dev/null || true; } | sort)
 CTX_JSON="$CTX_JSON]"
 
 # ─── Admin Templates ────────────────────────────────────
@@ -211,7 +215,7 @@ while IFS= read -r file; do
     $FIRST_JSP || JSP_JSON="$JSP_JSON,"
     FIRST_JSP=false
     JSP_JSON="$JSP_JSON{\"path\":\"$file\",\"flags\":$FLAGS}"
-done < <(find webapp/ -name "*.jsp" 2>/dev/null | sort)
+done < <({ find webapp/ -name "*.jsp" 2>/dev/null || true; } | sort)
 JSP_JSON="$JSP_JSON]"
 
 # ─── SQL Files ───────────────────────────────────────────
@@ -249,14 +253,14 @@ while IFS= read -r file; do
     $FIRST_PROP || PROPS_JSON="$PROPS_JSON,"
     FIRST_PROP=false
     PROPS_JSON="$PROPS_JSON\"$file\""
-done < <(find src/ webapp/ -name "*.properties" 2>/dev/null | sort)
+done < <({ find src/ webapp/ -name "*.properties" 2>/dev/null || true; } | sort)
 PROPS_JSON="$PROPS_JSON]"
 
 # ─── Summary Counts ──────────────────────────────────────
 
 JAVA_FILES=$(find src/ -name "*.java" -not -path '*/test/*' 2>/dev/null | wc -l)
 TEST_FILES=$(find src/ -name "*.java" -path '*/test/*' 2>/dev/null | wc -l)
-CONTEXT_FILES=$(find webapp/ -name "*_context.xml" 2>/dev/null | wc -l)
+CONTEXT_FILES=$({ find webapp/ -name "*_context.xml" 2>/dev/null || true; } | wc -l)
 SPRING_LOOKUPS=$(gcount -rn 'SpringContextService' src/ --include="*.java" 2>/dev/null)
 GETINSTANCE_CALLS=$(gcount -rn '\.getInstance( )' src/ --include="*.java" 2>/dev/null)
 JAVAX_IMPORTS=$(gcount -rn 'import javax\.\(servlet\|validation\|annotation\.PostConstruct\|annotation\.PreDestroy\|inject\|enterprise\|ws\.rs\|xml\.bind\)' src/ --include="*.java" 2>/dev/null)
@@ -264,7 +268,7 @@ EVENT_LISTENERS=$(gcount -rln 'EventRessourceListener\|LuteceUserEventManager\|Q
 CACHE_SERVICES=$(gcount -rln 'AbstractCacheableService\|net\.sf\.ehcache' src/ --include="*.java" 2>/dev/null)
 ADMIN_TEMPLATES=$({ find webapp/WEB-INF/templates/admin/ -name "*.html" 2>/dev/null || true; } | wc -l)
 SKIN_TEMPLATES=$({ find webapp/WEB-INF/templates/skin/ -name "*.html" 2>/dev/null || true; } | wc -l)
-JSP_COUNT=$(find webapp/ -name "*.jsp" 2>/dev/null | wc -l)
+JSP_COUNT=$({ find webapp/ -name "*.jsp" 2>/dev/null || true; } | wc -l)
 SQL_COUNT=$(find src/ -name "*.sql" 2>/dev/null | wc -l)
 REST_COUNT=$(gcount -rln '@Path\|@GET\|@POST\|@PUT\|@DELETE' src/ --include="*.java" 2>/dev/null)
 DAO_FREE=$(gcount -rn 'daoUtil\.free( )' src/ --include="*.java" 2>/dev/null)
