@@ -133,8 +133,8 @@ public final class TaskHome {
 
 ## 4. JspBean — CRUD Lifecycle
 
-The bean extends `AdminFeaturesPageJspBean` with `@Named` and a CDI scope:
-- `@SessionScoped` — if the bean stores per-user state as instance fields (pagination `_strCurrentPageIndex`/`_nItemsPerPage`, working objects like `_task`, filters). This is the typical case for CRUD beans with list views.
+The bean extends `MVCAdminJspBean` with `@Named`, `@Controller` and a CDI scope:
+- `@SessionScoped` — if the bean stores per-user state as instance fields (working objects like `_task`, filters). This is the typical case for CRUD beans. Note: with `@Inject @Pager IPager` (§5), pagination state is managed automatically — no manual `_strCurrentPageIndex`/`_nItemsPerPage` fields needed.
 - `@RequestScoped` — if the bean is stateless (no session instance fields, e.g., dashboard, simple actions).
 
 **Method naming convention — strict**:
@@ -179,6 +179,8 @@ public String doCreateTask(HttpServletRequest request) throws AccessDeniedExcept
 **View method structure** (every `get*` for forms) — uses `@Inject Models`, NOT `getModel()`:
 
 ```java
+import fr.paris.lutece.portal.web.cdi.mvc.Models;
+
 @Inject
 private Models _models;
 
@@ -230,6 +232,8 @@ public List<Task> getTaskItems( @RequestParam( "page" ) int numPage )
 ```
 
 **Requires imports:**
+- `fr.paris.lutece.portal.web.util.Pager` (annotation)
+- `fr.paris.lutece.portal.web.util.IPager` (interface)
 - `fr.paris.lutece.portal.util.mvc.commons.annotations.ResponseBody`
 - `fr.paris.lutece.portal.util.mvc.commons.annotations.RequestParam`
 
@@ -364,8 +368,11 @@ Signal on demand: `AppDaemonService.signalDaemon("taskCleanup")`.
 | Field injection | `@Inject private MyService _service;` |
 | Static lookup (Home) | `CDI.current().select(IMyDAO.class).get()` |
 | Multiple implementations | `CDI.current().select(IProvider.class)` → `.stream().filter(...)` |
-| Fire event | `CDI.current().getBeanManager().getEvent().fire(new MyEvent(...))` |
-| Observe event | `public void onEvent(@Observes MyEvent event) { }` |
+| Fire event (sync) | `CDI.current().getBeanManager().getEvent().fire(new MyEvent(...))` |
+| Fire event (async) | `CDI.current().getBeanManager().getEvent().fireAsync(new MyEvent(...))` |
+| Fire with qualifier | `.select(new TypeQualifier(EventAction.CREATE)).fire(event)` or `.fireAsync(event)` |
+| Observe sync | `public void onEvent(@Observes MyEvent event) { }` |
+| Observe async | `public void onEvent(@ObservesAsync MyEvent event) { }` |
 | Config property | `@Inject @ConfigProperty(name = "my.key", defaultValue = "x")` |
 
 ## 9. Configuration Access

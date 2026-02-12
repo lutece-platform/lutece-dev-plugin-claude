@@ -129,7 +129,6 @@ public interface IEntityDAO
     void delete( int nKey, Plugin plugin );
     List<Entity> selectAll( Plugin plugin );
     ReferenceList selectReferenceList( Plugin plugin );
-    int newPrimaryKey( Plugin plugin );
 }
 ```
 

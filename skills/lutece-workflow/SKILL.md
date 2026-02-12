@@ -90,7 +90,7 @@ public class Task{Name} extends SimpleTask
     private IResourceHistoryService _resourceHistoryService;
 
     @Override
-    public void processTask( int nIdResourceHistory, HttpServletRequest request, Locale locale, AdminUser user )
+    public void processTask( int nIdResourceHistory, HttpServletRequest request, Locale locale )
     {
         ResourceHistory resourceHistory = _resourceHistoryService.findByPrimaryKey( nIdResourceHistory );
         Task{Name}Config config = _taskConfigService.findByPrimaryKey( this.getId( ) );

@@ -246,10 +246,12 @@ private SolrItem buildSolrItem( MyEntity entity )
 
 The plugin-solr framework already has `SolrEventRessourceListener` that observes `ResourceEvent` and queues `SolrIndexerAction`. You just need to fire the right events from your service layer.
 
-Fire `ResourceEvent` from your Service when entities are created/updated/deleted:
+Fire `ResourceEvent` from your Service when entities are created/updated/deleted. The `SolrEventRessourceListener` uses `@Observes @Type(EventAction.X)`, so you must select the qualifier before firing synchronously:
 
 ```java
 import fr.paris.lutece.portal.service.event.ResourceEvent;
+import fr.paris.lutece.portal.service.event.EventAction;
+import fr.paris.lutece.portal.service.event.Type.TypeQualifier;
 
 @ApplicationScoped
 public class MyEntityService
@@ -264,7 +266,7 @@ public class MyEntityService
         ResourceEvent event = new ResourceEvent( );
         event.setIdResource( String.valueOf( entity.getId( ) ) );
         event.setTypeResource( SolrMyEntityIndexer.RESOURCE_TYPE );
-        _resourceEvent.fireAsync( event );
+        _resourceEvent.select( new TypeQualifier( EventAction.CREATE ) ).fire( event );
 
         return entity;
     }
@@ -276,7 +278,7 @@ public class MyEntityService
         ResourceEvent event = new ResourceEvent( );
         event.setIdResource( String.valueOf( entity.getId( ) ) );
         event.setTypeResource( SolrMyEntityIndexer.RESOURCE_TYPE );
-        _resourceEvent.fireAsync( event );
+        _resourceEvent.select( new TypeQualifier( EventAction.UPDATE ) ).fire( event );
 
         return entity;
     }
@@ -288,7 +290,7 @@ public class MyEntityService
         ResourceEvent event = new ResourceEvent( );
         event.setIdResource( String.valueOf( nIdEntity ) );
         event.setTypeResource( SolrMyEntityIndexer.RESOURCE_TYPE );
-        _resourceEvent.fireAsync( event );
+        _resourceEvent.select( new TypeQualifier( EventAction.REMOVE ) ).fire( event );
     }
 }
 ```

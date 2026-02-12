@@ -289,17 +289,28 @@ public class MyEntityIndexerEventListener
 }
 ```
 
-Fire events from your Service layer:
+Fire events from your Service layer — select the `@Type` qualifier to match the observer:
 
 ```java
+import fr.paris.lutece.portal.service.event.EventAction;
+import fr.paris.lutece.portal.service.event.Type.TypeQualifier;
+
 @Inject
 private Event<MyEntityEvent> _entityEvent;
 
 public MyEntity create( MyEntity entity )
 {
     MyEntityHome.create( entity );
-    _entityEvent.fireAsync( new MyEntityEvent( entity.getId( ) ) );
+    _entityEvent.select( new TypeQualifier( EventAction.CREATE ) )
+            .fireAsync( new MyEntityEvent( entity.getId( ) ) );
     return entity;
+}
+
+public void remove( int nIdEntity )
+{
+    MyEntityHome.remove( nIdEntity );
+    _entityEvent.select( new TypeQualifier( EventAction.REMOVE ) )
+            .fireAsync( new MyEntityEvent( nIdEntity ) );
 }
 ```
 
