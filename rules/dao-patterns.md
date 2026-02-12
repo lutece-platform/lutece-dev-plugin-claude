@@ -9,7 +9,7 @@ paths:
 ## DAO Class
 
 - `@ApplicationScoped` + `@Named("plugin.entityDAO")` + implements `IEntityDAO`
-- SQL constants: `SQL_QUERY_NEWPK`, `SQL_QUERY_SELECT`, `SQL_QUERY_INSERT`, `SQL_QUERY_UPDATE`, `SQL_QUERY_DELETE`, `SQL_QUERY_SELECTALL`
+- SQL constants: `SQL_QUERY_SELECT`, `SQL_QUERY_INSERT`, `SQL_QUERY_UPDATE`, `SQL_QUERY_DELETE`, `SQL_QUERY_SELECTALL`
 - DAOUtil ALWAYS with try-with-resources: `try ( DAOUtil daoUtil = new DAOUtil( SQL_QUERY, plugin ) )`
 - Parameters are **1-indexed**, use `nIndex++` for sequential access
 - `executeUpdate()` for INSERT/UPDATE/DELETE, `executeQuery()` for SELECT
@@ -24,7 +24,7 @@ paths:
 
 ## Interface
 
-Every DAO MUST have an `IEntityDAO` interface with: `insert`, `load`, `store`, `delete`, `selectAll`, `selectReferenceList`, `newPrimaryKey`. All methods take `Plugin plugin` as last parameter.
+Every DAO MUST have an `IEntityDAO` interface with: `insert`, `load`, `store`, `delete`, `selectAll`, `selectReferenceList`. All methods take `Plugin plugin` as last parameter.
 
 ## Return Types
 

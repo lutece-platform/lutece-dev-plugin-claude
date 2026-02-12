@@ -21,8 +21,11 @@ paths:
 
 ## Events (CDI)
 
-- Fire: `CDI.current().getBeanManager().getEvent().fire(new MyEvent(...))`
-- Observe: `public void onEvent(@Observes MyEvent event) { }`
+- Fire synchronous: `CDI.current().getBeanManager().getEvent().fire(new MyEvent(...))` — triggers `@Observes` observers
+- Fire asynchronous: `CDI.current().getBeanManager().getEvent().fireAsync(new MyEvent(...))` — triggers `@ObservesAsync` observers
+- With qualifier: `.select(new TypeQualifier(EventAction.CREATE)).fire(event)` or `.fireAsync(event)`
+- Observe sync: `public void onEvent(@Observes MyEvent event) { }`
+- Observe async: `public void onEvent(@ObservesAsync MyEvent event) { }`
 - NEVER use deprecated `ResourceEventManager` or Spring event patterns
 
 ## Configuration
