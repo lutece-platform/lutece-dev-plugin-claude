@@ -2,7 +2,7 @@
 # migrate-java-mechanical.sh — Batch mechanical Java migration on a list of files
 # Usage: bash migrate-java-mechanical.sh <file-list.txt|file1.java file2.java ...>
 #   OR:  bash migrate-java-mechanical.sh --all <project_root>
-# Combines: javax→jakarta + Spring→CDI annotations + commons-lang + FileItem + daoUtil marker
+# Combines: javax→jakarta + Spring→CDI annotations + commons-lang + FileItem + net.sf.json imports + JUnit 4→5
 # Operates ONLY on provided files (parallelizable across teammates)
 
 set -euo pipefail
@@ -93,9 +93,19 @@ for file in "${FILES[@]}"; do
         REPLACEMENTS=$((REPLACEMENTS + 1))
     fi
 
-    # @Transactional("beanManager") → @Transactional
-    if grep -q '@Transactional( *"[^"]*" *)' "$file" 2>/dev/null; then
+    # @Transactional("beanManager") or @Transactional(SomeClass.CONSTANT) → @Transactional
+    if grep -q '@Transactional( *[^)]' "$file" 2>/dev/null; then
         sed -i 's/@Transactional( *"[^"]*" *)/@Transactional/g' "$file"
+        sed -i 's/@Transactional( *[A-Za-z_][A-Za-z0-9_.]*\.BEAN_TRANSACTION_MANAGER *)/@Transactional/g' "$file"
+        REPLACEMENTS=$((REPLACEMENTS + 1))
+    fi
+
+    # --- implements InitializingBean → remove (import already deleted above) ---
+    if grep -q 'implements.*InitializingBean' "$file" 2>/dev/null; then
+        # Remove "InitializingBean, " or ", InitializingBean" or sole "implements InitializingBean"
+        sed -i 's/implements  *InitializingBean  *,/implements/g' "$file"
+        sed -i 's/,  *InitializingBean\b//g' "$file"
+        sed -i 's/implements  *InitializingBean\b//g' "$file"
         REPLACEMENTS=$((REPLACEMENTS + 1))
     fi
 
@@ -115,6 +125,20 @@ for file in "${FILES[@]}"; do
         REPLACEMENTS=$((REPLACEMENTS + 1))
     fi
 
+    # --- net.sf.json → Jackson imports ---
+    if grep -q 'import net\.sf\.json' "$file" 2>/dev/null; then
+        sed -i 's|import net\.sf\.json\.JSONObject;|import com.fasterxml.jackson.databind.node.ObjectNode;|g' "$file"
+        sed -i 's|import net\.sf\.json\.JSONArray;|import com.fasterxml.jackson.databind.node.ArrayNode;|g' "$file"
+        sed -i 's|import net\.sf\.json\.JSONSerializer;|import com.fasterxml.jackson.databind.ObjectMapper;|g' "$file"
+        sed -i 's|import net\.sf\.json\.JSON;|import com.fasterxml.jackson.databind.JsonNode;|g' "$file"
+        sed -i 's|import net\.sf\.json\.JSONException;|import com.fasterxml.jackson.core.JsonProcessingException;|g' "$file"
+        # Catch any remaining net.sf.json imports
+        if grep -q 'import net\.sf\.json' "$file" 2>/dev/null; then
+            echo "NOTE: $file still has net.sf.json imports requiring manual migration" >&2
+        fi
+        REPLACEMENTS=$((REPLACEMENTS + 1))
+    fi
+
     # --- JUnit 4 → 5 (for test files) ---
     if echo "$file" | grep -q 'src/test/'; then
         sed -i 's|import org\.junit\.Test;|import org.junit.jupiter.api.Test;|g' "$file"
@@ -124,6 +148,8 @@ for file in "${FILES[@]}"; do
         sed -i 's|import org\.junit\.AfterClass;|import org.junit.jupiter.api.AfterAll;|g' "$file"
         sed -i 's|import org\.junit\.Assert;|import org.junit.jupiter.api.Assertions;|g' "$file"
         sed -i 's|import org\.junit\.Ignore;|import org.junit.jupiter.api.Disabled;|g' "$file"
+        # Static imports: import static org.junit.Assert.X → import static org.junit.jupiter.api.Assertions.X
+        sed -i 's|import static org\.junit\.Assert\.|import static org.junit.jupiter.api.Assertions.|g' "$file"
         sed -i 's|@Before$|@BeforeEach|g; s|@Before[[:space:]]|@BeforeEach |g' "$file"
         sed -i 's|@After$|@AfterEach|g; s|@After[[:space:]]|@AfterEach |g' "$file"
         sed -i 's|@BeforeClass|@BeforeAll|g' "$file"

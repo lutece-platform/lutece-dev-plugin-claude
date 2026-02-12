@@ -15,6 +15,7 @@ You are a Lutece 8 compliance reviewer. You audit a Lutece plugin/module/library
 - **Migration samples** showing real v7→v8 diffs: `<PLUGIN_ROOT>/migrations-samples/`. Consult when something looks strange to compare against known-good migrations. (`<PLUGIN_ROOT>` is resolved in Step 0 below.)
 - **Lutece Core v8** reference source: `~/.lutece-references/lutece-core/`. Use to verify CDI scopes, base classes, service APIs, and core conventions.
 - **Forms plugin v8** reference source: `~/.lutece-references/lutece-form-plugin-forms/`. Use as a complete example of a v8-compliant plugin (DAO, Service, XPage, CDI annotations, cache, events).
+- **Appointment plugin v8** reference source: `~/.lutece-references/gru-plugin-appointment/`. Reference for CDI event firing (`fireAsync`), `Instance<ICaptchaService>` pattern, `@Inject @Pager IPager` pagination, and listener-to-CDI migration.
 - **All cloned references** in `~/.lutece-references/`. When reviewing a pattern (Producer, EventListener, Cache, etc.), search ALL references for existing implementations of the same pattern to compare.
 
 ---
@@ -68,8 +69,15 @@ Create a task list for the semantic checks only:
 3. Analyze CDI injection vs static lookup
 4. Analyze CDI Producers quality
 5. Analyze cache service defensive overrides
-6. Collect IDE diagnostics (if available)
-7. Compile final report
+6. Collect IDE diagnostics and deprecated API usage
+7. Verify Models injection (getModel → @Inject Models)
+8. Verify captcha CDI pattern (Instance<ICaptchaService>)
+9. Verify event/listener CDI migration (@Observes, fireAsync)
+10. Verify pagination modernization (@Inject @Pager IPager)
+11. Verify template message patterns (MVCMessage .message)
+12. Verify ConfigProperty vs AppPropertiesService usage
+13. Check jQuery → Vanilla JS ES6 conversion
+14. Compile final report
 ```
 
 These checks require reading code, understanding context, and comparing against references. The script cannot do them.
@@ -173,7 +181,7 @@ For each class extending `AbstractCacheableService`:
 
 Reference: `FormsCacheService` in `~/.lutece-references/lutece-form-plugin-forms/`
 
-### S6. IDE diagnostics (`mcp__ide__getDiagnostics`)
+### S6. IDE diagnostics & deprecated API usage
 
 **This check is optional.** The `mcp__ide__getDiagnostics` MCP tool may not be available in all contexts (e.g., headless CLI, plugin agent sandbox). Attempt it; if the tool call fails or is not recognized, skip this check and mark it `N/A` in the report.
 
@@ -192,8 +200,11 @@ Reference: `FormsCacheService` in `~/.lutece-references/lutece-form-plugin-forms
 |-------------|----------------|----------|
 | Error | FAIL | Always — these prevent compilation |
 | Warning | WARN | Only if related to migration (unused imports, type mismatches, missing methods) |
+| `@Deprecated` usage | WARN | Flag all uses of deprecated Lutece API — these should be migrated to v8 equivalents |
 
 Skip warnings that are purely stylistic (naming conventions, raw types, unchecked casts) unless they indicate a real migration issue.
+
+**Deprecated API priority:** Pay special attention to `@Deprecated(since = "8.0", forRemoval = true)` usages — these WILL be removed in future versions and must be fixed now.
 
 **Batch strategy:** If the project has more than 30 Java files, prioritize:
 1. Files flagged by verify-migration.sh (FAIL/WARN)
@@ -202,6 +213,201 @@ Skip warnings that are purely stylistic (naming conventions, raw types, unchecke
 4. Web layer (`*JspBean.java`, `*XPage.java`)
 
 Limit to 50 files maximum to avoid excessive tool calls.
+
+### S7. Models injection (`getModel()` → `Models`)
+
+In Lutece 8, the deprecated `getModel()` method (returns `Map<String, Object>`) must be replaced by CDI-injected `Models`.
+
+**Two valid v8 patterns:**
+
+1. **Method parameter injection** (preferred for `@View`/`@Action` methods):
+   ```java
+   @View(value = VIEW_MANAGE)
+   public String getManage(Models model, HttpServletRequest request) {
+       model.put(MARK_LIST, list);
+       // ...
+   }
+   ```
+
+2. **Field injection** (for non-MVC methods):
+   ```java
+   @Inject Models model;
+   ```
+
+Reference: `~/.lutece-references/lutece-core/src/java/fr/paris/lutece/portal/web/style/StylesJspBean.java`
+
+| Check | Severity |
+|-------|----------|
+| Calls `getModel()` anywhere in a JspBean or XPage | FAIL: replace with `Models` parameter or `@Inject Models` |
+| Uses `Map<String, Object> model = getModel()` | FAIL: migrate to `Models` |
+| Uses `Models` correctly | PASS |
+
+### S8. Captcha CDI pattern (`Instance<ICaptchaService>`)
+
+The old `new CaptchaSecurityService()` + `isAvailable()` pattern is deprecated. Lutece 8 uses CDI `Instance<ICaptchaService>` with `isResolvable()` for dynamic resolution (captcha plugin may or may not be deployed).
+
+**v8 pattern:**
+```java
+@Inject
+@Named(BeanUtils.BEAN_CAPTCHA_SERVICE)
+private Instance<ICaptchaService> _captchaService;
+
+// Check availability
+if (_captchaService.isResolvable()) {
+    model.put(MARK_CAPTCHA, _captchaService.get().getHtmlCode());
+}
+
+// Validate
+if (_captchaService.isResolvable() && !_captchaService.get().validate(request)) { ... }
+```
+
+Reference: `~/.lutece-references/lutece-form-plugin-forms/src/java/fr/paris/lutece/plugins/forms/web/FormXPage.java`
+
+| Check | Severity |
+|-------|----------|
+| `new CaptchaSecurityService()` instantiation | FAIL: use `@Inject Instance<ICaptchaService>` |
+| `captchaService.isAvailable()` call | FAIL: use `_captchaService.isResolvable()` |
+| Uses `Instance<ICaptchaService>` with `isResolvable()` | PASS |
+| No captcha usage in project | N/A |
+
+### S9. Event/listener CDI migration
+
+Old Spring-based listener patterns (`*ListenerManager`, `SpringContextService.getBeansOfType(I*Listener.class)`, manual `EventManager.register()`) must be replaced by CDI events.
+
+**v8 event firing pattern:**
+```java
+CDI.current().getBeanManager().getEvent()
+   .select(MyEvent.class, new TypeQualifier(EventAction.CREATE))
+   .fireAsync(new MyEvent(id));
+```
+
+**v8 event observer pattern:**
+```java
+@ApplicationScoped
+public class MyEventListener {
+    public void onCreated(@ObservesAsync @Type(EventAction.CREATE) MyEvent event) { ... }
+    public void onUpdated(@ObservesAsync @Type(EventAction.UPDATE) MyEvent event) { ... }
+    public void onRemoved(@ObservesAsync @Type(EventAction.REMOVE) MyEvent event) { ... }
+}
+```
+
+References:
+- Event firing: `~/.lutece-references/gru-plugin-appointment/src/java/fr/paris/lutece/plugins/appointment/service/AppointmentService.java`
+- Observer: `~/.lutece-references/lutece-form-plugin-forms/src/java/fr/paris/lutece/plugins/forms/service/listener/FormResponseEventListener.java`
+- Core bridge: `~/.lutece-references/lutece-core/src/java/fr/paris/lutece/portal/service/event/LegacyEventObserver.java`
+- TypeQualifier: `~/.lutece-references/lutece-core/src/java/fr/paris/lutece/portal/service/event/Type.java`
+
+| Check | Severity |
+|-------|----------|
+| `*ListenerManager` class still exists | FAIL: replace with CDI event firing |
+| `SpringContextService.getBeansOfType(I*Listener.class)` | FAIL: replace with CDI `@Observes` |
+| `ResourceEventManager.register()` or `.fire*()` calls | FAIL: use CDI events |
+| `I*Listener` interface with manual registration | FAIL: convert to `@Observes`/`@ObservesAsync` |
+| Old listener interface still present (no implementations) | WARN: remove dead interface |
+| Uses CDI events with `@Type` qualifiers | PASS |
+| No events in project | N/A |
+
+### S10. Pagination modernization (`@Inject @Pager IPager`)
+
+Old manual pagination (`_strCurrentPageIndex`, `_nItemsPerPage`, `LocalizedPaginator`) must be replaced by CDI-injected `IPager`.
+
+**v8 pattern:**
+```java
+@Inject
+@Pager(listBookmark = MARK_LIST, defaultItemsPerPage = PROPERTY_ITEMS_PER_PAGE)
+private IPager<MyEntity, Void> _pager;
+
+// In @View method:
+_pager.withBaseUrl(strURL)
+      .withListItem(listItems)
+      .populateModels(request, model, getLocale());
+```
+
+**With delegate for lazy loading (ID-based pagination):**
+```java
+@Inject
+@Pager(listBookmark = MARK_LIST, defaultItemsPerPage = PROPERTY_ITEMS_PER_PAGE)
+private IPager<Integer, MyDTO> _pager;
+
+_pager.withIdList(listIds)
+      .populateModels(request, model, this::loadDTOs, getLocale());
+```
+
+**Template:** Use `<@paginationAdmin paginator=paginator combo=1 />` macro from core. For AJAX/JSON rendering, evaluate `<@paginationAjax ... />` macro.
+
+References:
+- IPager: `~/.lutece-references/lutece-core/src/java/fr/paris/lutece/portal/web/util/IPager.java`
+- SimplePager: `~/.lutece-references/lutece-core/src/java/fr/paris/lutece/portal/web/util/SimplePager.java`
+- Usage: `~/.lutece-references/lutece-core/src/java/fr/paris/lutece/portal/web/style/StylesJspBean.java`
+- Delegate usage: `~/.lutece-references/gru-plugin-appointment/src/java/fr/paris/lutece/plugins/appointment/web/AppointmentJspBean.java`
+
+| Check | Severity |
+|-------|----------|
+| `_strCurrentPageIndex` / `_nItemsPerPage` instance fields | WARN: migrate to `@Inject @Pager IPager` |
+| `new LocalizedPaginator<>()` or `new Paginator<>()` | WARN: use `IPager.populateModels()` |
+| `AbstractPaginator.getPageIndex()` / `getItemsPerPage()` | WARN: handled by `IPager` |
+| Uses `@Inject @Pager IPager` correctly | PASS |
+| No pagination in project | N/A |
+
+### S11. Template message patterns (`MVCMessage`)
+
+In Lutece 8, error messages in templates are `MVCMessage` objects, NOT plain strings. Using `${error}` displays the object's `toString()` instead of the message text.
+
+**Correct v8 patterns:**
+- **Errors** (MVCMessage objects): `${error.message}`
+- **Infos** (strings): `${info}` — direct access
+- **Warnings** (strings): `${warning}` — direct access
+
+Reference: `~/.lutece-references/lutece-core/src/java/fr/paris/lutece/portal/util/mvc/utils/MVCMessage.java`
+Template example: `~/.lutece-references/lutece-core/webapp/WEB-INF/templates/admin/util/errors_list.html`
+
+Search all `.html` template files under `webapp/WEB-INF/templates/` for incorrect patterns.
+
+| Check | Severity |
+|-------|----------|
+| `${error}` without `.message` in `<#list errors as error>` | FAIL: use `${error.message}` |
+| `${error.message}` in error loops | PASS |
+| `${info}` direct access in info loops | PASS |
+| `${warning}` direct access in warning loops | PASS |
+
+### S12. `@ConfigProperty` vs `AppPropertiesService` usage
+
+Both coexist in Lutece 8. Use the right one for the context:
+
+- **`@ConfigProperty`**: Only in CDI-managed beans (`@ApplicationScoped`, `@RequestScoped`, etc.) — field or constructor injection
+- **`AppPropertiesService.getProperty()`**: In static contexts, non-CDI classes, `static final` field initializers, Home classes
+
+References:
+- ConfigProperty: `~/.lutece-references/lutece-core/src/java/fr/paris/lutece/portal/service/portal/PortalMenuService.java`
+- Constructor injection: `~/.lutece-references/lutece-form-plugin-forms/src/java/fr/paris/lutece/plugins/forms/web/breadcrumb/HorizontalBreadcrumb.java`
+- AppPropertiesService in static context: `~/.lutece-references/lutece-form-plugin-forms/src/java/fr/paris/lutece/plugins/forms/export/csv/CSVFileGenerator.java`
+
+| Check | Severity |
+|-------|----------|
+| `AppPropertiesService.getProperty()` in CDI bean where `@ConfigProperty` would be cleaner | WARN: consider `@ConfigProperty` |
+| `@ConfigProperty` in non-CDI class | FAIL: will not be injected — use `AppPropertiesService` |
+| Mixed usage in same CDI bean (some `@ConfigProperty`, some `AppPropertiesService`) | WARN: prefer consistency |
+| Appropriate usage per context | PASS |
+
+### S13. jQuery → Vanilla JS ES6 conversion
+
+jQuery code **without external plugin dependencies** should be converted to vanilla JavaScript ES6. This applies to `.js` files and inline `<script>` blocks in templates.
+
+**Common conversions:**
+- `$(selector)` → `document.querySelector(selector)` / `document.querySelectorAll(selector)`
+- `$.ajax()` → `fetch()`
+- `$(document).ready()` → `document.addEventListener('DOMContentLoaded', ...)`
+- `$.each()` → `Array.from().forEach()` or `for...of`
+- `$(el).on('click', ...)` → `el.addEventListener('click', ...)`
+
+**Do NOT convert** jQuery code that depends on jQuery plugins (DataTables, Select2, jQuery UI, etc.) — those still require jQuery.
+
+| Check | Severity |
+|-------|----------|
+| jQuery usage with no external plugin dependency | WARN: convert to vanilla JS ES6 |
+| jQuery usage required by jQuery plugin (DataTables, Select2, etc.) | PASS |
+| Already vanilla JS | PASS |
+| No JavaScript in project | N/A |
 
 ---
 
@@ -244,7 +450,14 @@ Output the report using this exact structure:
 | S3 | Injection vs Static Lookup | PASS/WARN | 0 |
 | S4 | Producer Quality | PASS/WARN | 0 |
 | S5 | Cache Defensive Guards | PASS/WARN | 0 |
-| S6 | IDE Diagnostics | PASS/FAIL/N/A | 0 |
+| S6 | IDE Diagnostics & Deprecated API | PASS/FAIL/N/A | 0 |
+| S7 | Models Injection | PASS/FAIL/N/A | 0 |
+| S8 | Captcha CDI Pattern | PASS/FAIL/N/A | 0 |
+| S9 | Event/Listener CDI Migration | PASS/FAIL/N/A | 0 |
+| S10 | Pagination Modernization | PASS/WARN/N/A | 0 |
+| S11 | Template Message Patterns | PASS/FAIL/N/A | 0 |
+| S12 | ConfigProperty Usage | PASS/WARN | 0 |
+| S13 | jQuery → Vanilla JS | PASS/WARN/N/A | 0 |
 | | **Total semantic** | | **X** |
 
 ## Build & Tests

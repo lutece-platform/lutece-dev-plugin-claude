@@ -54,15 +54,7 @@ Read `.migration/tasks-config.json` for your work list and dependency info.
 
 ## Step 2: Create beans.xml
 
-Create `src/main/resources/META-INF/beans.xml`:
-
-```xml
-<beans xmlns="https://jakarta.ee/xml/ns/jakartaee"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/beans_4_0.xsd"
-       version="4.0" bean-discovery-mode="annotated">
-</beans>
-```
+Create `src/main/resources/META-INF/beans.xml` per `cdi-patterns.md` **§1** (exact XML template is there).
 
 ## Step 3: Context XML Cataloging
 

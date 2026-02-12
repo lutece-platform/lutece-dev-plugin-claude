@@ -8,9 +8,9 @@ Only the Java files listed in YOUR task assignment file (`.migration/tasks-java-
 
 ## Reference-First Rule
 
-**Before writing ANY new class or pattern** (Producer, EventListener, Cache, REST endpoint, JSON migration), search `~/.lutece-references/` for an existing implementation of the same pattern. Reference implementations take priority.
+**Before writing ANY new class or pattern**, search `~/.lutece-references/` for an existing v8 implementation. Reference implementations take priority over documentation.
 
-**Migration samples** with real before/after diffs are at `${CLAUDE_PLUGIN_ROOT}/migrations-samples/` — consult when stuck on a specific migration pattern (especially `lutece-migration-generic-knowledge.md` for the full mapping table).
+**Migration samples** with real before/after diffs: `${CLAUDE_PLUGIN_ROOT}/migrations-samples/` — consult when stuck (especially `lutece-migration-generic-knowledge.md`).
 
 ## Your Task Input
 
@@ -22,176 +22,70 @@ Read your task file (e.g., `.migration/tasks-java-0.json`). It contains:
 
 ## Step 1: Mechanical Script
 
-Run the mechanical migration on YOUR files:
+Run on YOUR files first — this handles javax→jakarta, Spring→CDI annotations, commons-lang, FileItem→MultipartItem, net.sf.json imports:
 
 ```bash
-# Extract your file paths to a list
 jq -r '.files[].path' .migration/tasks-java-N.json > /tmp/my-files.txt
 bash ${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8-agent-teams/scripts/migrate-java-mechanical.sh /tmp/my-files.txt
 ```
 
-This handles: javax→jakarta imports, Spring→CDI annotations, commons-lang, FileItem→MultipartItem.
+Review output — note files with remaining Spring references that need intelligent handling.
 
-Review the output — note files with remaining Spring references that need intelligent handling.
+## Step 2: CDI Scopes & Structure
 
-## Step 2: CDI Scope Annotations
+Read `${PATTERNS}/cdi-patterns.md` **§2 CDI Scopes**. Apply the scope matching each file's classType from the task JSON. Then per **§7**: remove `final` keyword, private singleton constructors, static `_instance` fields.
 
-For each file, determine the correct CDI scope based on class type:
+## Step 3: SpringContextService → CDI Injection
 
-| Class Type | CDI Scope | Notes |
-|-----------|-----------|-------|
-| DAO | `@ApplicationScoped` | Stateless, singleton |
-| Service | `@ApplicationScoped` | Stateless, singleton |
-| JspBean (stateful) | `@SessionScoped @Named` | Has instance fields like `_item`, `_nCurrentPage` |
-| JspBean (stateless) | `@RequestScoped @Named` | No instance state, prefer this |
-| XPage | `@RequestScoped @Named("plugin.xpage.id")` | Prefer RequestScoped |
-| XPage (stateful) | `@SessionScoped @Named("plugin.xpage.id")` | Only if session state needed |
-| EntryType | `@ApplicationScoped @Named` | Generic attributes |
-| Daemon | `@ApplicationScoped` | Background tasks |
-| Plugin class | No scope change | Extends PluginDefaultImplementation |
-
-For each class:
-1. Add the appropriate scope annotation + import
-2. **Remove `final`** keyword from the class declaration (CDI proxying needs non-final)
-3. **Remove `private` constructor** if it's a singleton pattern
-4. **Remove `static _instance` / `_singleton` fields** and `getInstance()` methods
-
-## Step 3: SpringContextService Replacement
-
-Replace all `SpringContextService` calls:
-
-| Context | Replacement |
-|---------|------------|
-| Inside a CDI-managed class | `@Inject private IMyService _service;` |
-| Home class (static, non-CDI) | `CDI.current().select(IMyDAO.class).get()` |
-| Named bean needed | `CDI.current().select(IMyService.class, NamedLiteral.of("beanName")).get()` |
-| Multiple implementations | `@Inject Instance<IMyService> _services;` then iterate |
+Per `${PATTERNS}/cdi-patterns.md` **§3** (replacement table) and **§4** (Home static DAO pattern):
+- CDI-managed classes → `@Inject`
+- Home / static contexts → `CDI.current().select()`
+- Optional services → `Instance<T>` per **§5**
 
 ## Step 4: CDI Producers
 
-Read `.migration/context-beans.json`. For beans with `needsProducer: true`:
-
-1. **First**: Check if the class is already `@ApplicationScoped` in v8 reference sources — if yes, no producer needed, just `@Inject`
-2. If producer IS needed: create a Producer class:
-
-```java
-@ApplicationScoped
-public class MyPluginProducers {
-
-    @Inject
-    @ConfigProperty(name = "myplugin.service.propertyName", defaultValue = "defaultVal")
-    private String _strPropertyName;
-
-    @Produces
-    @Named("myplugin.myService")
-    @ApplicationScoped
-    public MyService createMyService() {
-        MyService service = new MyService();
-        service.setPropertyName(_strPropertyName);
-        // For bean references: use CdiHelper.getReference(IOtherService.class)
-        return service;
-    }
-}
-```
+Read `.migration/context-beans.json`. For beans with `needsProducer: true`, apply `${PATTERNS}/cdi-patterns.md` **§6** (Producers). **Critical:** Check v8 reference source first — if the class is already `@ApplicationScoped` in v8, no producer needed.
 
 ## Step 5: Events (conditional)
 
 **Only if your files have `eventPatterns: true`.**
 
-Load patterns: Read `${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8-agent-teams/patterns/events-patterns.md`
-
-Key transformations:
-- `implements EventRessourceListener` → `@Observes ResourceEvent` method
-- `ResourceEventManager.fireXxxEvent()` → `CDI.current().getBeanManager().getEvent().fire(event)` (or `@Inject Event<T>` in CDI beans)
+Read `${PATTERNS}/events-patterns.md` and apply all relevant transformations.
 
 ## Step 6: Cache (conditional)
 
 **Only if your files have `cachePatterns: true`.**
 
-Load patterns: Read `${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8-agent-teams/patterns/cache-patterns.md`
+Read `${PATTERNS}/cache-patterns.md` and apply. Key: override `put`/`get`/`remove` with `isCacheEnable() && isCacheAvailable()` guards.
 
-Key transformations:
-- `extends AbstractCacheableService` → `extends AbstractCacheableService<K, V>` (add type params)
-- Add `if (isCacheAvailable())` guards around all cache operations
-- `putInCache` / `getFromCache` / `removeKey` → standard JCache methods
+## Step 7: Deprecated API (MANDATORY for all files)
 
-## Step 7: Deprecated API
+Per `${PATTERNS}/cdi-patterns.md` **§7** (Singleton/getInstance table) and **§16** (Models injection — **MANDATORY** for JspBean/XPage):
+- `getInstance()` → `@Inject` or `CDI.current().select()`
+- `getModel()` → `@Inject Models` (will crash at runtime otherwise)
+- `new CaptchaSecurityService()` → `@Inject @Named(BeanUtils.BEAN_CAPTCHA_SERVICE) Instance<ICaptchaService>`
 
-For EVERY file, check and replace:
-
-| Deprecated | Replacement | Priority |
-|-----------|------------|----------|
-| `getModel()` | `@Inject Models _models;` | **MANDATORY** — getModel() returns unmodifiable map in v8 |
-| `getInstance()` | `@Inject` or `CDI.current().select().get()` | HIGH |
-| `new HashMap<>()` in JspBean/XPage | `@Inject Models _models;` | **MANDATORY** |
-| `AbstractPaginatorJspBean` | `@Inject @Pager IPager` | RECOMMENDED — allows @RequestScoped |
-| `SecurityTokenService.MARK_TOKEN` | Remove (auto-filter handles it) | RECOMMENDED — use `securityTokenAction` on @Action for confirmations |
-| `new CaptchaSecurityService()` | `@Inject @Named(BeanUtils.BEAN_CAPTCHA_SERVICE)` | HIGH |
-
-For MVC patterns details: Read `${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8-agent-teams/patterns/mvc-patterns.md`
+For MVC patterns (@RequestParam, CSRF auto-filter, @ModelAttribute): Read `${PATTERNS}/mvc-patterns.md`.
 
 ## Step 8: DAOUtil try-with-resources
 
-Replace `daoUtil.free()` pattern:
-
-```java
-// Before
-DAOUtil daoUtil = new DAOUtil(SQL_QUERY, plugin);
-daoUtil.setInt(1, nId);
-daoUtil.executeQuery();
-// ... read results ...
-daoUtil.free();
-
-// After
-try (DAOUtil daoUtil = new DAOUtil(SQL_QUERY, plugin)) {
-    daoUtil.setInt(1, nId);
-    daoUtil.executeQuery();
-    // ... read results ...
-}
-```
+Per `${PATTERNS}/cdi-patterns.md` **§10**: replace `daoUtil.free()` with try-with-resources.
 
 ## Step 9: REST (conditional)
 
 **Only if your files have `restPatterns: true`.**
 
-- Package migration is already done by mechanical script (javax.ws.rs → jakarta.ws.rs)
-- Remove REST resources from context XML (they're CDI beans now)
-- Ensure REST classes have `@ApplicationScoped` or `@RequestScoped`
-- Replace Jersey `ResourceConfig` → standard `@ApplicationPath` JAX-RS Application:
-  ```java
-  // Before (Jersey)
-  public class MyRestApplication extends ResourceConfig {
-      public MyRestApplication() { packages("fr.paris.lutece..."); }
-  }
-  // After (standard JAX-RS)
-  @ApplicationPath("/rest")
-  public class MyRestApplication extends Application { }
-  ```
-- Add `@Provider` on exception mappers (`ExceptionMapper<T>` implementations)
-- Replace servlet-based auth filters → JAX-RS `ContainerRequestFilter` with `@Provider`
+Read `${PATTERNS}/rest-patterns.md` and apply.
 
-## Step 10: JSON Library Migration (conditional)
+## Step 10: Pagination (conditional)
 
-**Only if your files import `net.sf.json`.**
+**Only if your files use manual pagination** (`_strCurrentPageIndex`, `_nItemsPerPage`, `new LocalizedPaginator`, `new Paginator`, `AbstractPaginator.getPageIndex()`).
 
-The `net.sf.json-lib` library is removed in v8. Replace with Jackson (`com.fasterxml.jackson`), which is already provided by lutece-core.
+Per `${PATTERNS}/cdi-patterns.md` **§20**: replace manual pagination with `@Inject @Pager IPager`. This also allows JspBeans to be `@RequestScoped` instead of `@SessionScoped` (the pager manages its own state).
 
-### Import replacements
-```java
-// v7
-import net.sf.json.JSONObject;
-import net.sf.json.JSONArray;
-import net.sf.json.JSONSerializer;
-import net.sf.json.JSON;
+## Step 11: JSON Library (conditional)
 
-// v8
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.JsonNode;
-```
-
-### API mapping
+**Only if your files import `net.sf.json`.** Imports are already replaced by the mechanical script. Apply the API mapping:
 
 | net.sf.json (v7) | Jackson (v8) |
 |---|---|
@@ -206,13 +100,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 | `JSONSerializer.toJSON(obj)` | `mapper.valueToTree(obj)` |
 | `json.toString()` | `mapper.writeValueAsString(json)` |
 
-**Tip:** Lutece core provides `fr.paris.lutece.util.json.JsonUtil` with static `serialize()` / `deserialize()` methods using a shared `ObjectMapper`.
+**Tip:** Lutece core provides `fr.paris.lutece.util.json.JsonUtil` with static `serialize()` / `deserialize()` methods.
 
-For detailed before/after examples, consult: `${CLAUDE_PLUGIN_ROOT}/migrations-samples/lutece-tech-plugin-asynchronousupload.md` (section 5).
+For detailed before/after examples: `${CLAUDE_PLUGIN_ROOT}/migrations-samples/lutece-tech-plugin-asynchronousupload.md` (section 5).
 
-## Step 11: Per-File Verification
+## Step 12: Per-File Verification
 
-After completing each file, run:
+After completing each file:
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8-agent-teams/scripts/verify-file.sh <file_path>
 ```
@@ -221,13 +115,17 @@ Fix any FAIL results before moving to the next file. Mark each file task as **co
 
 ---
 
+## Path shorthand
+
+`${PATTERNS}` = `${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8-agent-teams/patterns`
+
 ## Pattern Files (load on demand only)
 
 | File | Load when |
 |------|-----------|
-| `patterns/cdi-patterns.md` | Always (CDI scope decisions, producers) |
+| `patterns/cdi-patterns.md` | Always (scopes, injection, producers, Models, Pager) |
 | `patterns/events-patterns.md` | If `eventPatterns: true` on any file |
 | `patterns/cache-patterns.md` | If `cachePatterns: true` on any file |
-| `patterns/deprecated-api.md` | If `deprecatedPatterns` is non-empty |
+| `patterns/rest-patterns.md` | If `restPatterns: true` on any file |
 | `patterns/mvc-patterns.md` | If migrating JspBeans or XPages |
 | `patterns/fileupload-patterns.md` | If `fileupload` in deprecatedPatterns |

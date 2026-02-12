@@ -107,6 +107,9 @@ while IFS= read -r file; do
     HAS_CDI=false
     grep -q '@ApplicationScoped\|@RequestScoped\|@SessionScoped\|@Dependent\|@Inject\|@Named\|@Produces' "$file" 2>/dev/null && HAS_CDI=true
 
+    HAS_PAGINATION=false
+    grep -q '_strCurrentPageIndex\|_nItemsPerPage\|new LocalizedPaginator\|new Paginator\|AbstractPaginator\.getPageIndex\|AbstractPaginatorJspBean' "$file" 2>/dev/null && HAS_PAGINATION=true
+
     # Deprecated patterns
     DEPRECATED="["
     FIRST_DP=true
@@ -135,7 +138,7 @@ while IFS= read -r file; do
     # Home class detection (static facade)
     grep -q 'class.*Home\b' "$file" 2>/dev/null && grep -q 'private.*Home( )' "$file" 2>/dev/null && CLASS_TYPE="home"
 
-    FILE_JSON="{\"path\":\"$file\",\"classType\":\"$CLASS_TYPE\",\"package\":\"$PKG\",\"javaxImports\":$JAVAX_COUNT,\"springImports\":$SPRING_COUNT,\"springLookups\":$SPRING_LOOKUP,\"getInstanceCalls\":$GETINSTANCE_COUNT,\"eventPatterns\":$HAS_EVENTS,\"cachePatterns\":$HAS_CACHE,\"restPatterns\":$HAS_REST,\"existingCDI\":$HAS_CDI,\"deprecatedPatterns\":$DEPRECATED}"
+    FILE_JSON="{\"path\":\"$file\",\"classType\":\"$CLASS_TYPE\",\"package\":\"$PKG\",\"javaxImports\":$JAVAX_COUNT,\"springImports\":$SPRING_COUNT,\"springLookups\":$SPRING_LOOKUP,\"getInstanceCalls\":$GETINSTANCE_COUNT,\"eventPatterns\":$HAS_EVENTS,\"cachePatterns\":$HAS_CACHE,\"restPatterns\":$HAS_REST,\"paginationPatterns\":$HAS_PAGINATION,\"existingCDI\":$HAS_CDI,\"deprecatedPatterns\":$DEPRECATED}"
 
     if $IS_TEST; then
         $FIRST_TEST || TEST_JSON="$TEST_JSON,"
@@ -162,6 +165,24 @@ while IFS= read -r file; do
     CTX_JSON="$CTX_JSON{\"path\":\"$file\",\"beanCount\":$BEAN_COUNT}"
 done < <({ find webapp/ -name "*_context.xml" 2>/dev/null || true; } | sort)
 CTX_JSON="$CTX_JSON]"
+
+# ─── Reflection-instantiated classes (from plugin.xml) ──
+
+REFLECTION_JSON="["
+FIRST_REFL=true
+if [ -d "webapp/WEB-INF/plugins/" ]; then
+    for tag in content-service-class search-indexer-class rbac-resource-type-class filter-class servlet-class listener-class page-include-service-class dashboard-component-class; do
+        while IFS= read -r class_name; do
+            [ -z "$class_name" ] && continue
+            class_name=$(echo "$class_name" | tr -d ' \r\t')
+            [ -z "$class_name" ] && continue
+            $FIRST_REFL || REFLECTION_JSON="$REFLECTION_JSON,"
+            FIRST_REFL=false
+            REFLECTION_JSON="$REFLECTION_JSON{\"class\":\"$class_name\",\"tag\":\"$tag\"}"
+        done < <(grep -h "<${tag}>" webapp/WEB-INF/plugins/*.xml 2>/dev/null | sed "s|.*<${tag}>||; s|</${tag}>.*||" | tr -d ' \r')
+    done
+fi
+REFLECTION_JSON="$REFLECTION_JSON]"
 
 # ─── Admin Templates ────────────────────────────────────
 
@@ -318,6 +339,7 @@ cat << ENDJSON
     "java": $JAVA_JSON,
     "tests": $TEST_JSON,
     "contextXml": $CTX_JSON,
+    "reflectionInstantiated": $REFLECTION_JSON,
     "adminTemplates": $ADMIN_TPL_JSON,
     "skinTemplates": $SKIN_TPL_JSON,
     "jsp": $JSP_JSON,

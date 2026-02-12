@@ -137,12 +137,32 @@ While teammates work:
 
 ---
 
-## PHASE F — Final Gate
+## PHASE F — V8 Reviewer (Lead spawns as teammate)
 
-When the Verifier reports ALL of the following (it must have completed through Phase 5):
+When the Verifier reports **BUILD SUCCESS** (compile + tests) and **verify-migration.sh: 0 FAIL**, spawn a **Reviewer teammate**:
+
+```
+Read your instruction file at ${CLAUDE_PLUGIN_ROOT}/agents/lutece-v8-reviewer.md.
+Review this project for v8 compliance. Do NOT modify any files.
+Reference implementations: ~/.lutece-references/
+Migration samples: ${CLAUDE_PLUGIN_ROOT}/migrations-samples/
+```
+
+**Why a teammate?** In Delegate Mode, the Lead can only spawn teammates — the Task tool is not available. The reviewer runs as a read-only teammate that reports findings without modifying files.
+
+Process the reviewer's findings:
+- **FAIL items**: Assign fixes to the appropriate teammate. Re-spawn reviewer after fixes.
+- **WARN items**: Attempt to fix via teammates but do not block on WARNs.
+- **All FAIL resolved**: Proceed to Phase G.
+
+---
+
+## PHASE G — Final Gate
+
+When ALL of the following are true:
 - **BUILD SUCCESS** (both compile and tests)
 - **verify-migration.sh**: 0 FAIL
-- **Reviewer agent**: all FAIL items resolved (the Verifier runs this in Phase 5 — do NOT conclude before it completes)
+- **Reviewer agent**: all FAIL items resolved
 
 Then:
 1. Ask the Verifier to run final cleanup (.migration/ removal, context XML deletion)
@@ -177,7 +197,7 @@ All in `${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8-agent-teams/scripts/`:
 |--------|---------|---------|
 | `scan-project.sh` | Full project scan → JSON | Lead (Phase A) |
 | `task-splitter.sh` | JSON scan → per-teammate task files | Lead (Phase B) |
-| `migrate-java-mechanical.sh` | javax→jakarta + Spring→CDI on file list | Java Migrators |
+| `migrate-java-mechanical.sh` | javax→jakarta + Spring→CDI + net.sf.json imports | Java Migrators |
 | `migrate-template-mechanical.sh` | BO macros + null-safety + namespace | Template Migrator |
 | `extract-context-beans.sh` | Spring context XML → JSON catalog | Config Migrator |
 | `verify-migration.sh` | 70+ checks, optional --json mode | Verifier |
@@ -191,48 +211,10 @@ All in `${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8-agent-teams/patterns/`:
 
 | File | Content | Loaded by |
 |------|---------|-----------|
-| `cdi-patterns.md` | CDI scopes, injection, producers, Models, Pager, RedirectScope | Java Migrators (always) |
+| `cdi-patterns.md` | CDI scopes, injection, producers, singleton, Models, Pager, Key Imports | Java Migrators (always) |
 | `events-patterns.md` | Event/listener migration | Java Migrators (if events) |
 | `cache-patterns.md` | EhCache→JCache | Java Migrators (if cache) |
-| `deprecated-api.md` | getInstance, getModel table | Java Migrators (ALWAYS for JspBean/XPage — getModel() migration is MANDATORY) |
+| `rest-patterns.md` | Jersey→JAX-RS, filters, providers | Java Migrators (if REST) |
 | `mvc-patterns.md` | @RequestParam, CSRF auto-filter, @ModelAttribute | Java Migrators (if JspBean/XPage) |
-| `template-macros.md` | v8 Freemarker macro quick reference | Template Migrator |
+| `template-macros.md` | v8 Freemarker macros, jQuery→vanilla JS | Template Migrator |
 | `fileupload-patterns.md` | FileItem→MultipartItem | Java Migrators (if fileupload) |
-
-## Key Imports Reference
-
-```java
-// CDI Core
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.context.RequestScoped;
-import jakarta.enterprise.context.SessionScoped;
-import jakarta.enterprise.context.Dependent;
-import jakarta.enterprise.inject.spi.CDI;
-import jakarta.enterprise.inject.Instance;
-import jakarta.enterprise.inject.Produces;
-import jakarta.enterprise.inject.literal.NamedLiteral;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
-
-// CDI Events
-import jakarta.enterprise.event.Observes;
-import jakarta.enterprise.context.Initialized;
-
-// Lifecycle
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
-
-// Servlet
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
-// REST
-import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.*;
-
-// Config
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
-// Cache — NOTE: javax, NOT jakarta
-import javax.cache.Cache;
-```

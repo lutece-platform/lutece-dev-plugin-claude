@@ -90,7 +90,7 @@ Load quick reference: Read `${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8-age
         <@pageHeader title="#i18n{myplugin.manage.pageTitle}" description="" />
 
         <#if (errors!)?has_content>
-            <@alert type="danger"><#list (errors![]) as error>${error}</#list></@alert>
+            <@alert type="danger"><#list (errors![]) as error>${error.message}</#list></@alert>
         </#if>
         <#if (infos!)?has_content>
             <@alert type="info"><#list (infos![]) as info>${info}</#list></@alert>
@@ -168,22 +168,7 @@ Wrap front-office templates with `<@cTpl>`:
 
 ## Step 5: JavaScript Migration
 
-Replace jQuery with vanilla JS:
-
-| jQuery | Vanilla JS |
-|--------|-----------|
-| `$(document).ready(fn)` | `document.addEventListener('DOMContentLoaded', fn)` |
-| `$('#id')` | `document.getElementById('id')` or `document.querySelector('#id')` |
-| `$('.class')` | `document.querySelectorAll('.class')` |
-| `$.ajax({...})` | `fetch(url, options).then(r => r.json())` |
-| `$(el).on('click', fn)` | `el.addEventListener('click', fn)` |
-| `$(el).hide()` | `el.style.display = 'none'` or `el.classList.add('d-none')` |
-| `$(el).show()` | `el.style.display = ''` or `el.classList.remove('d-none')` |
-| `$(el).val()` | `el.value` |
-| `$(el).text()` | `el.textContent` |
-| `$(el).html()` | `el.innerHTML` |
-
-Use ES6+ syntax: `const`/`let`, arrow functions, template literals, destructuring.
+Replace jQuery with vanilla ES6 JS. See `${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-v8-agent-teams/patterns/template-macros.md` **§ JavaScript Migration** for the full conversion table.
 
 ## Step 6: SuggestPOI Migration (conditional)
 

@@ -375,14 +375,22 @@ fi
 COUNT=0; [ -n "$TM06_MATCHES" ] && COUNT=$(echo "$TM06_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "TM06" "PASS" "Admin templates use @addRequiredBOJsFiles" 0
 else emit "TM06" "FAIL" "@addRequiredJsFiles -> @addRequiredBOJsFiles" "$COUNT" "$TM06_MATCHES"; fi
+# TM07: MVCMessage ${error} without .message
+TM07_MATCHES=""
+if [ -d "webapp/WEB-INF/templates/" ]; then
+    TM07_MATCHES=$(grep -rn '${error}' webapp/WEB-INF/templates/ --include="*.html" 2>/dev/null | grep -v '${error\.' | grep -v '${error!}') || TM07_MATCHES=""
+fi
+COUNT=0; [ -n "$TM07_MATCHES" ] && COUNT=$(echo "$TM07_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "TM07" "PASS" "MVCMessage \${error} uses .message" 0
+else emit "TM07" "FAIL" "\${error} without .message (MVCMessage)" "$COUNT" "$TM07_MATCHES"; fi
 echo ""
 
 # ─── Logging ─────────────────────────────────────────────
 echo "CATEGORY: Logging"
 check_grep "LG01" 'AppLogService\.\(info\|error\|debug\|warn\).*+ ' "src/" "FAIL" "String concat in logging -> parameterized {}"
 
-# LG02: Unnecessary isDebugEnabled checks
-check_grep "LG02" 'isDebugEnabled\|isInfoEnabled' "src/" "FAIL" "Unnecessary isDebugEnabled (log4j2 handles this)"
+# LG02: Unnecessary isDebugEnabled checks (harmless but noisy — WARN, not FAIL)
+check_grep "LG02" 'isDebugEnabled\|isInfoEnabled' "src/" "WARN" "Unnecessary isDebugEnabled (log4j2 handles this)"
 echo ""
 
 # ─── Tests ───────────────────────────────────────────────

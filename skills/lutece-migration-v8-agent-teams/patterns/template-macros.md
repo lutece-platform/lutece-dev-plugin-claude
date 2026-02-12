@@ -148,3 +148,45 @@ ${value!"default"}             <!-- default value if null -->
 (errors!)?has_content          <!-- MANDATORY -->
 <#list (errors![]) as error>   <!-- safe list iteration -->
 ```
+
+## JavaScript Migration (jQuery → Vanilla ES6)
+
+Replace jQuery with vanilla JS. Use ES6+ syntax: `const`/`let`, arrow functions, template literals, destructuring.
+
+| jQuery | Vanilla JS |
+|--------|-----------|
+| `$(document).ready(fn)` | `document.addEventListener('DOMContentLoaded', fn)` |
+| `$('#id')` | `document.getElementById('id')` or `document.querySelector('#id')` |
+| `$('.class')` | `document.querySelectorAll('.class')` |
+| `$.ajax({...})` | `fetch(url, options).then(r => r.json())` |
+| `$(el).on('click', fn)` | `el.addEventListener('click', fn)` |
+| `$(el).hide()` | `el.style.display = 'none'` or `el.classList.add('d-none')` |
+| `$(el).show()` | `el.style.display = ''` or `el.classList.remove('d-none')` |
+| `$(el).val()` | `el.value` |
+| `$(el).text()` | `el.textContent` |
+| `$(el).html()` | `el.innerHTML` |
+
+**Do NOT convert** jQuery code that depends on jQuery plugins (DataTables, Select2, jQuery UI, etc.) — those still require jQuery.
+
+## MVCMessage in templates (v8 BREAKING CHANGE)
+
+In Lutece 8, **errors** are `MVCMessage` objects — NOT plain strings. Using `${error}` displays the object's `toString()` instead of the message text.
+
+```html
+<!-- ERRORS: MVCMessage objects — MUST use .message -->
+<#if (errors!)?has_content>
+    <@alert type="danger"><#list (errors![]) as error>${error.message}</#list></@alert>
+</#if>
+
+<!-- INFOS: plain strings — direct access -->
+<#if (infos!)?has_content>
+    <@alert type="info"><#list (infos![]) as info>${info}</#list></@alert>
+</#if>
+
+<!-- WARNINGS: plain strings — direct access -->
+<#if (warnings!)?has_content>
+    <@alert type="warning"><#list (warnings![]) as warning>${warning}</#list></@alert>
+</#if>
+```
+
+Reference: `~/.lutece-references/lutece-core/src/java/fr/paris/lutece/portal/util/mvc/utils/MVCMessage.java`

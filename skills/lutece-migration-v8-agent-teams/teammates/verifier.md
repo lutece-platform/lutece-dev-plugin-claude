@@ -7,8 +7,7 @@ You are the **Verifier** teammate. You run continuous verification, the final bu
 - Run `verify-migration.sh` periodically during migration
 - Run the final full verification sweep
 - Execute Maven builds (compile, then with tests)
-- Delegate to the `lutece-v8-reviewer` agent
-- Final cleanup
+- Final cleanup (when Lead gives the green light)
 
 **CRITICAL: You NEVER modify source files.** You only verify, report, and build. If something needs fixing, report it to the Lead who will reassign to the appropriate teammate.
 
@@ -103,23 +102,11 @@ If tests fail:
    - `ClassCastException` → javax/jakarta mismatch in test
    - `NullPointerException` in `getModel()` → must use `@Inject Models`
 
-## Phase 5: V8 Compliance Review (MANDATORY)
+## Phase 5: Final Cleanup
 
-After BUILD SUCCESS, delegate to the reviewer agent:
+**Wait for the Lead to authorize cleanup.** After BUILD SUCCESS, the Lead runs additional checks before giving the green light. Do NOT start cleanup on your own.
 
-```
-Delegate to the lutece-v8-reviewer agent to review this project for v8 compliance.
-```
-
-Process the reviewer's findings:
-- **FAIL items**: Must be fixed — report to Lead for teammate reassignment
-- **WARN items**: Should be attempted — report to Lead
-
-**Do NOT proceed to Phase 6 until the reviewer has run and all FAIL items are resolved.**
-
-## Phase 6: Final Cleanup
-
-After all issues are resolved and build is green:
+Once the Lead tells you to proceed:
 
 1. **Delete context XML files** (if any remain):
    ```
@@ -139,7 +126,6 @@ After all issues are resolved and build is green:
 4. Report final status to Lead:
    - Total checks: X PASS, 0 FAIL, Y WARN
    - Build: SUCCESS (compile + tests)
-   - Reviewer: all FAIL items resolved
    - Migration: COMPLETE
 
 Mark your final task as **completed**. The Lead will create the commit.

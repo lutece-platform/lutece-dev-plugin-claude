@@ -71,6 +71,25 @@ if [ -d "$TEMPLATES_DIR" ]; then
     done
 fi
 
+# ─── MVCMessage: ${error} → ${error.message} ─────────────
+
+if [ -d "$TEMPLATES_DIR" ]; then
+    echo "--- MVCMessage ${error} → ${error.message} ---" >&2
+    # In <#list errors as error> blocks, ${error} must be ${error.message}
+    # (errors are MVCMessage objects in v8, not plain strings)
+    COUNT=$({ grep -rl '${error}' "$TEMPLATES_DIR" --include="*.html" 2>/dev/null || true; } | wc -l)
+    if [ "$COUNT" -gt 0 ]; then
+        # Replace ${error} with ${error.message} but NOT ${error.message} (avoid double-replace)
+        find "$TEMPLATES_DIR" -name "*.html" -exec sed -i \
+            's/${error}/${error.message}/g' {} +
+        # Fix any double-replace: ${error.message.message} → ${error.message}
+        find "$TEMPLATES_DIR" -name "*.html" -exec sed -i \
+            's/${error\.message\.message}/${error.message}/g' {} +
+        echo "  MVCMessage error fix: $COUNT files" >&2
+        TOTAL=$((TOTAL + COUNT))
+    fi
+fi
+
 # ─── web.xml namespace migration ─────────────────────────
 
 if [ -f "$WEBAPP_DIR/WEB-INF/web.xml" ]; then

@@ -25,6 +25,27 @@ Create `src/main/resources/META-INF/beans.xml`:
 
 ## 2. CDI Scopes
 
+### CRITICAL — Reflection-instantiated classes (DO NOT annotate)
+
+Lutece's `Plugin.java` instantiates classes listed in plugin descriptor XML (`webapp/WEB-INF/plugins/*.xml`) via **reflection** (`Class.forName().newInstance()`). These classes are NOT CDI-managed — adding `@ApplicationScoped` creates two instances (one CDI, one reflection).
+
+**Check these XML tags before assigning any CDI scope:**
+
+| XML tag | Typical base class |
+|---------|-------------------|
+| `<content-service-class>` | `ContentService` |
+| `<search-indexer-class>` | `SearchIndexer` |
+| `<rbac-resource-type-class>` | `ResourceIdService` |
+| `<filter-class>` | `jakarta.servlet.Filter` |
+| `<servlet-class>` | `HttpServlet` |
+| `<listener-class>` | `HttpSessionListener` |
+| `<page-include-service-class>` | `PageInclude` |
+| `<dashboard-component-class>` | `DashboardComponent` |
+
+**Exception:** `<application-class>` (XPages) — these tags are **removed** by the Config Migrator (v8 auto-discovers XPages via CDI), so the Java class DOES get `@SessionScoped`/`@RequestScoped` + `@Named`.
+
+**Rule:** If a class is still listed in one of these XML tags and NOT removed by the Config Migrator, do NOT add a CDI scope. If you want to CDI-manage it, coordinate with the Config Migrator to remove the XML tag first.
+
 ### DAO and Service classes
 
 Every DAO and Service class must get `@ApplicationScoped`:
@@ -650,7 +671,20 @@ model.put( SecurityTokenService.MARK_TOKEN, _securityTokenService.getToken( requ
 XPage page = getXPage( TEMPLATE, locale, model );
 ```
 
-**After (use `Models` injection):**
+**After — Option A: Method parameter injection (PREFERRED for @View/@Action methods):**
+```java
+@View( value = VIEW_MANAGE )
+public String getManage( Models model, HttpServletRequest request )
+{
+    model.put( MARK_LIST, list );
+    model.put( SecurityTokenService.MARK_TOKEN, _securityTokenService.getToken( request, ACTION ) );
+    return getPage( PROPERTY_PAGE_TITLE, TEMPLATE );
+}
+```
+
+Reference: `~/.lutece-references/lutece-core/src/java/fr/paris/lutece/portal/web/style/StylesJspBean.java`
+
+**After — Option B: Field injection (for methods outside @View/@Action, or shared model population):**
 ```java
 @Inject
 private Models _models;
@@ -697,43 +731,25 @@ protected void addElementsToModel( MyDTO dto, User user, Locale locale, Models m
 
 The `Models` interface supports `put(String, Object)` and `get(String)`, so most code using `Map.put()` works unchanged after the type change.
 
-## 16b. Models Injection (Mandatory in v8)
-
-In v8, `getModel()` returns an **unmodifiable map**. You MUST use `@Inject Models` instead.
-
-### Before (v7)
-```java
-Map<String, Object> model = getModel();
-model.put("items", listItems);
-```
-
-### After (v8)
-```java
-@Inject
-private Models _models;
-
-// In action/view method:
-_models.put("items", listItems);
-// _models is RequestScoped — automatically available to templates
-```
-
-- `Models` is `@RequestScoped` — one instance per request
-- `models.asMap()` returns the underlying map (read-only view)
-- NEVER use `new HashMap<>()` in JspBeans/XPages
-
 ## 17. Configuration
 
-### @ConfigProperty in CDI beans
+### When to use which
 
-If the plugin uses `AppPropertiesService` for injected config in CDI beans, optionally use MicroProfile Config:
+| Context | Use | Why |
+|---------|-----|-----|
+| **Producers** (replace Spring XML `<property>`) | `@ConfigProperty` on method parameters | The v8 pattern for building configured beans |
+| **CDI constructors** (immutable config) | `@ConfigProperty` on constructor parameters | Typed injection at construction |
+| **Casual reads** in a service/JspBean | `AppPropertiesService` | Core does this — simple, direct, works everywhere |
+| **Static context** (Home, utility, `static final`) | `AppPropertiesService` | No CDI injection available |
+| **Non-CDI class** (reflection-instantiated) | `AppPropertiesService` | `@ConfigProperty` will NOT be injected — field stays `null` |
+
+### @ConfigProperty in CDI beans
 
 ```java
 @Inject
 @ConfigProperty(name = "myplugin.myProperty", defaultValue = "default")
 private String _myProperty;
 ```
-
-**Note:** `AppPropertiesService.getProperty()` still works in v8. MicroProfile Config is optional but preferred in CDI beans.
 
 ### @ConfigProperty (MicroProfile Config) — Priority Hierarchy
 
@@ -772,82 +788,7 @@ String value = _config.getOptionalValue(PROPERTY_KEY, String.class).orElse(null)
 String valueWithDefault = _config.getOptionalValue(PROPERTY_KEY, String.class).orElse("default");
 ```
 
-## 18. REST API Migration
-
-### 18.1 Import Migration
-
-Replace `javax.ws.rs.*` imports with `jakarta.ws.rs.*`.
-
-### 18.2 Jersey -> Jakarta JAX-RS
-
-If the plugin uses Jersey directly:
-- Replace `ResourceConfig` with standard `Application` class using `@ApplicationPath`
-- Remove Jersey-specific dependencies (`jersey-server`, `jersey-spring5`, `jersey-media-*`)
-- Remove manual `register()` calls -- use `@Provider` auto-discovery instead
-- Remove Jersey filter registrations from `plugin.xml`
-
-```java
-// BEFORE (v7) - Jersey ResourceConfig
-public class MyRestConfig extends ResourceConfig {
-    public MyRestConfig() {
-        register(MyExceptionMapper.class);
-    }
-}
-
-// AFTER (v8) - Standard JAX-RS Application
-@ApplicationPath("/rest/")
-public class MyRestApplication extends Application { }
-```
-
-### 18.3 REST Authentication Filter
-
-Replace servlet-based auth filters with JAX-RS `ContainerRequestFilter`:
-
-```java
-// AFTER (v8)
-@Provider
-@PreMatching
-@Priority(Priorities.AUTHENTICATION)
-public class MyAuthFilter implements ContainerRequestFilter {
-    @Inject
-    private HttpServletRequest _httpRequest;
-
-    @Inject
-    @MyAuthenticatorQualifier
-    private RequestAuthenticator _authenticator;
-
-    @Override
-    public void filter(ContainerRequestContext ctx) throws IOException {
-        if (!_authenticator.isRequestAuthenticated(_httpRequest)) {
-            ctx.abortWith(Response.status(Response.Status.UNAUTHORIZED).build());
-        }
-    }
-}
-```
-
-### 18.4 Custom CDI Qualifier for Authenticators
-
-```java
-@Qualifier
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE})
-public @interface MyAuthenticatorQualifier { }
-```
-
-### 18.5 Exception Mappers
-
-Add `@Provider` annotation for auto-discovery (no manual registration):
-```java
-@Provider
-public class MyExceptionMapper implements ExceptionMapper<Throwable> { ... }
-```
-
-### 18.6 REST plugin.xml changes
-
-- Remove `<filters>` section -- JAX-RS auto-discovers via `@ApplicationPath`
-- Remove Jersey init-params
-
-## 19. Logging
+## 18. Logging
 
 Update string concatenation to parameterized logging:
 
@@ -859,7 +800,7 @@ AppLogService.info(MyClass.class.getName() + " : message " + variable);
 AppLogService.info("{} : message {}", MyClass.class.getName(), variable);
 ```
 
-## 20. RedirectScope
+## 19. RedirectScope
 
 Custom CDI scope that survives exactly one redirect (2 requests max).
 
@@ -877,7 +818,7 @@ Use case: pass data from an @Action (POST) to the redirect target @View (GET).
 - Lives for max 2 requests (action + redirect target)
 - Alternative to session storage for transient redirect data
 
-## 21. Pager Injection
+## 20. Pager Injection
 
 Replaces `AbstractPaginatorJspBean` and manual pagination. Allows `@RequestScoped` instead of `@SessionScoped`.
 
@@ -900,7 +841,7 @@ _pager.withBaseUrl( getHomeUrl( request ) )
       .populateModels( request, _models, getLocale() );
 ```
 
-## 22. @LutecePriority for CDI Alternatives
+## 21. @LutecePriority for CDI Alternatives
 
 When multiple implementations of an interface exist, use @Alternative + @LutecePriority.
 
@@ -913,7 +854,7 @@ public class MyImplA implements IMyService { }
 
 Priority value comes from configuration file, not hardcoded. Higher value wins.
 
-## 23. Eager CDI Bean Initialization (Constructor Self-Registration)
+## 22. Eager CDI Bean Initialization (Constructor Self-Registration)
 
 **Migration trap:** In Spring, beans declared in `_context.xml` were eagerly instantiated at startup. In CDI, `@ApplicationScoped` beans are **lazy** — they are only created when first injected. If nothing injects the bean, its constructor never runs.
 
@@ -1002,9 +943,9 @@ import javax.cache.Cache; // NOTE: javax, NOT jakarta
 
 // Lutece-specific CDI
 import fr.paris.lutece.portal.web.cdi.mvc.Models;
-import fr.paris.lutece.portal.web.cdi.scope.RedirectScoped;
-import fr.paris.lutece.portal.web.cdi.mvc.Pager;
-import fr.paris.lutece.portal.web.cdi.IPager;
+import fr.paris.lutece.portal.web.cdi.mvc.RedirectScoped;
+import fr.paris.lutece.portal.web.util.Pager;
+import fr.paris.lutece.portal.web.util.IPager;
 import fr.paris.lutece.portal.service.util.CdiHelper;
-import fr.paris.lutece.portal.service.cdi.LutecePriority;
+import fr.paris.lutece.plugins.priority.annotation.LutecePriority;
 ```
