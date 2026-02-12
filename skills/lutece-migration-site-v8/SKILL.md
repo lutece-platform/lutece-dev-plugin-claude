@@ -99,7 +99,6 @@ All scripts in `${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-site-v8/scripts/`:
 
 | File | Content | Read when |
 |------|---------|-----------|
-| `patterns/jquery-to-vanilla.md` | jQuery→vanilla JS patterns (selectors, events, ajax, plugins) | Phase 3 (templates) |
 | `references/v8-pack-starter-structure.md` | V8 pack starter site structure reference | Phase 0 (site analysis), Phase 1 (POM), Phase 2 (config) |
 | `references/known-pitfalls.md` | Real migration errors and solutions (plugins.dat, DataSource, CSS, etc.) | **Phase 0 (MUST READ before starting)**, Phase 2, Phase 5 |
 

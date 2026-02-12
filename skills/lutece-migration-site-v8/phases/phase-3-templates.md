@@ -1,7 +1,5 @@
 # Phase 3: Templates Migration (Skin + jQuery → Vanilla JS)
 
-**Pattern reference (MANDATORY):** Before starting, read `patterns/jquery-to-vanilla.md` from this skill's directory.
-
 **Live reference (MANDATORY):** Before modifying any template, check real v8 templates:
 - `~/.lutece-references/lutece-core/webapp/WEB-INF/templates/skin/`
 
@@ -31,17 +29,12 @@ All skin templates must be wrapped with the `<@cTpl>` macro:
 
 ## Step 3 — jQuery → Vanilla JS
 
-**This is the most critical step.** Claude must analyze each template and replace all jQuery with vanilla JS.
-
-Read the patterns file first:
-```
-Read ${CLAUDE_PLUGIN_ROOT}/skills/lutece-migration-site-v8/patterns/jquery-to-vanilla.md
-```
+**This is the most critical step.** Analyze each template and replace all jQuery with vanilla ES6+ JS.
 
 ### Migration rules
 
 1. **Remove jQuery script includes** — `<script src="...jquery...">` must be removed
-2. **Replace all jQuery calls** — Use the patterns from `jquery-to-vanilla.md`
+2. **Replace all jQuery calls** — Convert to vanilla JS using ES6+ (selectors → `querySelector`/`querySelectorAll`, events → `addEventListener`, AJAX → `fetch`/`async`/`await`, etc.)
 3. **Replace jQuery plugins** — Each plugin must be replaced with a vanilla JS alternative or Lutece v8 built-in component
 4. **Use ES6+** — `const`/`let`, arrow functions, template literals, `async`/`await`
 5. **No CDN** — All JS must be local (`webapp/js/` or core-provided)
