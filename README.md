@@ -35,6 +35,7 @@ At session start, the plugin automatically:
 | `lutece-lucene-indexer` | Plugin-internal Lucene search: custom index, daemon, CDI events |
 | `lutece-solr-indexer` | Solr search module: SolrIndexer interface, CDI auto-discovery, batch indexing |
 | `lutece-elasticdata` | Elasticsearch DataSource: DataSource/DataObject interfaces, two-daemon indexing |
+| `lutece-deep-review` | Deep review via **Agent Teams**. Traces request lifecycle (template → bean → service → DAO → SQL), cross-references layers to find guaranteed bugs. Requires `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
 
 ## Agent
 
@@ -103,6 +104,53 @@ graph TD
 | `progress-report.sh` | Migration progress dashboard |
 
 **Output:** migrated v8 plugin with green build and clean compliance report.
+
+## Deep review flow (`/lutece-deep-review`)
+
+**Input:** any Lutece plugin/module (v8).
+
+**Goal:** Trace the complete request lifecycle across all layers and cross-reference them to find **guaranteed bugs**
+**Architecture:** Team Lead orchestrates, 6 specialized teammates (5 parallel + 1 final verifier).
+
+| Phase | What | Who |
+|-------|------|-----|
+| A — Scan | `scan-project.sh` + `verify-migration.sh` → JSON baseline | @lead |
+| B — Spawn | 5 mappers/checkers in parallel | @lead |
+| C — Cross-ref | Cross-Layer Verifier merges all JSON, finds disconnects | @cross-layer-verifier |
+| D — Report | Structured report: script results + semantic checks + guaranteed bugs | @lead |
+| E — Fix (opt.) | Propose fixes for found bugs | @lead |
+
+```mermaid
+graph TD
+    L(["@lead — orchestrator"])
+
+    L -->|"delegates"| SR["@script-runner"]
+    L -->|"delegates"| TM["@template-mapper"]
+    L -->|"delegates"| JM["@java-mapper"]
+    L -->|"delegates"| CM["@config-mapper"]
+    L -->|"delegates"| SC["@semantic-checker"]
+
+    SR -.->|"JSON"| CLV
+    TM -.->|"JSON"| CLV
+    JM -.->|"JSON"| CLV
+    CM -.->|"JSON"| CLV
+    SC -.->|"JSON"| CLV
+
+    CLV{{"@cross-layer-verifier"}} -.->|"guaranteed-bugs.json"| L
+```
+
+### Teammates
+
+| Teammate | Role |
+|----------|------|
+| @script-runner | Runs `scan-project.sh` + `verify-migration.sh`, produces baseline JSON |
+| @template-mapper | Extracts template flows: model attributes, form fields, actions, i18n keys |
+| @java-mapper | Extracts Java flows: bean methods, service calls, DAO queries, model puts |
+| @config-mapper | Extracts config: plugin.xml rights, XPage paths, REST endpoints |
+| @semantic-checker | CDI scopes, singletons, producers, cache guards, deprecated API |
+| @cross-layer-verifier | Merges all JSONs, cross-references layers, outputs guaranteed bugs only |
+
+**Output:** structured report with guaranteed bugs + optional auto-fix.
 
 ## Rules
 
