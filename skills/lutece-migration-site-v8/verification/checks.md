@@ -19,6 +19,8 @@ Each check has: ID, category, pattern, search path, severity, and description.
 | PM05 | `net\.sf\.json-lib` | `pom.xml` | WARN | Use Jackson instead |
 | PM06 | Parent `<version>` doesn't start with `8.` | `pom.xml` | FAIL | Parent version must start with `8.` |
 | PM07 | `<springVersion>` | `pom.xml` | FAIL | springVersion property must be removed |
+| PM08 | `<jiraProjectName>\|<jiraComponentId>` | `pom.xml` | WARN | Jira properties must be removed |
+| PM09 | `,[0-9].*)</version>` | `pom.xml` | WARN | Bounded version ranges — convert to open `[X,)` |
 
 ---
 
@@ -64,6 +66,6 @@ Each check has: ID, category, pattern, search path, severity, and description.
 
 ## Summary
 
-- **Total checks**: 18
+- **Total checks**: 20
 - **FAIL severity**: 10 (will break site assembly or runtime)
-- **WARN severity**: 8 (best practice, should fix)
+- **WARN severity**: 10 (best practice, should fix)

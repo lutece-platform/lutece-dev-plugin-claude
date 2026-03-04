@@ -108,6 +108,20 @@ check_pom "PM03" 'com\.sun\.mail' "FAIL" "javax.mail dependency in pom.xml"
 check_pom "PM04" 'org\.glassfish\.jersey' "FAIL" "Jersey dependencies in pom.xml"
 check_pom "PM05" 'net\.sf\.json-lib' "WARN" "json-lib in pom.xml (use Jackson)"
 check_pom "PM07" '<springVersion>' "FAIL" "springVersion property in pom.xml"
+check_pom "PM08" '<jiraProjectName>\|<jiraComponentId>' "WARN" "Jira properties in pom.xml (remove)"
+
+# PM09: bounded version ranges [X,Y) should be open [X,)
+TOTAL=$((TOTAL + 1))
+if [ -f "pom.xml" ]; then
+    BOUNDED=$(grep -c ',[0-9].*)</version>' pom.xml 2>/dev/null || true)
+    if [ "$BOUNDED" -gt 0 ]; then
+        emit "PM09" "WARN" "$BOUNDED bounded version range(s) found — convert to open [X,)" 0
+    else
+        emit "PM09" "PASS" "No bounded version ranges" 0
+    fi
+else
+    emit "PM09" "PASS" "No bounded version ranges (no pom.xml)" 0
+fi
 
 # PM06: parent version must start with 8.
 TOTAL=$((TOTAL + 1))

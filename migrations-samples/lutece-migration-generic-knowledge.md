@@ -55,6 +55,8 @@ The AI MUST execute the following phases **in order**. Each phase has mandatory 
     - `library-httpaccess` → check v8 version
 11. Add new dependencies if needed (JCache API, classgraph, etc.)
 12. Remove `<springVersion>` property if present
+13. Remove Jira properties: `<jiraProjectName>` and `<jiraComponentId>` from `<properties>` block
+14. Convert bounded version ranges to open ranges: `[X,Y)` → `[X,)`. Upper bounds are unnecessary in v8
 
 **Verification:**
 - [ ] No `org.springframework` dependency remains
@@ -62,6 +64,8 @@ The AI MUST execute the following phases **in order**. Each phase has mandatory 
 - [ ] No `javax.mail` dependency remains
 - [ ] Parent POM is `8.0.0`
 - [ ] Core dependency is v8
+- [ ] No `<jiraProjectName>` or `<jiraComponentId>` properties remain
+- [ ] No bounded version ranges `[X,Y)` remain
 
 ---
 

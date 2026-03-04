@@ -51,6 +51,8 @@ Read `.migration/tasks-config.json` for your work list and dependency info.
    </dependency>
    ```
 9. For **libraries**: replace `lutece-core` dependency with `library-core-utils` if the library should not depend on full core
+10. **Remove** Jira properties: `<jiraProjectName>` and `<jiraComponentId>` from `<properties>` block
+11. **Convert** bounded version ranges to open ranges: `[X,Y)` → `[X,)`. Upper bounds are unnecessary in v8
 
 ## Step 2: Create beans.xml
 

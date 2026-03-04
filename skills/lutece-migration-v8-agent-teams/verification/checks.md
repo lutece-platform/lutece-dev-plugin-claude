@@ -25,6 +25,8 @@
 | PM05 | WARN | json-lib (use Jackson) | `net\.sf\.json-lib` | pom.xml |
 | PM06 | FAIL | Parent version must start with `8.` | (custom check) | pom.xml |
 | PM07 | FAIL | springVersion property | `<springVersion>` | pom.xml |
+| PM08 | WARN | Jira properties (remove) | `<jiraProjectName>\|<jiraComponentId>` | pom.xml |
+| PM09 | WARN | Bounded version range (use open) | `,[0-9].*)</version>` | pom.xml |
 
 ## javax Residues (JX)
 
