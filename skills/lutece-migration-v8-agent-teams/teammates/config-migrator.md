@@ -26,7 +26,7 @@ Read `.migration/tasks-config.json` for your work list and dependency info.
 
 ## Step 1: POM Migration
 
-1. Update `<parent>` version to `8.0.0-SNAPSHOT`
+1. Update `<parent>` version to latest `8.x` release (currently `8.0.0`). Use the release version, NOT a SNAPSHOT
 2. Bump artifact `<version>` by one major (e.g., `4.2.1-SNAPSHOT` → `5.0.0-SNAPSHOT`)
 3. **Remove** these dependencies:
    - `org.springframework.*` (all Spring artifacts)
@@ -38,7 +38,7 @@ Read `.migration/tasks-config.json` for your work list and dependency info.
    - `org.glassfish.jersey.*` (Jersey)
    - `net.sf.json-lib`
 4. **Remove** `<springVersion>` property
-5. **Update** `lutece-core` to `8.0.0-SNAPSHOT`
+5. **Update** `lutece-core` to latest `8.x` release range `[8.0.0,)`
 6. **Update** all Lutece dependencies to their v8 versions — each dependency in `.migration/scan.json` has a `v8Version` field extracted from its reference POM. Use those exact versions. If `v8Version` is empty, read the version from `~/.lutece-references/<artifactId>/pom.xml`
 7. **Update** repository URLs from `http://` to `https://` (in `<repositories>`, `<pluginRepositories>`, `<distributionManagement>`)
 8. **Add** if not present:

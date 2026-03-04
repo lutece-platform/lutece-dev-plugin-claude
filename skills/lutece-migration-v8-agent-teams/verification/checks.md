@@ -23,7 +23,7 @@
 | PM03 | FAIL | javax.mail dependency | `com\.sun\.mail` | pom.xml |
 | PM04 | FAIL | Jersey dependencies | `org\.glassfish\.jersey` | pom.xml |
 | PM05 | WARN | json-lib (use Jackson) | `net\.sf\.json-lib` | pom.xml |
-| PM06 | FAIL | Parent version must be 8.0.0-SNAPSHOT | (custom check) | pom.xml |
+| PM06 | FAIL | Parent version must start with `8.` | (custom check) | pom.xml |
 | PM07 | FAIL | springVersion property | `<springVersion>` | pom.xml |
 
 ## javax Residues (JX)

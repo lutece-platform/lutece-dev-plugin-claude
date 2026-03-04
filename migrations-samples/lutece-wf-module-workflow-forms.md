@@ -6,8 +6,8 @@ This document analyzes the migration differences between Lutece v7 (`develop` br
 
 **Version Changes:**
 - Module version: `2.3.4-SNAPSHOT` -> `3.0.0-SNAPSHOT`
-- Parent POM: `6.0.0` -> `8.0.0-SNAPSHOT`
-- lutece-core: `[7.0.0,)` -> `[8.0.0-SNAPSHOT,)`
+- Parent POM: `6.0.0` -> `8.0.0`
+- lutece-core: `[7.0.0,)` -> `[8.0.0,)`
 - plugin-forms: `[2.4.2-SNAPSHOT,)` -> `[4.0.0-SNAPSHOT,)`
 - plugin-workflow: `[5.3.0,)` -> `[7.0.0-SNAPSHOT,)`
 - library-signrequest: `[2.0.5,)` -> `[4.0.0-SNAPSHOT,)`

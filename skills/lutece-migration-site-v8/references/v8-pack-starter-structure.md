@@ -46,7 +46,7 @@ site-xxx/
     <parent>
         <artifactId>lutece-site-pom</artifactId>
         <groupId>fr.paris.lutece.tools</groupId>
-        <version>8.0.0-SNAPSHOT</version>
+        <version>8.0.0</version>
     </parent>
 
     <groupId>fr.paris.lutece</groupId>
@@ -72,7 +72,7 @@ site-xxx/
             <dependency>
                 <groupId>fr.paris.lutece.starters</groupId>
                 <artifactId>lutece-bom</artifactId>
-                <version>8.0.0-SNAPSHOT</version>
+                <version>8.0.0</version>
                 <scope>import</scope>
                 <type>pom</type>
             </dependency>
@@ -84,7 +84,7 @@ site-xxx/
         <dependency>
             <groupId>fr.paris.lutece.starters</groupId>
             <artifactId>forms-starter</artifactId>
-            <version>8.0.0-SNAPSHOT</version>
+            <version>8.0.0</version>
         </dependency>
 
         <!-- Plugins additionnels non inclus dans le starter -->

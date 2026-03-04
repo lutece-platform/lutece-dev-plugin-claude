@@ -138,15 +138,15 @@ check_pom "PM04" 'org\.glassfish\.jersey' "FAIL" "Jersey dependencies in pom.xml
 check_pom "PM05" 'net\.sf\.json-lib' "WARN" "json-lib in pom.xml (use Jackson)"
 check_pom "PM07" '<springVersion>' "FAIL" "springVersion property in pom.xml"
 
-# PM06: parent version must be 8.0.0-SNAPSHOT
+# PM06: parent version must start with 8.
 TOTAL=$((TOTAL + 1))
 if [ -f "pom.xml" ]; then
     PARENT_VER=$(sed -n '/<parent>/,/<\/parent>/p' pom.xml | grep '<version>' | head -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d ' ')
-    if [ "$PARENT_VER" = "8.0.0-SNAPSHOT" ]; then
-        echo -e "  ${GREEN}PASS${NC} [PM06] Parent version is 8.0.0-SNAPSHOT"
+    if [[ "$PARENT_VER" == 8.* ]]; then
+        echo -e "  ${GREEN}PASS${NC} [PM06] Parent version is $PARENT_VER"
         PASS=$((PASS + 1))
     else
-        echo -e "  ${RED}FAIL${NC} [PM06] Parent version is '$PARENT_VER' (must be 8.0.0-SNAPSHOT)"
+        echo -e "  ${RED}FAIL${NC} [PM06] Parent version is '$PARENT_VER' (must start with 8.)"
         FAIL=$((FAIL + 1))
     fi
 else

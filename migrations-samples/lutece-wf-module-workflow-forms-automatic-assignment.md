@@ -35,14 +35,14 @@ Migration from Lutece v7 (develop) to Lutece v8 (develop_core8) for the module `
 <parent>
     <artifactId>lutece-global-pom</artifactId>
     <groupId>fr.paris.lutece.tools</groupId>
-    <version>8.0.0-SNAPSHOT</version>
+    <version>8.0.0</version>
 </parent>
 ```
 
 ### Dependencies Update
 | Dependency | v7 Version | v8 Version |
 |------------|-----------|-----------|
-| lutece-core | [7.0.0,) | [8.0.0-SNAPSHOT,) |
+| lutece-core | [7.0.0,) | [8.0.0,) |
 | plugin-workflow | [5.3.0,) | [7.0.0-SNAPSHOT,) |
 | plugin-forms | [2.4.0,) | [4.0.0-SNAPSHOT,) |
 

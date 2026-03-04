@@ -5,8 +5,8 @@
 | Aspect | v7 (develop) | v8 (develop_core8) |
 |--------|--------------|-------------------|
 | **Plugin Version** | 1.1.11-SNAPSHOT | 2.0.0-SNAPSHOT |
-| **Parent POM** | 6.1.0 | 8.0.0-SNAPSHOT |
-| **Core Dependency** | [4.4.1,) | [8.0.0-SNAPSHOT,) |
+| **Parent POM** | 6.1.0 | 8.0.0 |
+| **Core Dependency** | [4.4.1,) | [8.0.0,) |
 | **DI Framework** | Spring | CDI (Jakarta EE) |
 | **Servlet API** | javax.servlet | jakarta.servlet |
 | **JSON Library** | net.sf.json-lib | Jackson (fasterxml) |
@@ -34,7 +34,7 @@
 <version>6.1.0</version>
 
 <!-- v8 -->
-<version>8.0.0-SNAPSHOT</version>
+<version>8.0.0</version>
 ```
 
 ### Plugin Version
@@ -60,7 +60,7 @@
 <dependency>
     <groupId>fr.paris.lutece</groupId>
     <artifactId>lutece-core</artifactId>
-    <version>[8.0.0-SNAPSHOT,)</version>
+    <version>[8.0.0,)</version>
     <type>lutece-core</type>
 </dependency>
 ```

@@ -71,7 +71,7 @@ All JAX-RS imports changed from `javax.ws.rs` to `jakarta.ws.rs`:
 <!-- v8 Parent POM -->
 <parent>
     <artifactId>lutece-global-pom</artifactId>
-    <version>8.0.0-SNAPSHOT</version>
+    <version>8.0.0</version>
 </parent>
 ```
 

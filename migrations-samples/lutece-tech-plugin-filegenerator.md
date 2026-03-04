@@ -29,7 +29,7 @@ This document analyzes the migration differences between Lutece v7 (branch `deve
 <version>6.1.0</version>
 
 <!-- v8 -->
-<version>8.0.0-SNAPSHOT</version>
+<version>8.0.0</version>
 ```
 
 ### Lutece Core Dependency
@@ -38,7 +38,7 @@ This document analyzes the migration differences between Lutece v7 (branch `deve
 <version>[7.0.4,)</version>
 
 <!-- v8 -->
-<version>[8.0.0-SNAPSHOT,)</version>
+<version>[8.0.0,)</version>
 ```
 
 ### Repository URLs (HTTP to HTTPS)
@@ -408,8 +408,8 @@ public void testCRUD( )
 ## 8. Migration Checklist
 
 ### Mandatory Changes
-- [ ] Update pom.xml parent version to 8.0.0-SNAPSHOT
-- [ ] Update lutece-core dependency to [8.0.0-SNAPSHOT,)
+- [ ] Update pom.xml parent version to 8.0.0
+- [ ] Update lutece-core dependency to [8.0.0,)
 - [ ] Change all `javax.*` imports to `jakarta.*`
 - [ ] Replace Spring beans with CDI annotations (`@ApplicationScoped`, `@RequestScoped`)
 - [ ] Replace `SpringContextService.getBean()` with `CDI.current().select().get()`

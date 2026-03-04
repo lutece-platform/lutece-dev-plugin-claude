@@ -8,7 +8,7 @@ This document analyzes the migration differences between Lutece v7 (branch `deve
 - **592 files changed**
 - **15,200 insertions, 74,524 deletions**
 - Version change: `3.1.0-SNAPSHOT` -> `4.0.0-SNAPSHOT`
-- Parent POM: `6.1.0` -> `8.0.0-SNAPSHOT`
+- Parent POM: `6.1.0` -> `8.0.0`
 
 ---
 
@@ -29,7 +29,7 @@ This document analyzes the migration differences between Lutece v7 (branch `deve
 <parent>
     <artifactId>lutece-global-pom</artifactId>
     <groupId>fr.paris.lutece.tools</groupId>
-    <version>8.0.0-SNAPSHOT</version>
+    <version>8.0.0</version>
 </parent>
 <version>4.0.0-SNAPSHOT</version>
 ```
@@ -38,7 +38,7 @@ This document analyzes the migration differences between Lutece v7 (branch `deve
 
 | Dependency | v7 Version | v8 Version |
 |------------|-----------|-----------|
-| lutece-core | [7.1.2-SNAPSHOT,) | [8.0.0-SNAPSHOT,) |
+| lutece-core | [7.1.2-SNAPSHOT,) | [8.0.0,) |
 | plugin-genericattributes | [2.4.6-SNAPSHOT,) | [3.0.0-SNAPSHOT,) |
 | plugin-regularexpression | [3.0.4,) | [5.0.0-SNAPSHOT,) |
 | plugin-filegenerator | [2.1.3,) | [3.0.0-SNAPSHOT,) |

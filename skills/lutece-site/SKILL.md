@@ -129,11 +129,11 @@ For each plugin added by the user:
 
 3. **Read pom.xml and check parent version** - This is the **only reliable check**:
    - `curl -s "https://raw.githubusercontent.com/{org}/{repo}/{branch}/pom.xml"`
-   - Extract parent `<version>`: if `8.0.0-SNAPSHOT` → **Lutece 8 confirmed**
+   - Extract parent `<version>`: if it starts with `8.` → **Lutece 8 confirmed**
    - Extract plugin `<version>` for the dependency version
-   - If `develop_core8` has parent `8.0.0-SNAPSHOT` → use this branch
-   - If `develop_core8` doesn't exist, check `develop` pom.xml → if parent is `8.0.0-SNAPSHOT` → v8 on develop
-   - If neither branch has parent `8.0.0-SNAPSHOT` → **NOT v8 compatible**
+   - If `develop_core8` has parent starting with `8.` → use this branch
+   - If `develop_core8` doesn't exist, check `develop` pom.xml → if parent starts with `8.` → v8 on develop
+   - If neither branch has parent starting with `8.` → **NOT v8 compatible**
 
 4. **Report results** - Display a compatibility summary table:
 
@@ -142,9 +142,9 @@ Lutece 8 compatibility check:
 
 | Plugin | Repo | Branch | Parent POM | Version | Status |
 |--------|------|--------|------------|---------|--------|
-| plugin-forms | lutece-form-plugin-forms | develop_core8 | 8.0.0-SNAPSHOT | 4.0.0-SNAPSHOT | OK |
-| plugin-workflow | lutece-wf-plugin-workflow | develop_core8 | 8.0.0-SNAPSHOT | 7.0.0-SNAPSHOT | OK |
-| plugin-myapp | lutece-tech-plugin-myapp | develop | 8.0.0-SNAPSHOT | 1.0.0-SNAPSHOT | OK (v8 on develop) |
+| plugin-forms | lutece-form-plugin-forms | develop_core8 | 8.0.0 | 4.0.0-SNAPSHOT | OK |
+| plugin-workflow | lutece-wf-plugin-workflow | develop_core8 | 8.0.0 | 7.0.0-SNAPSHOT | OK |
+| plugin-myapp | lutece-tech-plugin-myapp | develop | 8.0.0 | 1.0.0-SNAPSHOT | OK (v8 on develop) |
 | plugin-announce | lutece-collab-plugin-announce | develop | 7.0.2 | 3.1.4-SNAPSHOT | NOT v8 |
 ```
 
@@ -171,7 +171,7 @@ If the user already provided an explicit version, keep theirs.
 
 | Branch | Lutece version | Parent POM |
 |--------|---------------|------------|
-| `develop_core8` | Lutece 8 | `8.0.0-SNAPSHOT` |
+| `develop_core8` | Lutece 8 | `8.x` (e.g. `8.0.0`) |
 | `develop` | Lutece 7 | `7.x.x` |
 | `master` | Stable release (usually v7) | varies |
 

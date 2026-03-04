@@ -37,8 +37,8 @@ The AI MUST execute the following phases **in order**. Each phase has mandatory 
 ### PHASE 1: POM.XML Migration
 
 **Steps:**
-1. Update parent POM: `lutece-global-pom` version `6.x.x` → `8.0.0-SNAPSHOT`
-2. Update artifact version to `8.0.0-SNAPSHOT` (or appropriate v8 version)
+1. Update parent POM: `lutece-global-pom` version `6.x.x` → `8.0.0`
+2. Update artifact version to `8.0.0` (or appropriate v8 version)
 3. Remove Spring dependencies:
    - `spring-aop`, `spring-beans`, `spring-context`, `spring-core`, `spring-orm`, `spring-tx`, `spring-web`
 4. Remove old cache dependencies:
@@ -47,7 +47,7 @@ The AI MUST execute the following phases **in order**. Each phase has mandatory 
 6. Remove old persistence: `org.eclipse.persistence:javax.persistence`
 7. Remove Quartz if present: `org.quartz-scheduler:quartz`
 8. Remove Scannotation if present: `org.scannotation:scannotation`
-9. Update `lutece-core` dependency version to `8.0.0-SNAPSHOT` (for plugins/modules)
+9. Update `lutece-core` dependency version to `8.0.0` (for plugins/modules)
 10. Update related library versions:
     - `library-workflow-core` → `4.0.0-SNAPSHOT`
     - `library-lucene` → `6.0.0-SNAPSHOT`
@@ -60,7 +60,7 @@ The AI MUST execute the following phases **in order**. Each phase has mandatory 
 - [ ] No `org.springframework` dependency remains
 - [ ] No `net.sf.ehcache` dependency remains
 - [ ] No `javax.mail` dependency remains
-- [ ] Parent POM is `8.0.0-SNAPSHOT`
+- [ ] Parent POM is `8.0.0`
 - [ ] Core dependency is v8
 
 ---

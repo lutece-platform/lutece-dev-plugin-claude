@@ -29,14 +29,14 @@ This document analyzes the migration changes between Lutece v7 (`develop` branch
 ### Parent POM
 ```xml
 - <version>7.0.2</version>
-+ <version>8.0.0-SNAPSHOT</version>
++ <version>8.0.0</version>
 ```
 
 ### Dependencies Updated
 
 | Dependency | v7 Version | v8 Version |
 |------------|------------|------------|
-| lutece-core | `[5.0.0,)` | `[8.0.0-SNAPSHOT,)` |
+| lutece-core | `[5.0.0,)` | `[8.0.0,)` |
 | plugin-workflow | `[4.3.2,)` | `[7.0.0-SNAPSHOT,)` |
 | plugin-asynchronousupload | `[1.0.5,)` | `[2.0.0-SNAPSHOT,)` |
 | library-signrequest | `[2.0.1-SNAPSHOT,)` | `[4.0.0-SNAPSHOT,)` |
@@ -470,7 +470,7 @@ return CdiHelper.getReference(AbstractPrivateKeyAuthenticator.class, BEAN_REQUES
 
 ### Required Changes
 
-- [x] Update pom.xml parent version to 8.0.0-SNAPSHOT
+- [x] Update pom.xml parent version to 8.0.0
 - [x] Update all dependency versions
 - [x] Migrate javax imports to jakarta
 - [x] Replace FileItem with MultipartItem

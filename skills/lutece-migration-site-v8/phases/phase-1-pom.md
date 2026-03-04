@@ -14,7 +14,7 @@ Change the parent to Lutece 8. **For sites, use `lutece-site-pom`** (not `lutece
 <parent>
     <artifactId>lutece-site-pom</artifactId>
     <groupId>fr.paris.lutece.tools</groupId>
-    <version>8.0.0-SNAPSHOT</version>
+    <version>8.0.0</version>
 </parent>
 ```
 
@@ -22,7 +22,7 @@ Change the parent to Lutece 8. **For sites, use `lutece-site-pom`** (not `lutece
 
 ### 2. Update site version
 
-**Increment the current major version by 1** and set to `X+1.0.0-SNAPSHOT` (e.g. `2.1.0-SNAPSHOT` → `3.0.0-SNAPSHOT`). Do NOT set it to `8.0.0-SNAPSHOT` — that is the core/parent version, not the site's own version.
+**Increment the current major version by 1** and set to `X+1.0.0-SNAPSHOT` (e.g. `2.1.0-SNAPSHOT` → `3.0.0-SNAPSHOT`). Do NOT set it to `8.0.0` — that is the core/parent version, not the site's own version.
 
 ### 3. Verify packaging
 
@@ -41,7 +41,7 @@ Add the Lutece BOM to centralize version management. **Note the groupId is `fr.p
         <dependency>
             <groupId>fr.paris.lutece.starters</groupId>
             <artifactId>lutece-bom</artifactId>
-            <version>8.0.0-SNAPSHOT</version>
+            <version>8.0.0</version>
             <scope>import</scope>
             <type>pom</type>
         </dependency>
@@ -57,7 +57,7 @@ With the BOM, individual plugin versions can be omitted (the BOM provides them).
 <dependency>
     <groupId>fr.paris.lutece</groupId>
     <artifactId>lutece-core</artifactId>
-    <version>[8.0.0-SNAPSHOT,)</version>
+    <version>[8.0.0,)</version>
     <type>lutece-core</type>
 </dependency>
 ```
@@ -78,7 +78,7 @@ Lutece 8 introduces **starters** that bundle common plugin sets. Starters dramat
 <dependency>
     <groupId>fr.paris.lutece.starters</groupId>
     <artifactId>forms-starter</artifactId>
-    <version>8.0.0-SNAPSHOT</version>
+    <version>8.0.0</version>
 </dependency>
 ```
 
@@ -102,7 +102,7 @@ Lutece 8 introduces **starters** that bundle common plugin sets. Starters dramat
 <dependency>
     <groupId>fr.paris.lutece.starters</groupId>
     <artifactId>forms-starter</artifactId>
-    <version>8.0.0-SNAPSHOT</version>
+    <version>8.0.0</version>
 </dependency>
 
 <!-- Dépendances non importées par le starter forms-starter -->
@@ -139,7 +139,7 @@ To redirect logs to `java.util.logging` for OpenTelemetry export:
 <dependency>
     <groupId>fr.paris.lutece</groupId>
     <artifactId>lutece-core</artifactId>
-    <version>[8.0.0-SNAPSHOT,)</version>
+    <version>[8.0.0,)</version>
     <type>lutece-core</type>
     <exclusions>
         <exclusion>
@@ -203,7 +203,7 @@ V8 sites often use external themes instead of local skin files:
 
 ## Verification (MANDATORY before next phase)
 
-1. Parent POM is `8.0.0-SNAPSHOT`
+1. Parent POM is `8.0.0`
 2. `lutece-core` dependency references v8
 3. All plugin versions match the v8 version map from Phase 0 (or are managed by BOM)
 4. No Spring, EhCache, Jersey, javax.mail dependencies

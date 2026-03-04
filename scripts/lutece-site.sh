@@ -71,7 +71,7 @@ cat > "$SITE_DIR/pom.xml" << 'POMEOF'
     <parent>
         <artifactId>lutece-global-pom</artifactId>
         <groupId>fr.paris.lutece.tools</groupId>
-        <version>8.0.0-SNAPSHOT</version>
+        <version>8.0.0</version>
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
@@ -98,7 +98,7 @@ cat >> "$SITE_DIR/pom.xml" << 'POMEOF'
         <dependency>
             <groupId>fr.paris.lutece</groupId>
             <artifactId>lutece-core</artifactId>
-            <version>[8.0.0-SNAPSHOT,)</version>
+            <version>[8.0.0,)</version>
             <type>lutece-core</type>
         </dependency>
         <dependency>

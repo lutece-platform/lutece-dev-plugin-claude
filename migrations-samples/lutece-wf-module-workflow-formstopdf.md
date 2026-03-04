@@ -5,8 +5,8 @@
 | Property | v7 (develop) | v8 (develop_core8) |
 |----------|--------------|-------------------|
 | **Module Version** | 1.0.0-SNAPSHOT | 2.0.0-SNAPSHOT |
-| **Global POM** | 7.0.1 | 8.0.0-SNAPSHOT |
-| **Lutece Core** | [7.0.5-SNAPSHOT,) | [8.0.0-SNAPSHOT,) |
+| **Global POM** | 7.0.1 | 8.0.0 |
+| **Lutece Core** | [7.0.5-SNAPSHOT,) | [8.0.0,) |
 | **Plugin Forms** | [3.0.1,) | [4.0.0-SNAPSHOT,) |
 | **Plugin Workflow** | [6.0.0,) | [7.0.0-SNAPSHOT,) |
 | **Library Workflow Core** | [1.2.1,3.0.4] | 4.0.0-SNAPSHOT |
@@ -521,7 +521,7 @@ public class TestFormsToPdf extends LuteceTestCase
 
 | Category | Change Required |
 |----------|-----------------|
-| POM | Update parent POM to 8.0.0-SNAPSHOT, update all dependencies |
+| POM | Update parent POM to 8.0.0, update all dependencies |
 | Spring Context | Delete `*_context.xml`, add `META-INF/beans.xml` |
 | Imports | Change `javax.servlet` to `jakarta.servlet` |
 | TaskConfig | Add `@Dependent` and `@Named` |

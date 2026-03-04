@@ -5,7 +5,7 @@
 | Attribute | v7 (develop) | v8 (develop8) |
 |-----------|--------------|---------------|
 | **Artifact Version** | 3.0.1-SNAPSHOT | 4.0.0-SNAPSHOT |
-| **Parent POM** | 6.0.0 | 8.0.0-SNAPSHOT |
+| **Parent POM** | 6.0.0 | 8.0.0 |
 | **library-jwt dependency** | [1.0.0,) | [3.0.0-SNAPSHOT,) |
 
 ## Summary of Changes
@@ -26,7 +26,7 @@
 <version>6.0.0</version>
 
 <!-- v8 -->
-<version>8.0.0-SNAPSHOT</version>
+<version>8.0.0</version>
 ```
 
 ### Artifact Version
@@ -387,7 +387,7 @@ private static final String SECRET_KEY = "testestestestesttestestestestest";
 ## 8. Migration Checklist
 
 ### Required Changes
-- [ ] Update parent POM to 8.0.0-SNAPSHOT
+- [ ] Update parent POM to 8.0.0
 - [ ] Update artifact version to 4.0.0-SNAPSHOT
 - [ ] Replace all `javax.servlet.*` imports with `jakarta.servlet.*`
 - [ ] Update library-jwt dependency to [3.0.0-SNAPSHOT,)

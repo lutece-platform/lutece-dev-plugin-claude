@@ -19,9 +19,9 @@ This document analyzes the migration changes between Lutece v7 (branch `develop`
 
 | Dependency | v7 | v8 |
 |------------|-----|-----|
-| lutece-global-pom | 6.0.0 | 8.0.0-SNAPSHOT |
+| lutece-global-pom | 6.0.0 | 8.0.0 |
 | plugin-workflow | 6.0.4-SNAPSHOT | 7.0.0-SNAPSHOT |
-| lutece-core | [7.0.0,) | 8.0.0-SNAPSHOT |
+| lutece-core | [7.0.0,) | 8.0.0 |
 | library-workflow-core | [3.0.2,) | 4.0.0-SNAPSHOT |
 | plugin-mermaidjs | [1.0.0,) | [2.0.0-SNAPSHOT,) |
 

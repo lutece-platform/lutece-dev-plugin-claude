@@ -14,7 +14,7 @@ This document analyzes the migration changes between Lutece v7 (`develop` branch
 
 ### Parent POM Version
 - **Before**: `lutece-global-pom` version `6.1.0`
-- **After**: `lutece-global-pom` version `8.0.0-SNAPSHOT`
+- **After**: `lutece-global-pom` version `8.0.0`
 
 ### Artifact Version
 - **Before**: `3.0.3-SNAPSHOT`
@@ -309,7 +309,7 @@ configuration.setConnectionPoolEnabled( true );
 
 ## Migration Checklist
 
-- [ ] Update parent POM to `8.0.0-SNAPSHOT`
+- [ ] Update parent POM to `8.0.0`
 - [ ] Update artifact version to `4.0.0-SNAPSHOT`
 - [ ] Replace `lutece-core` dependency with `library-core-utils`
 - [ ] Update `library-signrequest` to `4.0.0-SNAPSHOT`

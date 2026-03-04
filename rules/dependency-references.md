@@ -19,7 +19,7 @@ When a user's request (feature, bug, question) involves — explicitly or implic
    ```bash
    curl -s "https://api.github.com/repos/{org}/{repo}/branches?per_page=100" | jq -r '.[].name'
    ```
-5. **Verify v8 compatibility** — Fetch the remote pom.xml and check `<parent><version>` is `8.0.0-SNAPSHOT`
+5. **Verify v8 compatibility** — Fetch the remote pom.xml and check `<parent><version>` starts with `8.` (e.g. `8.0.0`, `8.0.0-SNAPSHOT`, `8.1.0`)
    ```bash
    curl -s "https://raw.githubusercontent.com/{org}/{repo}/{branch}/pom.xml" | grep -A1 '<parent>' | grep '<version>'
    ```

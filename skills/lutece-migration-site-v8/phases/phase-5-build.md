@@ -140,7 +140,7 @@ After this phase completes, output the final migration report:
 ## Site Migration Complete
 - Site: [siteName]
 - Version: [old] → [new]
-- Parent: [old] → 8.0.0-SNAPSHOT
+- Parent: [old] → 8.0.0
 - Plugins: [N] (list with versions)
 - Templates migrated: [N]
 - jQuery occurrences removed: [N]

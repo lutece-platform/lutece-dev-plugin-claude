@@ -10,7 +10,7 @@ This document analyzes the migration differences between Lutece v7 (branch `deve
 
 **Parent POM Changes:**
 - v7: `lutece-global-pom` version `6.0.0`
-- v8: `lutece-global-pom` version `8.0.0-SNAPSHOT`
+- v8: `lutece-global-pom` version `8.0.0`
 
 ---
 

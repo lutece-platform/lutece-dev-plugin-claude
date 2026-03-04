@@ -8,8 +8,8 @@ This document details the migration patterns between Lutece v7 (branch `develop`
 
 | Category | Lutece v7 | Lutece v8 |
 |----------|-----------|-----------|
-| **Parent POM** | `lutece-global-pom:6.1.0` | `lutece-global-pom:8.0.0-SNAPSHOT` |
-| **Core Version** | `7.0.17-SNAPSHOT` | `8.0.0-SNAPSHOT` |
+| **Parent POM** | `lutece-global-pom:6.1.0` | `lutece-global-pom:8.0.0` |
+| **Core Version** | `7.0.17-SNAPSHOT` | `8.0.0` |
 | **DI Framework** | Spring Framework 5.3.x | Jakarta CDI 4.0 |
 | **Servlet API** | `javax.servlet` | `jakarta.servlet` (EE 10) |
 | **Web App Version** | web-app 3.1 | web-app 6.0 |
@@ -38,9 +38,9 @@ This document details the migration patterns between Lutece v7 (branch `develop`
 <parent>
     <artifactId>lutece-global-pom</artifactId>
     <groupId>fr.paris.lutece.tools</groupId>
-    <version>8.0.0-SNAPSHOT</version>
+    <version>8.0.0</version>
 </parent>
-<version>8.0.0-SNAPSHOT</version>
+<version>8.0.0</version>
 <!-- No Spring version property - Spring is removed -->
 ```
 
@@ -1030,7 +1030,7 @@ public static RemovalListenerService getService() {
 ### 14.1 For Plugin Developers
 
 1. **Update pom.xml**
-   - Change parent POM to `8.0.0-SNAPSHOT`
+   - Change parent POM to `8.0.0`
    - Remove Spring dependencies
    - Add any required Jakarta EE dependencies
 

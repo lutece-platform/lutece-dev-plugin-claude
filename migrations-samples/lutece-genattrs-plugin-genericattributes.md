@@ -5,8 +5,8 @@
 | Property | v7 (develop) | v8 (develop_core8) |
 |----------|--------------|-------------------|
 | Plugin version | 2.4.9-SNAPSHOT | 3.0.0-SNAPSHOT |
-| Parent POM | 7.0.2 | 8.0.0-SNAPSHOT |
-| lutece-core dependency | [7.0.17-SNAPSHOT,7.9.9) | [8.0.0-SNAPSHOT,) |
+| Parent POM | 7.0.2 | 8.0.0 |
+| lutece-core dependency | [7.0.17-SNAPSHOT,7.9.9) | [8.0.0,) |
 
 ## Statistics
 
@@ -31,7 +31,7 @@
 <dependency>
     <groupId>fr.paris.lutece</groupId>
     <artifactId>lutece-core</artifactId>
-    <version>[8.0.0-SNAPSHOT,)</version>
+    <version>[8.0.0,)</version>
 </dependency>
 ```
 

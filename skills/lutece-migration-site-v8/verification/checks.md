@@ -17,7 +17,7 @@ Each check has: ID, category, pattern, search path, severity, and description.
 | PM03 | `com\.sun\.mail` | `pom.xml` | FAIL | javax.mail dependency must be removed |
 | PM04 | `org\.glassfish\.jersey` | `pom.xml` | FAIL | Jersey dependencies must be removed |
 | PM05 | `net\.sf\.json-lib` | `pom.xml` | WARN | Use Jackson instead |
-| PM06 | Parent `<version>` != `8.0.0-SNAPSHOT` | `pom.xml` | FAIL | Parent version must be `8.0.0-SNAPSHOT` |
+| PM06 | Parent `<version>` doesn't start with `8.` | `pom.xml` | FAIL | Parent version must start with `8.` |
 | PM07 | `<springVersion>` | `pom.xml` | FAIL | springVersion property must be removed |
 
 ---

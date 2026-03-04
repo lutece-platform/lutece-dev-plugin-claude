@@ -55,14 +55,14 @@ If converting to pack starter:
 
 For each **Lutece dependency** found in `pom.xml` (groupId `fr.paris.lutece.*`):
 
-1. **Check `~/.lutece-references/`** — If the repo is already cloned, read its `pom.xml` to confirm `<parent><version>` is `8.0.0-SNAPSHOT`
+1. **Check `~/.lutece-references/`** — If the repo is already cloned, read its `pom.xml` to confirm `<parent><version>` starts with `8.` (e.g. `8.0.0`, `8.0.0-SNAPSHOT`, `8.1.0`)
 2. **If not found locally, search GitHub** — Search `lutece-platform` and `lutece-secteur-public` orgs:
    ```bash
    curl -s "https://api.github.com/search/repositories?q=org:lutece-platform+{artifactId}+in:name&per_page=3" | jq -r '.items[].name'
    curl -s "https://api.github.com/search/repositories?q=org:lutece-secteur-public+{artifactId}+in:name&per_page=3" | jq -r '.items[].name'
    ```
 3. **Find the v8 branch** — Priority: `develop_core8` > `develop8` > `develop8.x` > `develop`
-4. **Verify v8 compatibility** — Fetch the remote `pom.xml` and check parent version is `8.0.0-SNAPSHOT`
+4. **Verify v8 compatibility** — Fetch the remote `pom.xml` and check parent version starts with `8.`
 5. **Read the v8 version** — Extract `<version>` from the dependency's v8 pom.xml
 
 ### If a dependency has NO v8 version
