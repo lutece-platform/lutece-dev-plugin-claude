@@ -6,12 +6,15 @@ paths:
 
 # plugin.xml — Lutece 8
 
-## Mandatory Structure
+## Mandatory Structure (new plugin template)
+
+This is a template for **new plugins only**. During migration, do NOT overwrite `<class>` — see the section below.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <plug-in>
     <name>myplugin</name>
+    <!-- For new plugins. During migration: KEEP the existing <class> value unchanged -->
     <class>fr.paris.lutece.portal.service.plugin.PluginDefaultImplementation</class>
     <version>1.0.0-SNAPSHOT</version>
     <documentation/>
@@ -31,6 +34,17 @@ paths:
     </core-version-dependency>
 </plug-in>
 ```
+
+## `<class>` Tag — PluginDefaultImplementation vs Custom Plugin Class
+
+Most plugins use `PluginDefaultImplementation`. However, **preserve the existing custom class** when the plugin has initialization logic in `init()`:
+
+| `<class>` value | When to use | Examples |
+|---|---|---|
+| `PluginDefaultImplementation` | No custom `init()` logic needed. Plugin only declares rights, XPages, daemons, services. | workflow-forms, mylutece, rest, elasticdata, asynchronousupload |
+| Custom `XxxPlugin` | Plugin registers providers (ImageResourceProvider, FileResourceProvider) or runs setup logic in `init()`. | forms, genericattributes, workflow, announce |
+
+**MIGRATION RULE: During v7→v8 migration, NEVER replace an existing custom `XxxPlugin` class with `PluginDefaultImplementation`. If the v7 plugin.xml has a custom class, keep it — it likely has `init()` logic that is required at runtime (e.g. registering image/file providers via CDI).**
 
 ## Critical Tags
 
