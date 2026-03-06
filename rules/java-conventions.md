@@ -38,3 +38,7 @@ paths:
 - Use SLF4J: `Logger` + `LoggerFactory`
 - Use parameterized messages: `logger.debug( "Found {} items", count )` — NOT string concatenation
 - `isDebugEnabled()` guard is unnecessary with parameterized logging
+
+**NON NEGOCIABLES RULES**
+- javadocs on each methods.
+- no inline comments in methods.
