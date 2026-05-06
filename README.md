@@ -34,6 +34,8 @@ At session start, the plugin automatically:
 | `lutece-solr-indexer` | Solr search module: SolrIndexer interface, CDI auto-discovery, batch indexing |
 | `lutece-elasticdata` | Elasticsearch DataSource: DataSource/DataObject interfaces, two-daemon indexing |
 | `lutece-deep-review` | Deep review via **Agent Teams**. Traces request lifecycle (template → bean → service → DAO → SQL), cross-references layers to find guaranteed bugs. Requires `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
+| `lutece-update-template-bo` | Updates a Back Office (admin) template by replacing raw HTML with the FreeMarker macros from lutece-core's Tabler theme |
+| `lutece-update-template-fo` | Updates a Front Office (skin) template by replacing raw HTML with the FreeMarker FO macros from lutece-core |
 
 ## Agent
 
