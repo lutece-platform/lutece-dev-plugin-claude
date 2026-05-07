@@ -26,7 +26,12 @@ Tu dois mettre à jour un template FO Lutèce en remplaçant tout le HTML brut p
 | `<div class="row">` | `<@cRow>` | Peut prendre `class`, `id` |
 | `<div class="col-...">` | `<@cCol>` | Utiliser `cols='12 col-md-X'` |
 | `<div>` générique | `<@cBlock>` | `type='div'` par défaut |
-| `<section>` | `<@cBlock type='section'>` | |
+| `<section>` | `<@cSection>` | Macro dédiée. `<@cBlock type='section'>` aussi possible |
+| `<article>` | `<@cArticle>` | Macro dédiée |
+| `<header>` | `<@cHeader>` | Macro dédiée |
+| `<aside>` | `<@cBlock type='aside'>` | Pas de macro dédiée — utiliser `cBlock` avec `type` |
+| `<footer>` | `<@cBlock type='footer'>` | Pas de macro dédiée — utiliser `cBlock` avec `type` |
+| `<main>` | `<@cBlock type='main'>` | Pas de macro dédiée — utiliser `cBlock` avec `type` |
 
 ### Texte et Titres
 
@@ -34,7 +39,9 @@ Tu dois mettre à jour un template FO Lutèce en remplaçant tout le HTML brut p
 |---|---|---|
 | `<h1>` à `<h6>` | `<@cTitle level=N>` | N = 1 à 6 |
 | `<p>` | `<@cText>` | `type='p'` par défaut |
-| `<span>` | `<@cInline>` | `type='span'` par défaut |
+| `<span>` | `<@cInline>` | `type='span'` par défaut. **Pas auto-fermant** — toujours `</@cInline>` |
+| `<em>`, `<strong>`, `<small>` | `<@cInline type='em'>`, etc. | Via le paramètre `type` |
+| `<time datetime="...">` | `<@cInline type='time' params='datetime="..."'>` | Pas de macro dédiée — pré-construire la date avec `<#assign>` |
 | `<i class="ti ti-xxx">` | `<@cIcon name='xxx' />` | **Préférer `<@cIcon>`** — raccourci avec préfixe `ti ti-` automatique |
 
 ### Listes
@@ -69,7 +76,7 @@ Tu dois mettre à jour un template FO Lutèce en remplaçant tout le HTML brut p
 | HTML | Macro FO | Notes |
 |---|---|---|
 | `<img>` | `<@cImg src='...' alt='...'>` | `class='img-fluid'` par défaut |
-| `<figure>` | `<@cFigure>` | |
+| `<figure>` + `<figcaption>` | `<@cFigure caption='...'>` + `<@cImg>` en nested | La macro gère le `<figcaption>` via le paramètre `caption` |
 
 ### Formulaires
 
@@ -519,6 +526,153 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
   ```
 - La macro `<@cAlert>` gère son propre icône selon le `type` — inutile d'ajouter `<@cIcon>` manuellement
 
+### cInline - Span / em / time / strong et autres inlines
+- **Pas auto-fermant** : nécessite toujours une balise fermante `</@cInline>`, même quand le contenu est vide
+  ```freemarker
+  <#-- INCORRECT — auto-fermant -->
+  <@cInline class='bl-marker' params='data-id="1"' />
+
+  <#-- CORRECT — toujours fermer, même vide -->
+  <@cInline class='bl-marker' params='data-id="1"'></@cInline>
+  ```
+- Le paramètre `type` accepte n'importe quelle balise inline : `'span'` (défaut), `'em'`, `'strong'`, `'small'`, `'time'`, `'cite'`, `'mark'`, `'kbd'`, `'code'`, etc.
+- Pour `<time>` HTML, pré-construire la date ISO avec `<#assign>` puis injecter dans `params` :
+  ```freemarker
+  <#assign updateDateIso = blog.updateDate?string('yyyy-MM-dd')>
+  <@cInline type='time' params='datetime="${updateDateIso}"'>${blog.updateDate?string('d MMMM yyyy')}</@cInline>
+  ```
+  L'inverse — `params='datetime="${blog.updateDate?string("yyyy-MM-dd")}"'` — provoque une `ParseException` à cause des guillemets imbriqués.
+- Pour les attributs `data-*` qui contiennent une clé i18n, pré-construire avec `<#assign>` également :
+  ```freemarker
+  <#assign label = "#i18n{plugin.key.label}">
+  <@cInline class='bl-target' params='data-label="${label}"'></@cInline>
+  ```
+
+### cFigure - Figures avec légende
+- Remplace `<figure>` + `<figcaption>` en un seul appel via le paramètre `caption`
+  ```freemarker
+  <#-- AVANT -->
+  <figure class="hero-img">
+      <img src="..." alt="..." />
+      <figcaption class="hero-img__label">Ma légende</figcaption>
+  </figure>
+
+  <#-- APRÈS -->
+  <@cFigure class='hero-img' caption='Ma légende'>
+      <@cImg src='...' alt='...' />
+  </@cFigure>
+  ```
+- Quand la légende vient d'une variable (titre, label dynamique), passer la variable directement : `caption=blog.contentLabel`
+
+### Éléments HTML5 sémantiques (article / header / section / aside)
+- **`<article>`** → `<@cArticle>` (macro dédiée)
+- **`<header>`** → `<@cHeader>` (macro dédiée)
+- **`<section>`** → `<@cSection>` (macro dédiée) — `<@cBlock type='section'>` reste valide aussi
+- **`<aside>`, `<footer>`, `<main>`, `<nav>`** → `<@cBlock type='aside'>` (pas de macro dédiée, mais `cBlock` accepte n'importe quel `type`)
+- Toutes ces macros acceptent `class`, `id`, `params` comme `cBlock`
+
+### Classes dynamiques (concaténation conditionnelle)
+- **Toujours pré-construire** la chaîne `class` avec `<#assign>` plutôt qu'inline FreeMarker dans le paramètre `class`
+  ```freemarker
+  <#-- INCORRECT — inline FreeMarker dans class -->
+  <@cBlock class='bl-body<#if !blog.displayToc> bl-body-one-col</#if>'>
+
+  <#-- CORRECT — assign avant la macro -->
+  <#assign bodyClass = 'bl-body'>
+  <#if !blog.displayToc><#assign bodyClass = bodyClass + ' bl-body-one-col'></#if>
+  <@cBlock class=bodyClass>
+  ```
+- Le pattern `?then(a, b)` est aussi acceptable pour 1 ou 2 classes seulement :
+  ```freemarker
+  <#assign cardClass = 'bl-card' + isActive?then(' is-active', '')>
+  ```
+
+### Liens cliquables stylés en card (pas en bouton)
+- Pour une **carte cliquable** (toute la zone est un lien, pas un bouton stylé), utiliser `<@cLink>` et **non** `<@cBtn>` :
+  ```freemarker
+  <#assign cardUrl>jsp/site/Portal.jsp?page=blog&id=${item.id}<#if portletId??>&portlet_id=${portletId}</#if></#assign>
+  <@cLink href=cardUrl class='bl-rcard' label=''>
+      <@cBlock class='bl-rcard__img'>...</@cBlock>
+      <@cBlock class='bl-rcard__body'>...</@cBlock>
+  </@cLink>
+  ```
+- Le paramètre `label=''` est obligatoire ; le contenu de la carte va en nested.
+
+### Listes vides remplies par JS
+- Pour une `<ul>` qui sera peuplée côté JS (TOC, autocomplete, etc.), utiliser `<@chList>` avec `id` et nested vide :
+  ```freemarker
+  <@chList id='bl-toc'></@chList>
+  ```
+- Le JS peut alors faire `document.getElementById('bl-toc')` et `appendChild(li)` normalement.
+
+### Code mort / dupliqué
+- Lors d'une migration, **toujours relire le résultat** pour détecter d'éventuels copier-coller buggés (ex : un `<#assign breadcrumbItems...>` dupliqué dans un autre conteneur sans utilisation)
+- Supprimer les blocs HTML commentés (`<!-- ... -->`) qui ne sont pas réellement utiles à la documentation
+- Supprimer les commentaires `<!-- TOC -->`, `<!-- BODY -->` etc. dont l'intent est évident dans le code FreeMarker structuré
+
+### jQuery → Vanilla JS - Conversion obligatoire
+**La librairie jQuery n'est plus chargée par le thème.** Tout JavaScript utilisant `$(...)`, `jQuery(...)` ou des plugins jQuery doit être **systématiquement** réécrit en vanilla JS lors de la migration d'un template — c'est non négociable, sinon le code casse au runtime.
+
+Mapping standard des opérations jQuery les plus courantes :
+
+| jQuery | Vanilla JS |
+|---|---|
+| `$('#foo')`, `$('.bar')` | `document.querySelector('#foo')`, `document.querySelector('.bar')` (1er match) |
+| `$('.bar')` (collection) | `document.querySelectorAll('.bar')` |
+| `$el.find('.x')` | `el.querySelector('.x')` ou `el.querySelectorAll('.x')` |
+| `$el.children('.x')` | `el.querySelectorAll(':scope > .x')` |
+| `$el.parent()` | `el.parentElement` |
+| `$el.closest('.x')` | `el.closest('.x')` (déjà natif) |
+| `$el.each(fn)` | `nodeList.forEach(fn)` (sur `NodeList` ou `Array.from(htmlCollection)`) |
+| `$el.addClass('x')`, `.removeClass('x')`, `.toggleClass('x')` | `el.classList.add('x')`, `.remove('x')`, `.toggle('x')` |
+| `$el.hasClass('x')` | `el.classList.contains('x')` |
+| `$el.attr('foo', 'bar')` | `el.setAttribute('foo', 'bar')` |
+| `$el.attr('foo')` (lecture) | `el.getAttribute('foo')` |
+| `$el.removeAttr('foo')` | `el.removeAttribute('foo')` |
+| `$el.data('foo')` | `el.dataset.foo` |
+| `$el.text()`, `$el.text('...')` | `el.textContent` (lecture/écriture) |
+| `$el.html()`, `$el.html('...')` | `el.innerHTML` (lecture/écriture) |
+| `$el.val()`, `$el.val('...')` | `el.value` (lecture/écriture) |
+| `$el.width()`, `$el.height()` | `el.offsetWidth`, `el.offsetHeight` |
+| `$el.css('color')` (lecture) | `getComputedStyle(el).color` |
+| `$el.css('color', 'red')` (écriture) | `el.style.color = 'red'` |
+| `$el.show()`, `$el.hide()` | `el.style.display = ''` / `'none'` (ou classe utilitaire `d-none`) |
+| `$el.append(child)` | `el.appendChild(child)` ou `el.append(child)` |
+| `$el.prepend(child)` | `el.prepend(child)` |
+| `$el.remove()` | `el.remove()` (déjà natif) |
+| `$el.empty()` | `el.replaceChildren()` ou `el.innerHTML = ''` |
+| `$el.on('click', fn)` | `el.addEventListener('click', fn)` |
+| `$el.off('click', fn)` | `el.removeEventListener('click', fn)` |
+| `$el.click(fn)`, `.keydown(fn)`, `.submit(fn)` | `el.addEventListener('click', fn)`, `'keydown'`, `'submit'` |
+| `event.which` (touche) | `event.key` (`' '`, `'Enter'`, `'Escape'`...) ou `event.code` |
+| `$(this)` dans handler | `this` (le handler reçoit `this` = élément déclencheur) ou `event.currentTarget` |
+| `$el.animate({ scrollLeft: '+=305' }, 'slow')` | `el.scrollBy({ left: 305, behavior: 'smooth' })` |
+| `$el.animate({ scrollTop: 0 }, 'slow')` | `window.scrollTo({ top: 0, behavior: 'smooth' })` |
+| `$.ajax(...)` / `$.get(...)` / `$.post(...)` | `fetch(url, { method, headers, body }).then(r => r.json())` |
+| `$(document).ready(fn)` | `document.addEventListener('DOMContentLoaded', fn)` (déjà la pratique standard) |
+| `$.trim(s)` | `s.trim()` |
+| `$.each(arr, fn)` | `arr.forEach(fn)` |
+
+**Patterns récurrents à factoriser dans des helpers** quand on les utilise plusieurs fois dans le même `<script>` :
+```javascript
+// Helper pour toggle disabled (classe + attribut)
+function setDisabled(btn, value) {
+    if (!btn) return;
+    if (value) {
+        btn.classList.add('disabled');
+        btn.setAttribute('disabled', 'disabled');
+    } else {
+        btn.classList.remove('disabled');
+        btn.removeAttribute('disabled');
+    }
+}
+```
+
+**Garde-fous obligatoires** :
+- **Toujours** vérifier l'existence de l'élément après `querySelector` : `if (!el) return;` ou `if (el) { ... }` — `querySelector` retourne `null` si non trouvé, `el.classList.add(...)` plante alors que `$el.addClass(...)` était silencieux sur collection vide.
+- **Préférer `event.key`** à `event.which` (déprécié) ou `event.keyCode` (déprécié).
+- **Capturer du code mort jQuery** : certains sélecteurs jQuery sont mal écrits (ex : `$el.children('.a .b')` qui ne match jamais — `.children()` filtre les enfants directs avec un sélecteur simple). Lors de la conversion, **signaler l'intent présumé** à l'utilisateur plutôt que de traduire littéralement un no-op.
+
 ### cText - Usage correct
 - `<@cText>` rend une balise `<p>` — **ne pas l'utiliser comme conteneur layout** (flex, grid, colonnes)
 - Pour les wrappers de mise en page avec classes utilitaires Bootstrap, utiliser `<@cBlock>`, `<@cRow>` ou `<@cCol>` :
@@ -549,6 +703,13 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
 - **Ne pas utiliser `style='...'`** sur les macros — utiliser `class` avec des utilitaires Bootstrap ou `params='style="..."'` en dernier recours
 - **Ne pas mélanger macros BO et FO** — vérifier que toutes les macros utilisées existent dans le contexte skin/FO
 - **Ne pas utiliser `&gt;` / `&lt;`** dans les conditions FreeMarker — utiliser `gt` / `lt`
+- **Ne pas auto-fermer `<@cInline>`** — toujours `</@cInline>`, même quand le contenu est vide
+- **Ne pas inliner FreeMarker dans le paramètre `class` d'une macro** — pré-construire la chaîne avec `<#assign>` (vaut aussi pour `href`, `id`, etc.)
+- **Ne pas inliner `?string('yyyy-MM-dd')` directement dans `params='datetime="..."'`** — guillemets imbriqués qui cassent le parser FreeMarker. Pré-construire avec `<#assign>`.
+- **Ne pas garder de `<figcaption>` séparé** — utiliser le paramètre `caption` de `<@cFigure>`
+- **Ne pas utiliser `<@cBtn>` pour les cards cliquables** — utiliser `<@cLink class='ma-card' label=''>` quand il s'agit d'une zone cliquable non stylée en bouton
+- **Ne pas garder le code dupliqué/mort** lors de la migration — relire le résultat pour repérer les copier-coller buggés et les commentaires `<!-- ... -->` inutiles
+- **Ne JAMAIS conserver de jQuery** dans un template migré (`$(...)`, `jQuery(...)`, `.on()`, `.addClass()`, `.animate()`, `$(document).ready()`, etc.) — la lib jQuery n'est plus chargée par le thème, le code planterait au runtime. Toujours réécrire en vanilla JS (voir section dédiée)
 
 ## Référence des fichiers de macros
 
@@ -739,3 +900,104 @@ En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** corres
 </@cStepCurrent>
 <@cStepNext step='5' title='#i18n{...confirmationTitle}' />
 ```
+
+### Page article / contenu riche (sémantique HTML5 + breadcrumb dynamique)
+
+Pattern recommandé pour une page de détail article (blog, news, etc.) avec :
+- Breadcrumb construit dynamiquement à partir de paramètres URL
+- Header avec métadonnées (tags, date, durée de lecture)
+- Image héro via `<@cFigure caption=...>`
+- Aside avec sommaire (TOC)
+- Section d'articles liés en bas
+
+```freemarker
+<@cTpl>
+<#assign readingTimeLabel = "#i18n{plugin.readingTime.label}">
+<@cContainer>
+    <@cRow>
+        <@cCol>
+            <@cArticle class='bg-light'>
+                <#-- Breadcrumb dynamique construit selon les params reçus -->
+                <#assign breadcrumbItems = []>
+                <#if from_page_name?? && from_page_name != ''>
+                    <#assign fromPageUrl = ''>
+                    <#if from_page_id??><#assign fromPageUrl = 'jsp/site/Portal.jsp?page_id=' + from_page_id?c></#if>
+                    <#assign breadcrumbItems = breadcrumbItems + [{ 'title': from_page_name, 'url': fromPageUrl }]>
+                </#if>
+                <@cBreadCrumb home='Home' type='fluid' items=breadcrumbItems />
+
+                <@cHeader class='hero'>
+                    <@cBlock>
+                        <@cBlock class='hero__meta'>
+                            <#if blog.tag?has_content>
+                                <#list blog.tag as tg>
+                                    <@cInline class='tag'>${tg.name}</@cInline>
+                                </#list>
+                            </#if>
+                            <@cInline>·</@cInline>
+                            <#if blog.updateDate??>
+                                <#assign dateIso = blog.updateDate?string('yyyy-MM-dd')>
+                                <@cInline type='time' params='datetime="${dateIso}"'>${blog.updateDate?string('d MMMM yyyy')}</@cInline>
+                            </#if>
+                            <@cInline>·</@cInline>
+                            <@cInline class='reading-time' params='data-reading-time-label="${readingTimeLabel}"'></@cInline>
+                        </@cBlock>
+                        <@cTitle level=1 class='hero__title'>${blog.contentLabel}</@cTitle>
+                        <@cText class='hero__lede'>${blog.description!}</@cText>
+                    </@cBlock>
+                    <#if blog.docContent?? && blog.docContent?size != 0>
+                        <#list blog.docContent?sort_by('priority') as doc>
+                            <#if doc.contentType.idContentType == 1>
+                                <@cFigure class='hero__img' caption=blog.contentLabel>
+                                    <@cImg src='servlet/plugins/blogs/file?id_file=${doc.id!}' alt=blog.contentLabel />
+                                </@cFigure>
+                                <#break>
+                            </#if>
+                        </#list>
+                    </#if>
+                </@cHeader>
+
+                <#assign bodyClass = 'body'>
+                <#if !blog.displayToc><#assign bodyClass = bodyClass + ' body--one-col'></#if>
+                <@cBlock class=bodyClass>
+                    <#if blog.displayToc>
+                        <@cBlock type='aside' class='toc'>
+                            <@cBlock class='toc__title'>#i18n{plugin.tocTitle}</@cBlock>
+                            <@chList id='toc-list'></@chList>
+                        </@cBlock>
+                    </#if>
+                    <@cBlock class='article-content'>
+                        ${blog.htmlContent}
+                    </@cBlock>
+                </@cBlock>
+            </@cArticle>
+
+            <#if blog.displayRelated && related_blogs?? && related_blogs?size gt 0>
+                <@cSection class='related'>
+                    <@cBlock class='related__title'>#i18n{plugin.relatedTitle}</@cBlock>
+                    <@cBlock class='cards'>
+                        <#list related_blogs as relBlog>
+                            <#assign relUrl>jsp/site/Portal.jsp?page=blog&id=${relBlog.id}<#if blog.attachedPortletId gt 0>&portlet_id=${blog.attachedPortletId}</#if></#assign>
+                            <@cLink href=relUrl class='card' label=''>
+                                <@cBlock class='card__body'>
+                                    <@cTitle level=3>${relBlog.contentLabel}</@cTitle>
+                                    <@cText>${relBlog.description!}</@cText>
+                                </@cBlock>
+                            </@cLink>
+                        </#list>
+                    </@cBlock>
+                </@cSection>
+            </#if>
+        </@cCol>
+    </@cRow>
+</@cContainer>
+</@cTpl>
+```
+
+**Points clés de ce pattern** :
+- `<@cArticle>`, `<@cHeader>`, `<@cSection>`, `<@cBlock type='aside'>` pour la sémantique HTML5
+- `<#assign>` blocs pour pré-construire URLs, dates ISO et noms de classes dynamiques (jamais d'inline FreeMarker dans les paramètres de macro)
+- `<@cInline type='time'>` pour la balise `<time>` (pas de macro dédiée)
+- `<@cFigure caption=...>` plutôt que `<figure>` + `<figcaption>` séparés
+- `<@cLink class='card' label=''>` pour les cards cliquables (pas `<@cBtn>`)
+- `<@chList id='...'></@chList>` pour une liste vide à remplir côté JS
