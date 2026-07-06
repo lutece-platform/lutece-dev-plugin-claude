@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hazelcast xmlns="http://www.hazelcast.com/schema/config"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://www.hazelcast.com/schema/config
+           http://www.hazelcast.com/schema/config/hazelcast-config-5.5.xsd">
+
+    <!-- JCache cluster (Lutece distributed cache, loaded from the WAR class loader).
+         MUST be a SEPARATE cluster from the HTTP-session one (hazelcast-session.xml):
+         the two Hazelcast members live in the same JVM but are loaded by DIFFERENT class
+         loaders (WAR vs Liberty server lib). If they shared one cluster, partition-migration
+         operations would cross the class-loader boundary and fail with
+         "Failed to serialize com.hazelcast.internal.partition.operation.MigrationOperation".
+         Distinct cluster-name + distinct port keep each cluster class-loader-homogeneous. -->
+    <cluster-name>lutece-cache</cluster-name>
+
+    <network>
+        <port auto-increment="false">5703</port>
+        <join>
+            <multicast enabled="false"/>
+            <tcp-ip enabled="true">
+                <member>app1:5703</member>
+                <member>app2:5703</member>
+                <member>app3:5703</member>
+            </tcp-ip>
+        </join>
+    </network>
+
+    <!-- JCache: caches are created on demand by Lutece (Lutece107CacheManager). -->
+</hazelcast>

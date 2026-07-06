@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hazelcast xmlns="http://www.hazelcast.com/schema/config"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://www.hazelcast.com/schema/config
+           http://www.hazelcast.com/schema/config/hazelcast-config-5.5.xsd">
+
+    <!-- HTTP-session cluster (Liberty sessionCache, loaded from the server lib class loader).
+         SEPARATE from the JCache cluster (hazelcast.xml) — see the note there: sharing one
+         cluster across the two class loaders breaks partition migration. -->
+    <cluster-name>lutece-session</cluster-name>
+
+    <network>
+        <port auto-increment="false">5701</port>
+        <join>
+            <multicast enabled="false"/>
+            <tcp-ip enabled="true">
+                <member>app1:5701</member>
+                <member>app2:5701</member>
+                <member>app3:5701</member>
+            </tcp-ip>
+        </join>
+    </network>
+</hazelcast>

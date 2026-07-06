@@ -1,0 +1,144 @@
+services:
+
+  mariadb:
+    image: mariadb:11
+    container_name: lutece-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: rootpwd
+      MARIADB_DATABASE: core
+      MARIADB_USER: lutece
+      MARIADB_PASSWORD: some_password
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [lutece-net]
+
+  # ---------------------------------------------------------------------------
+  # app1 = designated MIGRATOR instance: the ONLY one with Liquibase enabled.
+  # It creates/migrates the schema (core + plugin) on first start.
+  # Cluster best practice: a single migration at a time (cf. K8s initContainer/Job).
+  # app2/app3 start only once app1 is HEALTHY => DB already migrated => no race.
+  # ---------------------------------------------------------------------------
+  app1:
+    build: { context: ., dockerfile: Dockerfile }
+    image: lutece-site:latest
+    container_name: lutece-app1
+    restart: unless-stopped
+    environment:
+      portal.serverName: mariadb
+      portal.dbname: core
+      portal.port: "3306"
+      portal.user: lutece
+      portal.password: some_password
+      http.port: "9090"
+      FORMS_INTERNALINDEXER_LUCENE_INDEXPATH: /opt/lutece/shared/forms-index
+      # Level 2: distributed Lutece cache via Hazelcast (3-JVM cluster)
+      LUTECE_CACHE_JCACHE_CACHINGPROVIDER: com.hazelcast.cache.HazelcastMemberCachingProvider
+      LUTECE_CACHE_JCACHE_CONFIG_URI: file:/config/hazelcast.xml
+      LIQUIBASE_ENABLED_AT_STARTUP: "true"
+      LUTECE_INSTANCE_ID: app1
+    volumes:
+      # Shared volume mounted on the PARENT (not on forms-index itself):
+      # the indexer does Files.move(forms-indexTemp -> forms-index), a rename that
+      # fails (EBUSY) if forms-index is a mount point. As a sub-folder of the volume, OK.
+      - shared:/opt/lutece/shared
+    depends_on: { mariadb: { condition: service_healthy } }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9090/lutece/jsp/site/Portal.jsp"]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+    networks: [lutece-net]
+
+  app2:
+    # image construite par app1 (meme tag) -> pas de rebuild ici
+    image: lutece-site:latest
+    container_name: lutece-app2
+    restart: unless-stopped
+    environment:
+      portal.serverName: mariadb
+      portal.dbname: core
+      portal.port: "3306"
+      portal.user: lutece
+      portal.password: some_password
+      http.port: "9090"
+      FORMS_INTERNALINDEXER_LUCENE_INDEXPATH: /opt/lutece/shared/forms-index
+      # Level 2: distributed Lutece cache via Hazelcast (3-JVM cluster)
+      LUTECE_CACHE_JCACHE_CACHINGPROVIDER: com.hazelcast.cache.HazelcastMemberCachingProvider
+      LUTECE_CACHE_JCACHE_CONFIG_URI: file:/config/hazelcast.xml
+      # Liquibase DISABLED: app2 neither initializes nor updates the DB (already migrated by app1).
+      LIQUIBASE_ENABLED_AT_STARTUP: "false"
+      LUTECE_INSTANCE_ID: app2
+    volumes:
+      - shared:/opt/lutece/shared
+    depends_on:
+      mariadb: { condition: service_healthy }
+      app1:    { condition: service_healthy }
+    networks: [lutece-net]
+
+  app3:
+    # image construite par app1 (meme tag) -> pas de rebuild ici
+    image: lutece-site:latest
+    container_name: lutece-app3
+    restart: unless-stopped
+    environment:
+      portal.serverName: mariadb
+      portal.dbname: core
+      portal.port: "3306"
+      portal.user: lutece
+      portal.password: some_password
+      http.port: "9090"
+      FORMS_INTERNALINDEXER_LUCENE_INDEXPATH: /opt/lutece/shared/forms-index
+      # Level 2: distributed Lutece cache via Hazelcast (3-JVM cluster)
+      LUTECE_CACHE_JCACHE_CACHINGPROVIDER: com.hazelcast.cache.HazelcastMemberCachingProvider
+      LUTECE_CACHE_JCACHE_CONFIG_URI: file:/config/hazelcast.xml
+      LIQUIBASE_ENABLED_AT_STARTUP: "false"
+      LUTECE_INSTANCE_ID: app3
+    volumes:
+      - shared:/opt/lutece/shared
+    depends_on:
+      mariadb: { condition: service_healthy }
+      app1:    { condition: service_healthy }
+    networks: [lutece-net]
+
+  # One-shot service: applies db/post-init.sql AFTER the Liquibase migration
+  # (depends on app1/migrator healthy => schema ready). Runs once then stops.
+  dbinit:
+    image: mariadb:11
+    container_name: lutece-dbinit
+    restart: "no"
+    depends_on:
+      app1: { condition: service_healthy }
+    volumes:
+      - ./db/post-init.sql:/post-init.sql:ro
+    entrypoint: ["sh","-c","mariadb -h mariadb -ulutece -psome_password core < /post-init.sql && echo 'post-init.sql applied'"]
+    networks: [lutece-net]
+
+  nginx:
+    image: nginx:alpine
+    container_name: lutece-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on: [app1, app2, app3]
+    networks: [lutece-net]
+
+volumes:
+  mariadb-data:
+  shared:
+
+networks:
+  lutece-net:
+    driver: bridge
