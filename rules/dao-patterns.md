@@ -21,6 +21,7 @@ paths:
 - `private static Plugin _plugin = PluginService.getPlugin( "pluginname" );`
 - Private constructor, all methods static
 - Methods: `create`, `update`, `remove`, `findByPrimaryKey`, `findAll`, `findReferenceList`
+- NEVER declare a `BEAN_xxx_DAO` / `DAO_BEAN_NAME` string constant — the typesafe `CDI.current().select( IEntityDAO.class )` lookup makes it dead code. The DAO's `@Named("plugin.entityDAO")` is the only place the bean name lives.
 
 ## Interface
 

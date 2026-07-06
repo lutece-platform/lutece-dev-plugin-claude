@@ -22,7 +22,8 @@ FIRST=true
 check() {
     local id="$1" pattern="$2" severity="$3" description="$4"
     local count
-    count=$(grep -c "$pattern" "$FILE" 2>/dev/null || echo "0")
+    count=$(grep -c "$pattern" "$FILE" 2>/dev/null) || count=0
+    [ -z "$count" ] && count=0
 
     $FIRST || DETAILS="$DETAILS,"
     FIRST=false
@@ -65,7 +66,7 @@ if echo "$FILE" | grep -q '\.java$'; then
 
     # JspBean/XPage specific
     if grep -q 'MVCAdminJspBean\|MVCApplication' "$FILE" 2>/dev/null; then
-        check "DP03" 'getModel( )' "FAIL" "getModel() -> @Inject Models"
+        check "DP03" '\(^\|[^.A-Za-z0-9_]\)getModel( )' "FAIL" "getModel() -> @Inject Models"
         check "MV01" 'new HashMap' "FAIL" "new HashMap -> @Inject Models"
     fi
 

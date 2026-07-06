@@ -296,8 +296,9 @@ DAO_FREE=$(gcount -rn 'daoUtil\.free( )' src/ --include="*.java" 2>/dev/null)
 DEPRECATED_GETMODEL=$(gcount -rn 'getModel( )' src/ --include="*.java" 2>/dev/null)
 DEPRECATED_HASHMAP=$({ grep -rln 'new HashMap' src/ --include="*.java" -not -path '*/test/*' 2>/dev/null || true; } | while read -r f; do grep -l 'MVCAdminJspBean\|MVCApplication' "$f" 2>/dev/null; done | wc -l)
 FILEUPLOAD_REFS=$(gcount -rn 'org\.apache\.commons\.fileupload' src/ --include="*.java" 2>/dev/null)
+SHUTDOWN_SERVICE_IMPLS=$(gcount -rn 'implements\s\+\(.*,\s*\)*ShutdownService\b' src/ --include="*.java" 2>/dev/null)
 
-TOTAL_ISSUES=$((SPRING_LOOKUPS + GETINSTANCE_CALLS + JAVAX_IMPORTS + EVENT_LISTENERS + CACHE_SERVICES + DAO_FREE + DEPRECATED_GETMODEL + FILEUPLOAD_REFS))
+TOTAL_ISSUES=$((SPRING_LOOKUPS + GETINSTANCE_CALLS + JAVAX_IMPORTS + EVENT_LISTENERS + CACHE_SERVICES + DAO_FREE + DEPRECATED_GETMODEL + FILEUPLOAD_REFS + SHUTDOWN_SERVICE_IMPLS))
 
 # Migration scope
 SCOPE="ALREADY_MIGRATED"
@@ -364,6 +365,7 @@ cat << ENDJSON
     "daoFreeCalls": $DAO_FREE,
     "deprecatedGetModel": $DEPRECATED_GETMODEL,
     "deprecatedNewHashMap": $DEPRECATED_HASHMAP,
+    "shutdownServiceImpls": $SHUTDOWN_SERVICE_IMPLS,
     "fileuploadRefs": $FILEUPLOAD_REFS,
     "totalMigrationPoints": $TOTAL_ISSUES,
     "scope": "$SCOPE",

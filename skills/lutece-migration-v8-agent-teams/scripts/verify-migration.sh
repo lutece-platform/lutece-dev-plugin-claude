@@ -202,7 +202,7 @@ echo ""
 echo "CATEGORY: Deprecated API"
 check_grep "DP01" 'SecurityTokenService\.getInstance\|FileService\.getInstance\|WorkflowService\.getInstance\|FileImageService\.getInstance\|FileImagePublicService\.getInstance\|AccessControlService\.getInstance\|AttributeService\.getInstance\|AttributeFieldService\.getInstance\|AttributeTypeService\.getInstance\|PortletService\.getInstance\|AccessLogService\.getInstance\|RegularExpressionService\.getInstance\|EditorBbcodeService\.getInstance\|ProgressManagerService\.getInstance\|DashboardService\.getInstance\|AdminDashboardService\.getInstance\|FilterService\.getInstance\|ServletService\.getInstance\|LuteceUserCacheService\.getInstance' "src/" "FAIL" "Deprecated getInstance() calls"
 check_grep "DP02" 'FileImagePublicService\.init\|FileImageService\.init' "src/" "FAIL" "Deprecated init() calls (auto-registered in v8)"
-check_grep "DP03" 'getModel( )' "src/" "FAIL" "MANDATORY: getModel() -> @Inject Models"
+check_grep "DP03" '\(^\|[^.A-Za-z0-9_]\)getModel( )' "src/" "FAIL" "MANDATORY: getModel() -> @Inject Models (excludes DTO getters like request.getModel())"
 echo ""
 
 # ─── DAO ─────────────────────────────────────────────────
@@ -228,7 +228,7 @@ if [ "$COUNT" -eq 0 ]; then emit "CD01" "PASS" "Static _instance/_singleton on C
 else emit "CD01" "WARN" "Static _instance/_singleton on CDI-managed classes" "$COUNT" "$CD01_MATCHES"; fi
 
 check_grep "CD02" 'new CaptchaSecurityService()' "src/" "FAIL" "new CaptchaSecurityService() -> @Inject"
-check_grep "CD03" 'CompletableFuture\.runAsync' "src/" "WARN" "CompletableFuture.runAsync -> @Asynchronous"
+check_grep "CD03" 'CompletableFuture\.runAsync( ( ) ->[^,]*$\|CompletableFuture\.runAsync( [^,]*$' "src/" "WARN" "CompletableFuture.runAsync without explicit executor -> use a managed ExecutorService or @Asynchronous"
 check_grep "CD04" 'org\.apache\.commons\.fileupload' "src/" "FAIL" "commons.fileupload -> MultipartItem"
 
 # CD05: Constructor self-registration without @Observes @Initialized (lazy CDI bean trap)
@@ -262,10 +262,10 @@ if [ "$COUNT" -eq 0 ]; then emit "MV01" "PASS" "new HashMap in JspBean/XPage (us
 else emit "MV01" "FAIL" "new HashMap in JspBean/XPage (use @Inject Models)" "$COUNT" "$MV01_MATCHES"; fi
 
 check_grep "MV02" 'AbstractPaginatorJspBean' "src/" "WARN" "AbstractPaginatorJspBean -> @Pager IPager"
-check_grep "MV03" 'SecurityTokenService\.MARK_TOKEN\|PARAMETER_TOKEN\|TOKEN' "src/" "WARN" "Explicit CSRF token (consider auto-filter: securityTokenAction on @Action)"
+check_grep "MV03" 'SecurityTokenService\.MARK_TOKEN\|getSecurityTokenService( )\.\(getToken\|validate\)\|_securityTokenService\.\(getToken\|validate\)' "src/" "WARN" "Explicit CSRF token (consider auto-filter: securityTokenAction on @Action)"
 
-# MV04: FileItem still used (not MultipartItem)
-check_grep "MV04" 'import.*FileItem[^P]' "src/" "FAIL" "FileItem -> MultipartItem" "--include=*.java"
+# MV04: FileItem still used (not MultipartItem). Excludes MemoryFileItem from library-httpaccess (v8 in-memory helper).
+check_grep "MV04" 'import\s\+org\.apache\.commons\.fileupload[0-9]*\(\.core\)\?\.FileItem' "src/" "FAIL" "FileItem -> MultipartItem (use MemoryFileItem from library-httpaccess for in-memory cases)" "--include=*.java"
 echo ""
 
 # ─── Web / Config ────────────────────────────────────────

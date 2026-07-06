@@ -60,6 +60,26 @@ public String doUploadMulti(HttpServletRequest request) {
 }
 ```
 
+## Creating a MultipartItem in memory
+
+When migrating code that used to create a `FileItem` from raw bytes (e.g. base64-decoded payloads, in-memory blobs) with `new DiskFileItemFactory().createItem(...)` + `getOutputStream().write(content)`, use **`MemoryFileItem`** from `library-httpaccess` — it is the v8 in-memory implementation of `MultipartItem`.
+
+```java
+import fr.paris.lutece.portal.service.upload.MultipartItem;
+import fr.paris.lutece.util.httpaccess.MemoryFileItem;
+
+private static MultipartItem createFileItem( String fileName, String contentType, byte[] content )
+{
+    return new MemoryFileItem( content, fileName, content.length, contentType );
+}
+```
+
+Constructor: `MemoryFileItem(byte[] data, String name, long size, String contentType)`.
+
+Requires `library-httpaccess` (v4+) in the project `pom.xml` — already present in most Lutece plugins that do file I/O.
+
+For file-backed items (already-on-disk content), use the core `TemporaryFileMultipartItem(File, String submittedFileName, String contentType, String fieldName)` instead.
+
 ## JspBean File Access
 
 For JspBean-based file access, the `AdminMultipartFilter` and `AdminMultipartServlet` handle multipart parsing.

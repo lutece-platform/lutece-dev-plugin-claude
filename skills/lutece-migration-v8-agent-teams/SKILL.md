@@ -187,6 +187,24 @@ Then:
 6. **Script-first**: Teammates run mechanical scripts FIRST, then apply intelligence to remaining issues
 7. **Verify per-file**: Teammates run `verify-file.sh` after each file, not just at the end
 
+## Manual review hotspots
+
+The scan reports counts only — these patterns require human judgment, no mechanical sed:
+
+- **`shutdownServiceImpls`** — Classes implementing `fr.paris.lutece.portal.service.init.ShutdownService`. With CDI-managed `@ApplicationScoped` beans, replace with Jakarta-native `@PreDestroy` on a shutdown method. **Drop the interface entirely if `process()` does nothing meaningful** (no real cleanup work). When real cleanup exists:
+  ```java
+  // Before
+  public class XService implements ShutdownService {
+      @Override public String getName() { return "XService"; }
+      @Override public void process() { client.close(); }
+  }
+  // After
+  public class XService {
+      @PreDestroy void shutdown() { client.close(); }
+  }
+  ```
+  Java Migrators handle this case-by-case. Don't auto-replace via sed — `getName()` may have legitimate uses elsewhere.
+
 ---
 
 ## Script Locations
