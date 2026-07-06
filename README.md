@@ -2,8 +2,6 @@
 
 Claude Code plugin for **Lutece 8** framework development.
 
-> 🚀 **New:** `lutece-migration-v8-agent-teams` — v7→v8 migration redesigned for **Agent Teams (Swarm Mode)**. Parallel teammates, 9 bash scripts, JSON-driven task decomposition. Enable with `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` then run `/lutece-migration-v8-agent-teams`.
-
 ## Installation
 
 ```bash
@@ -16,7 +14,7 @@ Claude Code plugin for **Lutece 8** framework development.
 
 At session start, the plugin automatically:
 
-1. **Clones/updates reference repos** — 21 Lutece v8 repositories into `~/.lutece-references/`
+1. **Clones/updates reference repos** — 30 Lutece v8 repositories into `~/.lutece-references/`
 2. **Copies rules** — Detects if the current project is a Lutece plugin and copies coding constraint rules into `.claude/rules/`
 3. **Injects context** — Bootstrap message with architecture patterns and available skills
 
@@ -26,6 +24,7 @@ At session start, the plugin automatically:
 |-------|-------------|
 | `lutece-patterns` | Architecture reference: layered design, CDI patterns, CRUD lifecycle, pagination, XPages, daemons, security checklist |
 | `lutece-migration-v8-agent-teams` | Migration v7 → v8 via **Agent Teams** (Swarm Mode). Parallel teammates, 9 scripts, JSON-driven task decomposition. Requires `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
+| `lutece-scalability-v8` | Make a plugin **horizontally scalable** (multi-instance) and **prove it**. Scans 7 scalability axes, fixes via **Agent Teams**, then deploys in a real 3-instance cluster (Liberty + MariaDB + nginx + Hazelcast) and verifies empirically. Run **after** the migration. Requires `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` + Docker |
 | `lutece-dao` | DAO + Home layer patterns: DAOUtil lifecycle, SQL constants, CDI lookup |
 | `lutece-workflow` | Workflow module patterns: tasks, CDI producers, components, templates |
 | `lutece-rbac` | RBAC: entity permissions, ResourceIdService, plugin.xml, JspBean authorization |
