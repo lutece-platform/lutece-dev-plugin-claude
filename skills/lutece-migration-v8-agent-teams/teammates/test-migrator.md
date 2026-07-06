@@ -166,7 +166,7 @@ IMyService service = SpringContextService.getBean("myPlugin.myService");
 private IMyService _service;
 ```
 
-**Important:** Always inject the **interface** (e.g., `IMyService`), not the concrete class (e.g., `MyService`). The wiki explicitly states: "l'utilisation de classes concrètes quand une interface existe" is deprecated.
+**Important:** Always inject the **interface** (e.g., `IMyService`), not the concrete class (e.g., `MyService`). The wiki explicitly states that "using concrete classes when an interface exists" is deprecated.
 
 Tests extending `LuteceTestCase` support `@Inject` in v8 (via Weld-testing integration in `library-lutece-unit-testing`). The CDI container is initialized automatically — `LuteceTestCase` activates `@ApplicationScoped`, `@SessionScoped`, and `@RequestScoped` contexts.
 

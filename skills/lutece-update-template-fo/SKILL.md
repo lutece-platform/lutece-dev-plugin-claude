@@ -1,99 +1,99 @@
 ---
 name: update-template-fo
-description: Met à jour un template Lutèce FO (Front Office) en remplaçant le HTML brut par les macros FreeMarker FO de lutece-core. Utiliser quand l'utilisateur demande de migrer, convertir ou mettre à jour un template skin/FO avec les macros Lutèce.
-argument-hint: "chemin-du-template"
+description: Updates a Lutece FO (Front Office) template by replacing raw HTML with the FO FreeMarker macros from lutece-core. Use when the user asks to migrate, convert or update a skin/FO template with Lutece macros.
+argument-hint: "template-path"
 ---
 
-# Mise à jour de templates FO Lutèce
+# Updating Lutece FO templates
 
-Tu dois mettre à jour un template FO Lutèce en remplaçant tout le HTML brut par les macros FreeMarker FO définies dans `lutece-core/webapp/WEB-INF/templates/skin/themes/`.
+You must update a Lutece FO template by replacing all raw HTML with the FO FreeMarker macros defined in `lutece-core/webapp/WEB-INF/templates/skin/themes/`.
 
-## Étapes
+## Steps
 
-1. **Lire le template** cible fourni par l'utilisateur
-2. **Identifier** tous les éléments HTML bruts remplaçables par des macros FO
-3. **Consulter les macros** si besoin en lisant les fichiers de définition dans `lutece-core/webapp/WEB-INF/templates/skin/themes/lutece/macros/`
-4. **Réécrire** le template en utilisant exclusivement les macros FO
-5. **Ne pas modifier** les fichiers i18n sauf si nécessaire et demandé
+1. **Read the template** target provided by the user
+2. **Identify** all raw HTML elements replaceable by FO macros
+3. **Consult the macros** if needed by reading the definition files in `lutece-core/webapp/WEB-INF/templates/skin/themes/lutece/macros/`
+4. **Rewrite** the template using FO macros exclusively
+5. **Do not modify** i18n files unless necessary and requested
 
-## Table de correspondance HTML → Macros FO
+## HTML → FO Macros mapping table
 
-### Structure et Layout
-
-| HTML | Macro FO | Notes |
-|---|---|---|
-| `<div class="container">` | `<@cContainer>` | Peut prendre `class`, `type` |
-| `<div class="row">` | `<@cRow>` | Peut prendre `class`, `id` |
-| `<div class="col-...">` | `<@cCol>` | Utiliser `cols='12 col-md-X'` |
-| `<div>` générique | `<@cBlock>` | `type='div'` par défaut |
-| `<section>` | `<@cSection>` | Macro dédiée. `<@cBlock type='section'>` aussi possible |
-| `<article>` | `<@cArticle>` | Macro dédiée |
-| `<header>` | `<@cHeader>` | Macro dédiée |
-| `<aside>` | `<@cBlock type='aside'>` | Pas de macro dédiée — utiliser `cBlock` avec `type` |
-| `<footer>` | `<@cBlock type='footer'>` | Pas de macro dédiée — utiliser `cBlock` avec `type` |
-| `<main>` | `<@cBlock type='main'>` | Pas de macro dédiée — utiliser `cBlock` avec `type` |
-
-### Texte et Titres
+### Structure and Layout
 
 | HTML | Macro FO | Notes |
 |---|---|---|
-| `<h1>` à `<h6>` | `<@cTitle level=N>` | N = 1 à 6 |
-| `<p>` | `<@cText>` | `type='p'` par défaut |
-| `<span>` | `<@cInline>` | `type='span'` par défaut. **Pas auto-fermant** — toujours `</@cInline>` |
-| `<em>`, `<strong>`, `<small>` | `<@cInline type='em'>`, etc. | Via le paramètre `type` |
-| `<time datetime="...">` | `<@cInline type='time' params='datetime="..."'>` | Pas de macro dédiée — pré-construire la date avec `<#assign>` |
-| `<i class="ti ti-xxx">` | `<@cIcon name='xxx' />` | **Préférer `<@cIcon>`** — raccourci avec préfixe `ti ti-` automatique |
+| `<div class="container">` | `<@cContainer>` | Can take `class`, `type` |
+| `<div class="row">` | `<@cRow>` | Can take `class`, `id` |
+| `<div class="col-...">` | `<@cCol>` | Use `cols='12 col-md-X'` |
+| generic `<div>` | `<@cBlock>` | `type='div'` by default |
+| `<section>` | `<@cSection>` | Dedicated macro. `<@cBlock type='section'>` also possible |
+| `<article>` | `<@cArticle>` | Dedicated macro |
+| `<header>` | `<@cHeader>` | Dedicated macro |
+| `<aside>` | `<@cBlock type='aside'>` | No dedicated macro — use `cBlock` with `type` |
+| `<footer>` | `<@cBlock type='footer'>` | No dedicated macro — use `cBlock` with `type` |
+| `<main>` | `<@cBlock type='main'>` | No dedicated macro — use `cBlock` with `type` |
 
-### Listes
+### Text and Titles
 
 | HTML | Macro FO | Notes |
 |---|---|---|
-| `<ul>` | `<@chList>` | `type='u'` par défaut, `type='o'` pour ordonnée |
+| `<h1>` to `<h6>` | `<@cTitle level=N>` | N = 1 to 6 |
+| `<p>` | `<@cText>` | `type='p'` by default |
+| `<span>` | `<@cInline>` | `type='span'` by default. **Not self-closing** — always `</@cInline>` |
+| `<em>`, `<strong>`, `<small>` | `<@cInline type='em'>`, etc. | Via the `type` parameter |
+| `<time datetime="...">` | `<@cInline type='time' params='datetime="..."'>` | No dedicated macro — pre-build the date with `<#assign>` |
+| `<i class="ti ti-xxx">` | `<@cIcon name='xxx' />` | **Prefer `<@cIcon>`** — shortcut with automatic `ti ti-` prefix |
+
+### Lists
+
+| HTML | Macro FO | Notes |
+|---|---|---|
+| `<ul>` | `<@chList>` | `type='u'` by default, `type='o'` for ordered |
 | `<ol>` | `<@chList type='o'>` | |
 | `<li>` | `<@chItem>` | |
 
-### Composants
+### Components
 
 | HTML | Macro FO | Notes |
 |---|---|---|
-| `<div class="alert ...">` | `<@cAlert>` | Utiliser `type='warning'`, `type='danger'`, etc. |
-| `<div class="card ...">` | `<@cCard>` | Paramètres: `title`, `header`, `headerLevel`, `headerLabelClass`, `class`, `titleLevel`, etc. |
+| `<div class="alert ...">` | `<@cAlert>` | Use `type='warning'`, `type='danger'`, etc. |
+| `<div class="card ...">` | `<@cCard>` | Parameters: `title`, `header`, `headerLevel`, `headerLabelClass`, `class`, `titleLevel`, etc. |
 | `<div class="modal ...">` | `<@cModal>` | |
 | `<div class="accordion ...">` | `<@cAccordion>` | |
-| `<div class="progress">` | `<@cProgress>` | Paramètres: `label`, `progressId`, `color`, `value`, `min`, `max`, `text` |
+| `<div class="progress">` | `<@cProgress>` | Parameters: `label`, `progressId`, `color`, `value`, `min`, `max`, `text` |
 
-### Liens et Boutons
+### Links and Buttons
 
 | HTML | Macro FO | Notes |
 |---|---|---|
-| `<a href="...">` | `<@cLink href='...' label='...'>` | Lien standard |
-| `<a class="btn ...">` | `<@cBtn href='...' class='...'>` | Lien stylé en bouton |
-| `<button>` | `<@cBtn>` | `type='submit'` par défaut |
-| SVG/icône inline dans bouton | Utiliser `<@cIcon>` en nested de `<@cBtn>` | `nestedPos='before'` (défaut) ou `'after'` |
+| `<a href="...">` | `<@cLink href='...' label='...'>` | Standard link |
+| `<a class="btn ...">` | `<@cBtn href='...' class='...'>` | Link styled as a button |
+| `<button>` | `<@cBtn>` | `type='submit'` by default |
+| inline SVG/icon inside a button | Use `<@cIcon>` nested inside `<@cBtn>` | `nestedPos='before'` (default) or `'after'` |
 
 ### Images
 
 | HTML | Macro FO | Notes |
 |---|---|---|
-| `<img>` | `<@cImg src='...' alt='...'>` | `class='img-fluid'` par défaut |
-| `<figure>` + `<figcaption>` | `<@cFigure caption='...'>` + `<@cImg>` en nested | La macro gère le `<figcaption>` via le paramètre `caption` |
+| `<img>` | `<@cImg src='...' alt='...'>` | `class='img-fluid'` by default |
+| `<figure>` + `<figcaption>` | `<@cFigure caption='...'>` + `<@cImg>` nested | The macro handles the `<figcaption>` via the `caption` parameter |
 
-### Formulaires
+### Forms
 
 | HTML | Macro FO | Notes |
 |---|---|---|
 | `<form>` | `<@cForm>` | `method='post'`, `action` |
 | `<input>` | `<@cInput>` | |
-| `<input type="hidden">` | `<@cInput type='hidden' class='' />` | **Toujours ajouter `class=''`** |
-| `<input type="password">` | `<@cInput type='password'>` ou `<@cInputPassword>` | cInputPassword pour la version complète avec toggle |
+| `<input type="hidden">` | `<@cInput type='hidden' class='' />` | **Always add `class=''`** |
+| `<input type="password">` | `<@cInput type='password'>` or `<@cInputPassword>` | cInputPassword for the full version with toggle |
 | `<label>` | `<@cLabel>` | |
-| Label + Input groupés | `<@cField label='...' required=true>` | **Préférer cField**, utiliser `required=true` au lieu d'ajouter ` *` au label |
+| Label + Input grouped | `<@cField label='...' required=true>` | **Prefer cField**, use `required=true` instead of appending ` *` to the label |
 | `<input type="radio">` | `<@cRadio>` | `name`, `label`, `value`, `checked` |
 | `<input type="checkbox">` | `<@cCheckbox>` | Params: `name`, `label`, `value`, `checked`, `inline`, `required`, `disabled`, `params` |
-| `<select>` | `<@cSelect>` | Avec `<@cOption>` en nested. Supporte `errorMsg` et `helpMsg`. Classe : `form-select` (Bootstrap 5), ne pas mettre `form-control` |
+| `<select>` | `<@cSelect>` | With `<@cOption>` nested. Supports `errorMsg` and `helpMsg`. Class: `form-select` (Bootstrap 5), do not use `form-control` |
 | `<textarea>` | `<@cTextArea>` | |
 | `<fieldset>` | `<@cFieldset>` | |
-| `<div class="input-group">` | `<@cInputGroup>` | Peut prendre `class`, `size` (`lg` ou `sm`). Les `<@cBtn>` vont **directement** en nested, **pas** de `<@cInputGroupAddonText>` |
+| `<div class="input-group">` | `<@cInputGroup>` | Can take `class`, `size` (`lg` or `sm`). The `<@cBtn>` go **directly** nested, **no** `<@cInputGroupAddonText>` |
 
 ### Tables
 
@@ -106,11 +106,11 @@ Tu dois mettre à jour un template FO Lutèce en remplaçant tout le HTML brut p
 | `<th>` | `<@cTh>` | |
 | `<td>` | `<@cTd>` | |
 
-### cTable → chList + cCard (optionnel, sur demande)
+### cTable → chList + cCard (optional, on request)
 
-Une table de liste d'entités peut être remplacée par une liste de cards **uniquement si l'utilisateur le demande explicitement**. Ne pas appliquer systématiquement lors d'une mise à jour de template.
+A table listing entities can be replaced by a list of cards **only if the user explicitly requests it**. Do not apply it systematically during a template update.
 
-Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle>`
+Pattern: `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle>`
 
 ```freemarker
 <#if list_items?? && list_items?size gt 0>
@@ -142,113 +142,113 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
 </#if>
 ```
 
-### Steps (formulaires multi-étapes)
+### Steps (multi-step forms)
 
 | HTML | Macro FO | Notes |
 |---|---|---|
-| Étape complétée | `<@cStepDone>` | Params: `step` (requis), `title` (requis), `idx` (requis), `actionName`, `actionHref`, `actionLabel` |
-| Étape en cours | `<@cStepCurrent>` | Params: `step` (requis), `title` (requis), `showPrevStep`, `actionNextStep`, `actionPrevStep`, `hasMandatory`, `hasSteps` |
-| Étape à venir | `<@cStepNext>` | Params: `step` (requis), `title` (requis). Auto-fermant : `<@cStepNext step='3' title='...' />` |
+| Completed step | `<@cStepDone>` | Params: `step` (required), `title` (required), `idx` (required), `actionName`, `actionHref`, `actionLabel` |
+| Current step | `<@cStepCurrent>` | Params: `step` (required), `title` (required), `showPrevStep`, `actionNextStep`, `actionPrevStep`, `hasMandatory`, `hasSteps` |
+| Upcoming step | `<@cStepNext>` | Params: `step` (required), `title` (required). Self-closing: `<@cStepNext step='3' title='...' />` |
 
-## Conventions obligatoires
+## Mandatory conventions
 
-### Structure globale
-- **Toujours** envelopper le template dans `<@cTpl>...</@cTpl>`
-- `<@cContainer>` est optionnel, utiliser seulement si le contenu nécessite un conteneur centré
-- On peut aller directement de `<@cTpl>` à `<@cCol>`, `<@cRow>`, ou `<@cCard>` selon le besoin
-- Pour les formulaires pleine page: `<@cTpl>` → `<@cCol>` → `<@cForm>` → `<@cRow>` → `<@cCol>` → contenu
+### Global structure
+- **Always** wrap the template in `<@cTpl>...</@cTpl>`
+- `<@cContainer>` is optional, use it only if the content requires a centered container
+- You can go directly from `<@cTpl>` to `<@cCol>`, `<@cRow>`, or `<@cCard>` as needed
+- For full-page forms: `<@cTpl>` → `<@cCol>` → `<@cForm>` → `<@cRow>` → `<@cCol>` → content
 
-### cCol - Format des colonnes
-- Utiliser le format `cols='12 col-md-X'` (pas `cols='xs-12 col-md-X'` — le préfixe `xs-` n'existe plus en Bootstrap 5)
-- **Remplacer `cols='xs-12 ...'` par `cols='12 ...'`** systématiquement
-- **Remplacer `<@cCol cols='12'>` par `<@cCol>`** — colonne pleine largeur par défaut, pas besoin de `cols`
-- Pour classe seulement: `<@cCol class='12 col-md-6'>`
-- Les classes utilitaires supplémentaires vont dans `class`: `<@cCol cols='12 col-md-6' class='pt-5 mt-5'>`
+### cCol - Column format
+- Use the format `cols='12 col-md-X'` (not `cols='xs-12 col-md-X'` — the `xs-` prefix no longer exists in Bootstrap 5)
+- **Replace `cols='xs-12 ...'` with `cols='12 ...'`** systematically
+- **Replace `<@cCol cols='12'>` with `<@cCol>`** — full-width column by default, no need for `cols`
+- For class only: `<@cCol class='12 col-md-6'>`
+- Extra utility classes go in `class`: `<@cCol cols='12 col-md-6' class='pt-5 mt-5'>`
 
-### cAlert - Alertes
-- Utiliser le paramètre `type` : `<@cAlert type='warning'>`, `<@cAlert type='danger'>`
-- Les SVG d'icônes inline sont inutiles, la macro gère l'affichage
-- Le paramètre `title` permet d'ajouter un titre à l'alerte
+### cAlert - Alerts
+- Use the `type` parameter: `<@cAlert type='warning'>`, `<@cAlert type='danger'>`
+- Inline icon SVGs are unnecessary, the macro handles the display
+- The `title` parameter lets you add a title to the alert
 
-### cInput - Champs cachés
-- **Toujours** ajouter `class=''` sur les inputs hidden: `<@cInput type='hidden' name='x' value='y' class='' />`
+### cInput - Hidden fields
+- **Always** add `class=''` on hidden inputs: `<@cInput type='hidden' name='x' value='y' class='' />`
 
-### cIcon - Icônes Tabler
-- **Préférer `<@cIcon>`** à `<@cInline type='i' class='ti ti-xxx' />`
-- Le préfixe `ti ti-` est ajouté automatiquement : `<@cIcon name='eye' />` → `<span class="ti ti-eye">`
-- Classes supplémentaires via `class` : `<@cIcon name='settings' class='me-1' />`
-- Par défaut `name='check'` : `<@cIcon />` affiche l'icône check
+### cIcon - Tabler icons
+- **Prefer `<@cIcon>`** over `<@cInline type='i' class='ti ti-xxx' />`
+- The `ti ti-` prefix is added automatically: `<@cIcon name='eye' />` → `<span class="ti ti-eye">`
+- Extra classes via `class`: `<@cIcon name='settings' class='me-1' />`
+- By default `name='check'`: `<@cIcon />` displays the check icon
 
 ### cLabel - Labels
-- **Supprimer les classes Bootstrap 3** obsolètes : `col-xs-12`, `col-sm-*`, `control-label`
-- Si la seule classe est `control-label` ou `col-xs-12 control-label`, supprimer le paramètre `class` entièrement : `<@cLabel for='...'>`
-- La macro gère elle-même le style du label
+- **Remove obsolete Bootstrap 3 classes**: `col-xs-12`, `col-sm-*`, `control-label`
+- If the only class is `control-label` or `col-xs-12 control-label`, remove the `class` parameter entirely: `<@cLabel for='...'>`
+- The macro handles the label styling itself
 
-### Classes Bootstrap 3 → Bootstrap 5
-- `help-block` → `form-text` (texte d'aide sous un champ)
-- `control-label` → supprimer (géré par la macro)
-- `col-xs-*` → `col-*` (le breakpoint `xs` n'existe plus en BS5)
+### Bootstrap 3 → Bootstrap 5 classes
+- `help-block` → `form-text` (help text under a field)
+- `control-label` → remove (handled by the macro)
+- `col-xs-*` → `col-*` (the `xs` breakpoint no longer exists in BS5)
 - `has-error` → `is-invalid` (validation)
 - `btn-default` → `btn-secondary`
 
-### Entités HTML FreeMarker
-- **Remplacer `&gt;`** par `gt` dans les conditions FreeMarker : `<#if list?size gt 0>` (pas `&gt;`)
-- **Remplacer `&lt;`** par `lt` dans les conditions FreeMarker : `<#if value lt 10>` (pas `&lt;`)
+### FreeMarker HTML entities
+- **Replace `&gt;`** with `gt` in FreeMarker conditions: `<#if list?size gt 0>` (not `&gt;`)
+- **Replace `&lt;`** with `lt` in FreeMarker conditions: `<#if value lt 10>` (not `&lt;`)
 
-### Opérateur ternaire FreeMarker
-- **FreeMarker ne supporte PAS** l'opérateur ternaire C-style `condition ? a : b`
-- **Toujours utiliser** `condition?then(a, b)` :
+### FreeMarker ternary operator
+- **FreeMarker does NOT support** the C-style ternary operator `condition ? a : b`
+- **Always use** `condition?then(a, b)`:
   ```freemarker
-  <#-- INCORRECT — provoque une ParseException -->
+  <#-- INCORRECT — causes a ParseException -->
   <#assign myClass = 'base' + (hasError ? ' error' : '')>
 
   <#-- CORRECT -->
   <#assign myClass = 'base' + hasError?then(' error', '')>
   ```
-- Pour les expressions booléennes, mettre la condition entre parenthèses si nécessaire : `(x != '')?then('a', 'b')`
+- For boolean expressions, put the condition in parentheses if necessary: `(x != '')?then('a', 'b')`
 
-### cField - Champs avec label
-- **Préférer `<@cField>`** pour grouper un label et un input plutôt que cBlock + cLabel + cInput manuellement
-- Utiliser `required=true` pour les champs obligatoires — **ne pas ajouter ` *` manuellement au label**
-- **Ne pas utiliser `for`** — la macro gère le lien label/input
-- Peut contenir un `<@cInputGroup>` en nested pour les champs avec addons (toggle password, générateur, etc.)
+### cField - Fields with label
+- **Prefer `<@cField>`** to group a label and an input rather than cBlock + cLabel + cInput manually
+- Use `required=true` for mandatory fields — **do not append ` *` manually to the label**
+- **Do not use `for`** — the macro handles the label/input link
+- Can contain a nested `<@cInputGroup>` for fields with addons (password toggle, generator, etc.)
 
-### cInputGroup - Groupes d'inputs
-- Remplace `<div class="input-group">`
-- Contient un `<@cInput>` et un ou plusieurs `<@cBtn>` **directement** en nested
-- **Ne pas utiliser `<@cInputGroupAddonText>`** pour envelopper les boutons
+### cInputGroup - Input groups
+- Replaces `<div class="input-group">`
+- Contains a `<@cInput>` and one or more `<@cBtn>` **directly** nested
+- **Do not use `<@cInputGroupAddonText>`** to wrap the buttons
 
-### cProgress - Barre de progression
-- `label` (requis) : texte affiché au-dessus de la barre
-- `progressId` : ID de la barre (utilisé par le JS pour la manipulation DOM)
-- `color` : couleur Bootstrap (`'primary'`, `'danger'`, `'warning'`, etc.)
-- `value` : valeur initiale (0 par défaut)
+### cProgress - Progress bar
+- `label` (required): text displayed above the bar
+- `progressId`: ID of the bar (used by JS for DOM manipulation)
+- `color`: Bootstrap color (`'primary'`, `'danger'`, `'warning'`, etc.)
+- `value`: initial value (0 by default)
 
-### cBtn - Boutons
-- La classe est préfixée automatiquement par `btn btn-` : `class='primary'` → `class="btn btn-primary"`
-- **`label` est un paramètre obligatoire** — toujours le spécifier, même quand le contenu est en nested :
-  - Avec contenu nested (icône + texte) : `label=''`
-  - Avec texte seul : `label='Mon texte'`
-- Pour un lien-bouton: ajouter `href='...'`
-- Pour les tailles: inclure dans class: `class='outline-primary btn-lg'`
-- Pour icône + texte en nested: `label=''` avec icône et texte en nested
-- Pour un lien discret sans bordure: `class='link border-0'` (pas `outline-dark`)
-- **Auto-fermant** quand il n'y a pas de contenu nested : `<@cBtn label='Mon texte' ... />` (pas de `</@cBtn>`)
+### cBtn - Buttons
+- The class is prefixed automatically with `btn btn-`: `class='primary'` → `class="btn btn-primary"`
+- **`label` is a mandatory parameter** — always specify it, even when the content is nested:
+  - With nested content (icon + text): `label=''`
+  - With text only: `label='My text'`
+- For a link-button: add `href='...'`
+- For sizes: include in class: `class='outline-primary btn-lg'`
+- For icon + text nested: `label=''` with icon and text nested
+- For a discreet link without border: `class='link border-0'` (not `outline-dark`)
+- **Self-closing** when there is no nested content: `<@cBtn label='My text' ... />` (no `</@cBtn>`)
 
-### cCard - Cartes
-- Utiliser `header` pour le texte d'en-tête, `headerLevel` pour son niveau de titre (0 = span, >0 = hN)
-- `headerLabelClass` pour styler le header : ex. `'text-danger fw-bold h2'`
-- `title` pour le titre principal (rendu dans card-body), `titleLevel` et `titleClass` pour le style
-- Ajouter `class='border border-danger'` pour les bordures colorées
+### cCard - Cards
+- Use `header` for the header text, `headerLevel` for its heading level (0 = span, >0 = hN)
+- `headerLabelClass` to style the header: e.g. `'text-danger fw-bold h2'`
+- `title` for the main title (rendered in card-body), `titleLevel` and `titleClass` for styling
+- Add `class='border border-danger'` for colored borders
 
-### cInput - errorMsg et helpMsg
-- **`errorMsg`** : message d'erreur affiché sous le champ — ajoute automatiquement la classe `is-invalid` et `aria-invalid`. Passer une chaîne vide si pas d'erreur.
-- **`helpMsg`** : texte d'aide affiché sous le champ. Utiliser `?then()` pour n'afficher l'aide que si pas d'erreur :
+### cInput - errorMsg and helpMsg
+- **`errorMsg`**: error message displayed under the field — automatically adds the `is-invalid` class and `aria-invalid`. Pass an empty string if no error.
+- **`helpMsg`**: help text displayed under the field. Use `?then()` to show the help only if there is no error:
   ```freemarker
   <@cInput ... errorMsg=formGroupError helpMsg=(formGroupError != '')?then('', formMessages.fieldHelp!) />
   ```
-- **Remplacer** les patterns `<#if formGroupError != ''>${formGroupError}<#elseif ...><@cInline class='form-text'>...</@cInline></#if>` par ces paramètres
-- **Adapter `formGroupError`** : stocker le texte brut de l'erreur (pas le HTML span) pour pouvoir le passer à `errorMsg` :
+- **Replace** the patterns `<#if formGroupError != ''>${formGroupError}<#elseif ...><@cInline class='form-text'>...</@cInline></#if>` with these parameters
+- **Adapt `formGroupError`**: store the raw error text (not the HTML span) so it can be passed to `errorMsg`:
   ```freemarker
   <#-- INCORRECT -->
   <#assign formGroupError = '<span class="form-text text-danger">${form_error.errorMessage}</span>' />
@@ -257,9 +257,9 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
   <#assign formGroupError = form_error.errorMessage />
   ```
 
-### cInput - Paramètres natifs de taille et validation
-- **`maxlength`** : nombre (pas string) — `maxlength=255` et non `maxlength='255'`
-- **`min`** et **`max`** : paramètres natifs pour `type='number'` — ne pas les mettre dans `params`
+### cInput - Native size and validation parameters
+- **`maxlength`**: number (not string) — `maxlength=255` and not `maxlength='255'`
+- **`min`** and **`max`**: native parameters for `type='number'` — do not put them in `params`
   ```freemarker
   <#-- INCORRECT -->
   <@cInput type='number' params='min="1" max="${nbplaces}"' />
@@ -267,24 +267,24 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
   <#-- CORRECT -->
   <@cInput type='number' min=1 max=nbplaces />
   ```
-- Les autres attributs non couverts (ex : `onkeypress`) restent dans `params`
+- Other attributes not covered (e.g. `onkeypress`) stay in `params`
 
-### cInput - Attributs HTML supplémentaires
-- Utiliser `params` pour les attributs non couverts par les paramètres de la macro : `params='onkeypress="return fn(event);"'`
-- Les classes de validation dynamiques : **toujours inclure `form-control`** : `class='form-control ${classPassword?if_exists}'`
+### cInput - Extra HTML attributes
+- Use `params` for attributes not covered by the macro parameters: `params='onkeypress="return fn(event);"'`
+- Dynamic validation classes: **always include `form-control`**: `class='form-control ${classPassword?if_exists}'`
 
-### Paramètres de macros - Valeurs dynamiques complexes
-- **Ne jamais** inliner de la logique FreeMarker (`<#if>`, `<#list>`, interpolations complexes) directement dans un paramètre de macro — **cela s'applique à tous les paramètres**, pas seulement `params`
-- **Utiliser `<#assign>`** (syntaxe bloc ou directive) pour pré-construire la valeur avant l'appel :
+### Macro parameters - Complex dynamic values
+- **Never** inline FreeMarker logic (`<#if>`, `<#list>`, complex interpolations) directly in a macro parameter — **this applies to all parameters**, not only `params`
+- **Use `<#assign>`** (block syntax or directive) to pre-build the value before the call:
   ```freemarker
-  <#-- INCORRECT — FreeMarker inline dans actionHref -->
+  <#-- INCORRECT — inline FreeMarker in actionHref -->
   <@cStepDone actionHref='jsp/site/Portal.jsp?id=${form.id}<#if condition>&ref=${ref}</#if>' ...>
 
-  <#-- CORRECT — assign bloc avant la macro -->
+  <#-- CORRECT — block assign before the macro -->
   <#assign stepTwoHref>jsp/site/Portal.jsp?id=${form.id}<#if condition>&ref=${ref}</#if></#assign>
   <@cStepDone actionHref=stepTwoHref ...>
   ```
-- Pour les attributs HTML via `params`, même règle :
+- For HTML attributes via `params`, same rule:
   ```freemarker
   <#assign btnTitle = '#i18n{label.lastLogin} : '>
   <#if user.getLastLogin()?has_content>
@@ -294,21 +294,21 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
   </#if>
   <@cBtn params='title="${btnTitle}"' ... />
   ```
-- Cela évite les problèmes d'échappement de quotes (`&apos;`) et les ParseException
+- This avoids quote-escaping problems (`&apos;`) and ParseExceptions
 
 ### cImg - Images
-- `class='img-fluid'` est appliqué par défaut, inutile de le spécifier
-- Attributs HTML supplémentaires via `params`: `params='width="72"'`
+- `class='img-fluid'` is applied by default, no need to specify it
+- Extra HTML attributes via `params`: `params='width="72"'`
 
-### chList / chItem - Listes stylées
-- Pour les listes Bootstrap : `<@chList class='list-group'>` + `<@chItem class='list-group-item'>`
-- Pour les navs : `<@chList class='nav ms-auto'>`
+### chList / chItem - Styled lists
+- For Bootstrap lists: `<@chList class='list-group'>` + `<@chItem class='list-group-item'>`
+- For navs: `<@chList class='nav ms-auto'>`
 
-### cCheckbox - Cases à cocher
-- Params principaux : `name` (requis), `label` (requis), `value`, `id`, `checked` (boolean), `inline` (boolean), `required` (boolean), `disabled` (boolean), `params`
-- `label` est **requis** : si le champ n'a pas de titre visible, utiliser `label='&nbsp;'`
-- **Pas de paramètre `title`** : passer le title dans `params` : `params='title="mon tooltip"'`
-- **Pré-construire les valeurs dynamiques** avec `<#assign>` avant d'appeler la macro :
+### cCheckbox - Checkboxes
+- Main params: `name` (required), `label` (required), `value`, `id`, `checked` (boolean), `inline` (boolean), `required` (boolean), `disabled` (boolean), `params`
+- `label` is **required**: if the field has no visible title, use `label='&nbsp;'`
+- **No `title` parameter**: pass the title in `params`: `params='title="my tooltip"'`
+- **Pre-build dynamic values** with `<#assign>` before calling the macro:
   ```freemarker
   <#assign isChecked = false>
   <#if someCondition><#assign isChecked = true></#if>
@@ -319,27 +319,27 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
   <#assign cbLabel><#if !field.noDisplayTitle>${field.title}<#else>&nbsp;</#if></#assign>
   <@cCheckbox name='myField' id='myField_${field.id}' value='${field.id}' checked=isChecked label=cbLabel params=cbParams inline=isInline />
   ```
-- Pour les checkboxes groupées en liste verticale, ne pas wrapper dans un `<@cBlock class='checkbox'>` — la macro gère son propre conteneur
+- For checkboxes grouped in a vertical list, do not wrap them in a `<@cBlock class='checkbox'>` — the macro handles its own container
 
-### cStepDone / cStepCurrent / cStepNext - Formulaires multi-étapes
-- Remplacent les `<div class="row nextStepTitleRow">`, `<div class="row currentStepTitleRow">` et `<div class="row currentStepContentRow">`
-- **`<@cStepDone>`** : étape complétée, affiche un check et un résumé. Le contenu nested est le résumé de l'étape.
+### cStepDone / cStepCurrent / cStepNext - Multi-step forms
+- Replace the `<div class="row nextStepTitleRow">`, `<div class="row currentStepTitleRow">` and `<div class="row currentStepContentRow">`
+- **`<@cStepDone>`**: completed step, displays a check and a summary. The nested content is the step summary.
   ```freemarker
-  <@cStepDone step='1' title='Titre étape 1' idx=0>
-      Résumé de l'étape complétée
+  <@cStepDone step='1' title='Step 1 title' idx=0>
+      Summary of the completed step
   </@cStepDone>
   ```
-- **`<@cStepCurrent>`** : étape en cours, contient le formulaire/contenu actif en nested.
+- **`<@cStepCurrent>`**: current step, contains the active form/content nested.
   ```freemarker
-  <@cStepCurrent step='2' title='Titre étape 2' showPrevStep=false hasMandatory=false>
-      ...contenu de l'étape (alertes, formulaire, picker, etc.)...
+  <@cStepCurrent step='2' title='Step 2 title' showPrevStep=false hasMandatory=false>
+      ...step content (alerts, form, picker, etc.)...
   </@cStepCurrent>
   ```
-- **`<@cStepNext>`** : étape à venir, auto-fermante, pas de contenu nested.
+- **`<@cStepNext>`**: upcoming step, self-closing, no nested content.
   ```freemarker
   <@cStepNext step='3' title='#i18n{...}' />
   ```
-- **Ne jamais** inliner une condition FreeMarker dans le paramètre `title` des macros `cStep*` — utiliser une variable `<#assign>` définie **à l'intérieur de `<@cTpl>`** (juste après la ligne 1) et la passer sans guillemets :
+- **Never** inline a FreeMarker condition in the `title` parameter of the `cStep*` macros — use an `<#assign>` variable defined **inside `<@cTpl>`** (just after line 1) and pass it without quotes:
   ```freemarker
   <@cTpl>
   <#assign stepFormTitle><#if form.title != "">${form.title}<#else>#i18n{...default}</#if></#assign>
@@ -347,42 +347,42 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
       ...
   </@cStepDone>
   ```
-- **Les `<#assign>` vont toujours à l'intérieur de `<@cTpl>`**, jamais avant — `<@cTpl>` doit être sur la ligne 1 du fichier, les assigns sur les lignes suivantes
+- **The `<#assign>` always go inside `<@cTpl>`**, never before — `<@cTpl>` must be on line 1 of the file, the assigns on the following lines
 
-### cForm - Formulaires
-- Attributs non couverts par les paramètres via `params` : `params='name="createAccount"'`
+### cForm - Forms
+- Attributes not covered by the parameters via `params`: `params='name="createAccount"'`
 
 ### i18n
-- Tous les textes affichés doivent utiliser `#i18n{plugin.key}`
-- Ne pas écrire de texte en dur dans le template
+- All displayed text must use `#i18n{plugin.key}`
+- Do not write hardcoded text in the template
 
-### Lisibilité du code
-- **Déployer les `<#list>` avec logique conditionnelle** en multi-lignes, ne pas laisser de blocs inline compacts quand ils contiennent des `<#if>` imbriqués
+### Code readability
+- **Expand the `<#list>` with conditional logic** across multiple lines, do not leave compact inline blocks when they contain nested `<#if>`
 
-### chList / chItem - Remplacement des `<li>` orphelins
-- **Ne jamais** laisser de `<li>` sans `<ul>` parent — toujours envelopper dans `<@chList>` + `<@chItem>`
-- Quand des `<li>` sont dispersés dans des `<@cRow>`/`<@cCol>`, supprimer les wrappers row/col inutiles et regrouper dans une seule `<@chList>` :
+### chList / chItem - Replacing orphan `<li>`
+- **Never** leave a `<li>` without a parent `<ul>` — always wrap in `<@chList>` + `<@chItem>`
+- When `<li>` are scattered across `<@cRow>`/`<@cCol>`, remove the unnecessary row/col wrappers and group them into a single `<@chList>`:
   ```freemarker
-  <#-- AVANT (incorrect) -->
-  <@cRow><@cCol><li>Nom : ${name}</li></@cCol></@cRow>
-  <@cRow><@cCol><li>Email : ${email}</li></@cCol></@cRow>
+  <#-- BEFORE (incorrect) -->
+  <@cRow><@cCol><li>Name: ${name}</li></@cCol></@cRow>
+  <@cRow><@cCol><li>Email: ${email}</li></@cCol></@cRow>
 
-  <#-- APRÈS (correct) -->
+  <#-- AFTER (correct) -->
   <@chList>
-      <@chItem>Nom : ${name}</@chItem>
-      <@chItem>Email : ${email}</@chItem>
+      <@chItem>Name: ${name}</@chItem>
+      <@chItem>Email: ${email}</@chItem>
   </@chList>
   ```
 
-### cInput hidden - Classe vide obligatoire
-- **Toujours** ajouter `class=''` sur les inputs hidden pour éviter que la macro n'ajoute la classe `form-control` par défaut :
+### cInput hidden - Mandatory empty class
+- **Always** add `class=''` on hidden inputs to prevent the macro from adding the default `form-control` class:
   ```freemarker
   <@cInput type='hidden' name='token' value='${token}' class='' />
   ```
 
-### Macros BO vs FO - Ne pas mélanger
-- **Ne jamais utiliser de macros BO** (admin/Tabler) dans un template FO (skin). Les macros BO comme `<@messages>`, `<@aButton>`, `<@button>`, `<@box>`, `<@formGroup>`, `<@tform>`, `<@select>`, `<@option>` ne sont **pas** disponibles dans le contexte FO
-- Équivalences BO → FO :
+### BO vs FO macros - Do not mix
+- **Never use BO macros** (admin/Tabler) in an FO (skin) template. BO macros such as `<@messages>`, `<@aButton>`, `<@button>`, `<@box>`, `<@formGroup>`, `<@tform>`, `<@select>`, `<@option>` are **not** available in the FO context
+- BO → FO equivalents:
   - `<@messages infos=infos errors=errors />` →
     ```freemarker
     <#if infos?? && infos?size gt 0>
@@ -396,37 +396,37 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
         </#list>
     </#if>
     ```
-  - `<@aButton href='...' size='sm'>` → `<@cBtn href='...' class='outline-secondary btn-sm'>` (choisir la couleur selon le contexte : `outline-primary`, `outline-secondary`, etc.)
+  - `<@aButton href='...' size='sm'>` → `<@cBtn href='...' class='outline-secondary btn-sm'>` (choose the color according to the context: `outline-primary`, `outline-secondary`, etc.)
   - `<@button>` → `<@cBtn>`
   - `<@tform>` → `<@cForm>`
-  - `<@formGroup>` → `<@cField>` ou `<@cBlock>`
+  - `<@formGroup>` → `<@cField>` or `<@cBlock>`
   - `<@select>` / `<@option>` → `<@cSelect>` / `<@cOption>`
 
-### cFieldset - Remplacement de fieldset/legend
-- `<fieldset>` + `<legend>` → `<@cFieldset legend='...'>` — la macro gère le rendu du legend
+### cFieldset - Replacing fieldset/legend
+- `<fieldset>` + `<legend>` → `<@cFieldset legend='...'>` — the macro handles the legend rendering
   ```freemarker
-  <#-- AVANT -->
+  <#-- BEFORE -->
   <fieldset>
-      <legend>Mon titre</legend>
-      ...contenu...
+      <legend>My title</legend>
+      ...content...
   </fieldset>
 
-  <#-- APRÈS -->
-  <@cFieldset legend='Mon titre'>
-      ...contenu...
+  <#-- AFTER -->
+  <@cFieldset legend='My title'>
+      ...content...
   </@cFieldset>
   ```
 
 ### form-group → cRow/cCol
-- **Remplacer `<@cBlock class='form-group'>`** par `<@cRow>` / `<@cCol>` pour les groupes de boutons de formulaire
-- Ajouter `class='mt-3'` sur le `<@cRow>` pour l'espacement vertical
+- **Replace `<@cBlock class='form-group'>`** with `<@cRow>` / `<@cCol>` for form button groups
+- Add `class='mt-3'` on the `<@cRow>` for vertical spacing
   ```freemarker
-  <#-- AVANT -->
+  <#-- BEFORE -->
   <@cBlock class='form-group'>
       <@cBtn .../>
   </@cBlock>
 
-  <#-- APRÈS -->
+  <#-- AFTER -->
   <@cRow class='mt-3'>
       <@cCol>
           <@cBtn .../>
@@ -434,9 +434,9 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
   </@cRow>
   ```
 
-### Attribut style sur les macros
-- **Ne pas utiliser `style='...'`** directement comme paramètre de macro — ce n'est pas un paramètre valide de `<@cCol>`, `<@cTitle>`, `<@cTd>`, etc.
-- Utiliser `params='style="..."'` si absolument nécessaire, ou **préférer une classe CSS** :
+### style attribute on macros
+- **Do not use `style='...'`** directly as a macro parameter — it is not a valid parameter of `<@cCol>`, `<@cTitle>`, `<@cTd>`, etc.
+- Use `params='style="..."'` if absolutely necessary, or **prefer a CSS class**:
   ```freemarker
   <#-- INCORRECT -->
   <@cTitle level=2 style='margin-bottom:30px'>
@@ -447,29 +447,29 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
   <@cTd class='align-middle'>
   ```
 
-### cols - Formats invalides
-- `cols='xs-12 sm-12'` → `<@cCol>` (pleine largeur par défaut, pas besoin de cols)
+### cols - Invalid formats
+- `cols='xs-12 sm-12'` → `<@cCol>` (full width by default, no need for cols)
 - `cols='xs-12 col-sm-6'` → `cols='12 col-sm-6'`
-- `cols='12'` seul → supprimer le paramètre, utiliser `<@cCol>`
-- Le préfixe `xs-` n'existe pas en Bootstrap 5, toujours utiliser la forme sans préfixe pour mobile
+- `cols='12'` alone → remove the parameter, use `<@cCol>`
+- The `xs-` prefix does not exist in Bootstrap 5, always use the prefix-less form for mobile
 
-### Conditions FreeMarker - Branche if vide
-- **Ne jamais** laisser une branche `<#if>` vide avec tout le contenu dans `<#else>` — inverser la condition :
+### FreeMarker conditions - Empty if branch
+- **Never** leave an empty `<#if>` branch with all the content in `<#else>` — invert the condition:
   ```freemarker
-  <#-- INCORRECT — branche if vide -->
+  <#-- INCORRECT — empty if branch -->
   <#if modifDateAppointment?? && modifDateAppointment>
   <#else>
-      ...contenu...
+      ...content...
   </#if>
 
-  <#-- CORRECT — condition inversée -->
+  <#-- CORRECT — inverted condition -->
   <#if !(modifDateAppointment?? && modifDateAppointment)>
-      ...contenu...
+      ...content...
   </#if>
   ```
 
-### FreeMarker - Syntaxe moderne (`??` vs `?exists`)
-- **Toujours utiliser `??`** à la place de `?exists` — `?exists` est obsolète en FreeMarker 2.3+
+### FreeMarker - Modern syntax (`??` vs `?exists`)
+- **Always use `??`** instead of `?exists` — `?exists` is obsolete in FreeMarker 2.3+
   ```freemarker
   <#-- INCORRECT -->
   <#if entry.helpMessage?exists && entry.helpMessage != ''>
@@ -477,32 +477,32 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
   <#-- CORRECT -->
   <#if entry.helpMessage?? && entry.helpMessage != ''>
   ```
-- S'applique partout : variables, propriétés d'objet, paramètres optionnels
+- Applies everywhere: variables, object properties, optional parameters
 
-### cSelect - Classe et paramètres errorMsg/helpMsg
-- **Ne jamais ajouter `class='form-control'`** sur `<@cSelect>` — Bootstrap 5 utilise `form-select`, mais la macro gère la classe de base automatiquement
-- Pour les classes supplémentaires (validation), utiliser `class='form-select ${entry.CSSClass!}' + (errorMsg != '')?then(' is-invalid', '')`
-- **`<@cSelect>` supporte `errorMsg` et `helpMsg`** exactement comme `<@cInput>` — passer les messages directement, **pas besoin d'un `<@cAlert>` séparé**
+### cSelect - Class and errorMsg/helpMsg parameters
+- **Never add `class='form-control'`** on `<@cSelect>` — Bootstrap 5 uses `form-select`, but the macro handles the base class automatically
+- For extra classes (validation), use `class='form-select ${entry.CSSClass!}' + (errorMsg != '')?then(' is-invalid', '')`
+- **`<@cSelect>` supports `errorMsg` and `helpMsg`** exactly like `<@cInput>` — pass the messages directly, **no need for a separate `<@cAlert>`**
   ```freemarker
-  <#-- INCORRECT — class='form-control' + @cAlert séparé -->
+  <#-- INCORRECT — class='form-control' + separate @cAlert -->
   <@cSelect name='myField' class='form-control'>...</@cSelect>
   <#if errorMsg != ''>
       <@cAlert type='danger' title=errorMsg />
   </#if>
 
-  <#-- CORRECT — form-select + errorMsg/helpMsg directement sur la macro -->
+  <#-- CORRECT — form-select + errorMsg/helpMsg directly on the macro -->
   <#assign selectClass = 'form-select ${entry.CSSClass!}' + (errorMsg != '')?then(' is-invalid', '')>
   <@cSelect name='myField' class=selectClass errorMsg=errorMsg helpMsg=helpMsg>...</@cSelect>
   ```
 
-### cOption - Paramètre selected
-- **Passer un boolean direct** au paramètre `selected` — ne pas inliner `<#if isSelected>selected='selected'</#if>` dans les paramètres de la macro
-- Pré-calculer la valeur dans un `<#assign>` si nécessaire :
+### cOption - selected parameter
+- **Pass a direct boolean** to the `selected` parameter — do not inline `<#if isSelected>selected='selected'</#if>` in the macro parameters
+- Pre-compute the value in an `<#assign>` if necessary:
   ```freemarker
-  <#-- INCORRECT — inline FreeMarker dans paramètre -->
+  <#-- INCORRECT — inline FreeMarker in parameter -->
   <@cOption value='${field.id}' <#if isSelected>selected='selected'</#if>>${field.title}</@cOption>
 
-  <#-- CORRECT — boolean direct -->
+  <#-- CORRECT — direct boolean -->
   <#assign isSelected = false>
   <#if response.field.idField == field.idField>
       <#assign isSelected = true>
@@ -510,10 +510,10 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
   <@cOption value='${field.id}' selected=isSelected>${field.title}</@cOption>
   ```
 
-### cAlert - Liste de messages
-- Pour les alertes affichant une **liste de messages** (plusieurs `infos` ou `errors`), utiliser un `<#assign>` bloc pour concaténer les messages, puis passer le résultat au paramètre `title` :
+### cAlert - Message list
+- For alerts displaying a **list of messages** (several `infos` or `errors`), use a block `<#assign>` to concatenate the messages, then pass the result to the `title` parameter:
   ```freemarker
-  <#-- INCORRECT — nested content avec <#list> -->
+  <#-- INCORRECT — nested content with <#list> -->
   <@cAlert type='danger' id='messages_errors_div'>
       <#list errors as error>
           <@cIcon name='alert-circle' /> ${error.message}
@@ -524,71 +524,71 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
   <#assign errorMsg><#list errors as error>${error.message}</#list></#assign>
   <@cAlert type='danger' id='messages_errors_div' title=errorMsg />
   ```
-- La macro `<@cAlert>` gère son propre icône selon le `type` — inutile d'ajouter `<@cIcon>` manuellement
+- The `<@cAlert>` macro handles its own icon according to the `type` — no need to add `<@cIcon>` manually
 
-### cInline - Span / em / time / strong et autres inlines
-- **Pas auto-fermant** : nécessite toujours une balise fermante `</@cInline>`, même quand le contenu est vide
+### cInline - Span / em / time / strong and other inlines
+- **Not self-closing**: always requires a closing tag `</@cInline>`, even when the content is empty
   ```freemarker
-  <#-- INCORRECT — auto-fermant -->
+  <#-- INCORRECT — self-closing -->
   <@cInline class='bl-marker' params='data-id="1"' />
 
-  <#-- CORRECT — toujours fermer, même vide -->
+  <#-- CORRECT — always close, even when empty -->
   <@cInline class='bl-marker' params='data-id="1"'></@cInline>
   ```
-- Le paramètre `type` accepte n'importe quelle balise inline : `'span'` (défaut), `'em'`, `'strong'`, `'small'`, `'time'`, `'cite'`, `'mark'`, `'kbd'`, `'code'`, etc.
-- Pour `<time>` HTML, pré-construire la date ISO avec `<#assign>` puis injecter dans `params` :
+- The `type` parameter accepts any inline tag: `'span'` (default), `'em'`, `'strong'`, `'small'`, `'time'`, `'cite'`, `'mark'`, `'kbd'`, `'code'`, etc.
+- For HTML `<time>`, pre-build the ISO date with `<#assign>` then inject it into `params`:
   ```freemarker
   <#assign updateDateIso = blog.updateDate?string('yyyy-MM-dd')>
   <@cInline type='time' params='datetime="${updateDateIso}"'>${blog.updateDate?string('d MMMM yyyy')}</@cInline>
   ```
-  L'inverse — `params='datetime="${blog.updateDate?string("yyyy-MM-dd")}"'` — provoque une `ParseException` à cause des guillemets imbriqués.
-- Pour les attributs `data-*` qui contiennent une clé i18n, pré-construire avec `<#assign>` également :
+  The reverse — `params='datetime="${blog.updateDate?string("yyyy-MM-dd")}"'` — causes a `ParseException` because of the nested quotes.
+- For `data-*` attributes that contain an i18n key, pre-build with `<#assign>` as well:
   ```freemarker
   <#assign label = "#i18n{plugin.key.label}">
   <@cInline class='bl-target' params='data-label="${label}"'></@cInline>
   ```
 
-### cFigure - Figures avec légende
-- Remplace `<figure>` + `<figcaption>` en un seul appel via le paramètre `caption`
+### cFigure - Figures with caption
+- Replaces `<figure>` + `<figcaption>` in a single call via the `caption` parameter
   ```freemarker
-  <#-- AVANT -->
+  <#-- BEFORE -->
   <figure class="hero-img">
       <img src="..." alt="..." />
-      <figcaption class="hero-img__label">Ma légende</figcaption>
+      <figcaption class="hero-img__label">My caption</figcaption>
   </figure>
 
-  <#-- APRÈS -->
-  <@cFigure class='hero-img' caption='Ma légende'>
+  <#-- AFTER -->
+  <@cFigure class='hero-img' caption='My caption'>
       <@cImg src='...' alt='...' />
   </@cFigure>
   ```
-- Quand la légende vient d'une variable (titre, label dynamique), passer la variable directement : `caption=blog.contentLabel`
+- When the caption comes from a variable (title, dynamic label), pass the variable directly: `caption=blog.contentLabel`
 
-### Éléments HTML5 sémantiques (article / header / section / aside)
-- **`<article>`** → `<@cArticle>` (macro dédiée)
-- **`<header>`** → `<@cHeader>` (macro dédiée)
-- **`<section>`** → `<@cSection>` (macro dédiée) — `<@cBlock type='section'>` reste valide aussi
-- **`<aside>`, `<footer>`, `<main>`, `<nav>`** → `<@cBlock type='aside'>` (pas de macro dédiée, mais `cBlock` accepte n'importe quel `type`)
-- Toutes ces macros acceptent `class`, `id`, `params` comme `cBlock`
+### Semantic HTML5 elements (article / header / section / aside)
+- **`<article>`** → `<@cArticle>` (dedicated macro)
+- **`<header>`** → `<@cHeader>` (dedicated macro)
+- **`<section>`** → `<@cSection>` (dedicated macro) — `<@cBlock type='section'>` also remains valid
+- **`<aside>`, `<footer>`, `<main>`, `<nav>`** → `<@cBlock type='aside'>` (no dedicated macro, but `cBlock` accepts any `type`)
+- All these macros accept `class`, `id`, `params` like `cBlock`
 
-### Classes dynamiques (concaténation conditionnelle)
-- **Toujours pré-construire** la chaîne `class` avec `<#assign>` plutôt qu'inline FreeMarker dans le paramètre `class`
+### Dynamic classes (conditional concatenation)
+- **Always pre-build** the `class` string with `<#assign>` rather than inline FreeMarker in the `class` parameter
   ```freemarker
-  <#-- INCORRECT — inline FreeMarker dans class -->
+  <#-- INCORRECT — inline FreeMarker in class -->
   <@cBlock class='bl-body<#if !blog.displayToc> bl-body-one-col</#if>'>
 
-  <#-- CORRECT — assign avant la macro -->
+  <#-- CORRECT — assign before the macro -->
   <#assign bodyClass = 'bl-body'>
   <#if !blog.displayToc><#assign bodyClass = bodyClass + ' bl-body-one-col'></#if>
   <@cBlock class=bodyClass>
   ```
-- Le pattern `?then(a, b)` est aussi acceptable pour 1 ou 2 classes seulement :
+- The `?then(a, b)` pattern is also acceptable for only 1 or 2 classes:
   ```freemarker
   <#assign cardClass = 'bl-card' + isActive?then(' is-active', '')>
   ```
 
-### Liens cliquables stylés en card (pas en bouton)
-- Pour une **carte cliquable** (toute la zone est un lien, pas un bouton stylé), utiliser `<@cLink>` et **non** `<@cBtn>` :
+### Clickable links styled as a card (not as a button)
+- For a **clickable card** (the whole area is a link, not a button-styled element), use `<@cLink>` and **not** `<@cBtn>`:
   ```freemarker
   <#assign cardUrl>jsp/site/Portal.jsp?page=blog&id=${item.id}<#if portletId??>&portlet_id=${portletId}</#if></#assign>
   <@cLink href=cardUrl class='bl-rcard' label=''>
@@ -596,66 +596,66 @@ Pattern : `<@cTable>` → `<@chList>` + `<@chItem>` + `<@cCard title=entityTitle
       <@cBlock class='bl-rcard__body'>...</@cBlock>
   </@cLink>
   ```
-- Le paramètre `label=''` est obligatoire ; le contenu de la carte va en nested.
+- The `label=''` parameter is mandatory; the card content goes nested.
 
-### Listes vides remplies par JS
-- Pour une `<ul>` qui sera peuplée côté JS (TOC, autocomplete, etc.), utiliser `<@chList>` avec `id` et nested vide :
+### Empty lists filled by JS
+- For a `<ul>` that will be populated on the JS side (TOC, autocomplete, etc.), use `<@chList>` with an `id` and empty nested content:
   ```freemarker
   <@chList id='bl-toc'></@chList>
   ```
-- Le JS peut alors faire `document.getElementById('bl-toc')` et `appendChild(li)` normalement.
+- The JS can then do `document.getElementById('bl-toc')` and `appendChild(li)` normally.
 
-### Code mort / dupliqué
-- Lors d'une migration, **toujours relire le résultat** pour détecter d'éventuels copier-coller buggés (ex : un `<#assign breadcrumbItems...>` dupliqué dans un autre conteneur sans utilisation)
-- Supprimer les blocs HTML commentés (`<!-- ... -->`) qui ne sont pas réellement utiles à la documentation
-- Supprimer les commentaires `<!-- TOC -->`, `<!-- BODY -->` etc. dont l'intent est évident dans le code FreeMarker structuré
+### Dead / duplicated code
+- During a migration, **always re-read the result** to detect any buggy copy-paste (e.g. a duplicated `<#assign breadcrumbItems...>` in another container without use)
+- Remove commented-out HTML blocks (`<!-- ... -->`) that are not genuinely useful as documentation
+- Remove `<!-- TOC -->`, `<!-- BODY -->` etc. comments whose intent is obvious in the structured FreeMarker code
 
-### jQuery → Vanilla JS - Conversion obligatoire
-**La librairie jQuery n'est plus chargée par le thème.** Tout JavaScript utilisant `$(...)`, `jQuery(...)` ou des plugins jQuery doit être **systématiquement** réécrit en vanilla JS lors de la migration d'un template — c'est non négociable, sinon le code casse au runtime.
+### jQuery → Vanilla JS - Mandatory conversion
+**The jQuery library is no longer loaded by the theme.** Any JavaScript using `$(...)`, `jQuery(...)` or jQuery plugins must be **systematically** rewritten in vanilla JS when migrating a template — it is non-negotiable, otherwise the code breaks at runtime.
 
-Mapping standard des opérations jQuery les plus courantes :
+Standard mapping of the most common jQuery operations:
 
 | jQuery | Vanilla JS |
 |---|---|
-| `$('#foo')`, `$('.bar')` | `document.querySelector('#foo')`, `document.querySelector('.bar')` (1er match) |
+| `$('#foo')`, `$('.bar')` | `document.querySelector('#foo')`, `document.querySelector('.bar')` (1st match) |
 | `$('.bar')` (collection) | `document.querySelectorAll('.bar')` |
-| `$el.find('.x')` | `el.querySelector('.x')` ou `el.querySelectorAll('.x')` |
+| `$el.find('.x')` | `el.querySelector('.x')` or `el.querySelectorAll('.x')` |
 | `$el.children('.x')` | `el.querySelectorAll(':scope > .x')` |
 | `$el.parent()` | `el.parentElement` |
-| `$el.closest('.x')` | `el.closest('.x')` (déjà natif) |
-| `$el.each(fn)` | `nodeList.forEach(fn)` (sur `NodeList` ou `Array.from(htmlCollection)`) |
+| `$el.closest('.x')` | `el.closest('.x')` (already native) |
+| `$el.each(fn)` | `nodeList.forEach(fn)` (on `NodeList` or `Array.from(htmlCollection)`) |
 | `$el.addClass('x')`, `.removeClass('x')`, `.toggleClass('x')` | `el.classList.add('x')`, `.remove('x')`, `.toggle('x')` |
 | `$el.hasClass('x')` | `el.classList.contains('x')` |
 | `$el.attr('foo', 'bar')` | `el.setAttribute('foo', 'bar')` |
-| `$el.attr('foo')` (lecture) | `el.getAttribute('foo')` |
+| `$el.attr('foo')` (read) | `el.getAttribute('foo')` |
 | `$el.removeAttr('foo')` | `el.removeAttribute('foo')` |
 | `$el.data('foo')` | `el.dataset.foo` |
-| `$el.text()`, `$el.text('...')` | `el.textContent` (lecture/écriture) |
-| `$el.html()`, `$el.html('...')` | `el.innerHTML` (lecture/écriture) |
-| `$el.val()`, `$el.val('...')` | `el.value` (lecture/écriture) |
+| `$el.text()`, `$el.text('...')` | `el.textContent` (read/write) |
+| `$el.html()`, `$el.html('...')` | `el.innerHTML` (read/write) |
+| `$el.val()`, `$el.val('...')` | `el.value` (read/write) |
 | `$el.width()`, `$el.height()` | `el.offsetWidth`, `el.offsetHeight` |
-| `$el.css('color')` (lecture) | `getComputedStyle(el).color` |
-| `$el.css('color', 'red')` (écriture) | `el.style.color = 'red'` |
-| `$el.show()`, `$el.hide()` | `el.style.display = ''` / `'none'` (ou classe utilitaire `d-none`) |
-| `$el.append(child)` | `el.appendChild(child)` ou `el.append(child)` |
+| `$el.css('color')` (read) | `getComputedStyle(el).color` |
+| `$el.css('color', 'red')` (write) | `el.style.color = 'red'` |
+| `$el.show()`, `$el.hide()` | `el.style.display = ''` / `'none'` (or utility class `d-none`) |
+| `$el.append(child)` | `el.appendChild(child)` or `el.append(child)` |
 | `$el.prepend(child)` | `el.prepend(child)` |
-| `$el.remove()` | `el.remove()` (déjà natif) |
-| `$el.empty()` | `el.replaceChildren()` ou `el.innerHTML = ''` |
+| `$el.remove()` | `el.remove()` (already native) |
+| `$el.empty()` | `el.replaceChildren()` or `el.innerHTML = ''` |
 | `$el.on('click', fn)` | `el.addEventListener('click', fn)` |
 | `$el.off('click', fn)` | `el.removeEventListener('click', fn)` |
 | `$el.click(fn)`, `.keydown(fn)`, `.submit(fn)` | `el.addEventListener('click', fn)`, `'keydown'`, `'submit'` |
-| `event.which` (touche) | `event.key` (`' '`, `'Enter'`, `'Escape'`...) ou `event.code` |
-| `$(this)` dans handler | `this` (le handler reçoit `this` = élément déclencheur) ou `event.currentTarget` |
+| `event.which` (key) | `event.key` (`' '`, `'Enter'`, `'Escape'`...) or `event.code` |
+| `$(this)` in handler | `this` (the handler receives `this` = the triggering element) or `event.currentTarget` |
 | `$el.animate({ scrollLeft: '+=305' }, 'slow')` | `el.scrollBy({ left: 305, behavior: 'smooth' })` |
 | `$el.animate({ scrollTop: 0 }, 'slow')` | `window.scrollTo({ top: 0, behavior: 'smooth' })` |
 | `$.ajax(...)` / `$.get(...)` / `$.post(...)` | `fetch(url, { method, headers, body }).then(r => r.json())` |
-| `$(document).ready(fn)` | `document.addEventListener('DOMContentLoaded', fn)` (déjà la pratique standard) |
+| `$(document).ready(fn)` | `document.addEventListener('DOMContentLoaded', fn)` (already the standard practice) |
 | `$.trim(s)` | `s.trim()` |
 | `$.each(arr, fn)` | `arr.forEach(fn)` |
 
-**Patterns récurrents à factoriser dans des helpers** quand on les utilise plusieurs fois dans le même `<script>` :
+**Recurring patterns to factor out into helpers** when used several times in the same `<script>`:
 ```javascript
-// Helper pour toggle disabled (classe + attribut)
+// Helper to toggle disabled (class + attribute)
 function setDisabled(btn, value) {
     if (!btn) return;
     if (value) {
@@ -668,14 +668,14 @@ function setDisabled(btn, value) {
 }
 ```
 
-**Garde-fous obligatoires** :
-- **Toujours** vérifier l'existence de l'élément après `querySelector` : `if (!el) return;` ou `if (el) { ... }` — `querySelector` retourne `null` si non trouvé, `el.classList.add(...)` plante alors que `$el.addClass(...)` était silencieux sur collection vide.
-- **Préférer `event.key`** à `event.which` (déprécié) ou `event.keyCode` (déprécié).
-- **Capturer du code mort jQuery** : certains sélecteurs jQuery sont mal écrits (ex : `$el.children('.a .b')` qui ne match jamais — `.children()` filtre les enfants directs avec un sélecteur simple). Lors de la conversion, **signaler l'intent présumé** à l'utilisateur plutôt que de traduire littéralement un no-op.
+**Mandatory safeguards**:
+- **Always** check the existence of the element after `querySelector`: `if (!el) return;` or `if (el) { ... }` — `querySelector` returns `null` if not found, `el.classList.add(...)` then crashes whereas `$el.addClass(...)` was silent on an empty collection.
+- **Prefer `event.key`** over `event.which` (deprecated) or `event.keyCode` (deprecated).
+- **Catch dead jQuery code**: some jQuery selectors are poorly written (e.g. `$el.children('.a .b')` which never matches — `.children()` filters direct children with a simple selector). When converting, **flag the presumed intent** to the user rather than literally translating a no-op.
 
-### cText - Usage correct
-- `<@cText>` rend une balise `<p>` — **ne pas l'utiliser comme conteneur layout** (flex, grid, colonnes)
-- Pour les wrappers de mise en page avec classes utilitaires Bootstrap, utiliser `<@cBlock>`, `<@cRow>` ou `<@cCol>` :
+### cText - Correct usage
+- `<@cText>` renders a `<p>` tag — **do not use it as a layout container** (flex, grid, columns)
+- For layout wrappers with Bootstrap utility classes, use `<@cBlock>`, `<@cRow>` or `<@cCol>`:
   ```freemarker
   <#-- INCORRECT -->
   <@cText class='d-flex justify-content-end mt-5'>
@@ -690,41 +690,41 @@ function setDisabled(btn, value) {
   </@cRow>
   ```
 
-### Ce qu'il ne faut PAS faire
-- Ne pas ajouter de JavaScript sauf si demandé ou requis par une macro
-- Ne pas utiliser de paramètres de macro dépréciés
-- Ne pas envelopper un `<@cAlert>` dans un `<@cBlock>` ou `<@cCard>` inutile
-- Ne pas dupliquer le préfixe `btn btn-` dans la class de `<@cBtn>`
-- Ne pas laisser de `<li>` orphelins sans `<@chList>` parent
-- Ne pas envelopper chaque `<@chItem>` dans un `<@cRow>`/`<@cCol>` — les items de liste vont directement dans `<@chList>`
-- **Ne pas laisser de balises HTML brutes** (`<br>`, `<hr>`, `<b>`, `<i>`, etc.) quand une macro existe ou quand elles sont inutiles — supprimer les `<br>` de mise en forme
-- **Ne pas utiliser `<@cCol cols='xs-12'>`** — utiliser simplement `<@cCol>` (colonne pleine largeur par défaut)
-- **Ne pas utiliser `&nbsp;`** — remplacer par un espace normal ou supprimer si inutile
-- **Ne pas utiliser `style='...'`** sur les macros — utiliser `class` avec des utilitaires Bootstrap ou `params='style="..."'` en dernier recours
-- **Ne pas mélanger macros BO et FO** — vérifier que toutes les macros utilisées existent dans le contexte skin/FO
-- **Ne pas utiliser `&gt;` / `&lt;`** dans les conditions FreeMarker — utiliser `gt` / `lt`
-- **Ne pas auto-fermer `<@cInline>`** — toujours `</@cInline>`, même quand le contenu est vide
-- **Ne pas inliner FreeMarker dans le paramètre `class` d'une macro** — pré-construire la chaîne avec `<#assign>` (vaut aussi pour `href`, `id`, etc.)
-- **Ne pas inliner `?string('yyyy-MM-dd')` directement dans `params='datetime="..."'`** — guillemets imbriqués qui cassent le parser FreeMarker. Pré-construire avec `<#assign>`.
-- **Ne pas garder de `<figcaption>` séparé** — utiliser le paramètre `caption` de `<@cFigure>`
-- **Ne pas utiliser `<@cBtn>` pour les cards cliquables** — utiliser `<@cLink class='ma-card' label=''>` quand il s'agit d'une zone cliquable non stylée en bouton
-- **Ne pas garder le code dupliqué/mort** lors de la migration — relire le résultat pour repérer les copier-coller buggés et les commentaires `<!-- ... -->` inutiles
-- **Ne JAMAIS conserver de jQuery** dans un template migré (`$(...)`, `jQuery(...)`, `.on()`, `.addClass()`, `.animate()`, `$(document).ready()`, etc.) — la lib jQuery n'est plus chargée par le thème, le code planterait au runtime. Toujours réécrire en vanilla JS (voir section dédiée)
+### What NOT to do
+- Do not add JavaScript unless requested or required by a macro
+- Do not use deprecated macro parameters
+- Do not wrap a `<@cAlert>` in an unnecessary `<@cBlock>` or `<@cCard>`
+- Do not duplicate the `btn btn-` prefix in the class of `<@cBtn>`
+- Do not leave orphan `<li>` without a parent `<@chList>`
+- Do not wrap each `<@chItem>` in a `<@cRow>`/`<@cCol>` — list items go directly inside `<@chList>`
+- **Do not leave raw HTML tags** (`<br>`, `<hr>`, `<b>`, `<i>`, etc.) when a macro exists or when they are unnecessary — remove formatting `<br>`
+- **Do not use `<@cCol cols='xs-12'>`** — simply use `<@cCol>` (full-width column by default)
+- **Do not use `&nbsp;`** — replace with a normal space or remove if unnecessary
+- **Do not use `style='...'`** on macros — use `class` with Bootstrap utilities or `params='style="..."'` as a last resort
+- **Do not mix BO and FO macros** — check that all the macros used exist in the skin/FO context
+- **Do not use `&gt;` / `&lt;`** in FreeMarker conditions — use `gt` / `lt`
+- **Do not self-close `<@cInline>`** — always `</@cInline>`, even when the content is empty
+- **Do not inline FreeMarker in the `class` parameter of a macro** — pre-build the string with `<#assign>` (also applies to `href`, `id`, etc.)
+- **Do not inline `?string('yyyy-MM-dd')` directly in `params='datetime="..."'`** — nested quotes break the FreeMarker parser. Pre-build with `<#assign>`.
+- **Do not keep a separate `<figcaption>`** — use the `caption` parameter of `<@cFigure>`
+- **Do not use `<@cBtn>` for clickable cards** — use `<@cLink class='ma-card' label=''>` when it is a clickable area not styled as a button
+- **Do not keep duplicated/dead code** during the migration — re-read the result to spot buggy copy-paste and unnecessary `<!-- ... -->` comments
+- **NEVER keep jQuery** in a migrated template (`$(...)`, `jQuery(...)`, `.on()`, `.addClass()`, `.animate()`, `$(document).ready()`, etc.) — the jQuery lib is no longer loaded by the theme, the code would crash at runtime. Always rewrite in vanilla JS (see the dedicated section)
 
-## Référence des fichiers de macros
+## Macro files reference
 
-Les définitions se trouvent dans:
-- **Composants**: `lutece-core/webapp/WEB-INF/templates/skin/themes/lutece/macros/components/`
-- **Éléments**: `lutece-core/webapp/WEB-INF/templates/skin/themes/lutece/macros/elements/`
-- **Formulaires**: `lutece-core/webapp/WEB-INF/templates/skin/themes/lutece/macros/forms/`
+The definitions are located in:
+- **Components**: `lutece-core/webapp/WEB-INF/templates/skin/themes/lutece/macros/components/`
+- **Elements**: `lutece-core/webapp/WEB-INF/templates/skin/themes/lutece/macros/elements/`
+- **Forms**: `lutece-core/webapp/WEB-INF/templates/skin/themes/lutece/macros/forms/`
 - **Layout**: `lutece-core/webapp/WEB-INF/templates/skin/themes/lutece/macros/layout/`
-- **Utilitaires**: `lutece-core/webapp/WEB-INF/templates/skin/themes/lutece/macros/utilities/`
+- **Utilities**: `lutece-core/webapp/WEB-INF/templates/skin/themes/lutece/macros/utilities/`
 
-En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** correspondant pour consulter la signature et la documentation.
+If in doubt about a macro's parameters, **read the corresponding .ftl file** to check the signature and documentation.
 
-## Exemples de référence
+## Reference examples
 
-### Page d'erreur type
+### Typical error page
 
 ```freemarker
 <#include "minimal_header.html" />
@@ -753,7 +753,7 @@ En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** corres
 <#include "minimal_footer.html" />
 ```
 
-### Liste de choix type
+### Typical choice list
 
 ```freemarker
 <@cTpl>
@@ -778,7 +778,7 @@ En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** corres
 </@cTpl>
 ```
 
-### Formulaire d'inscription type (avec input-group et progress)
+### Typical registration form (with input-group and progress)
 
 ```freemarker
 <@cTpl>
@@ -796,12 +796,12 @@ En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** corres
             <@cField label='#i18n{...password}' required=true>
                 <@cInputGroup>
                     <@cInput type='password' id='password' name='password' class='form-control ${classPassword?if_exists}' params='maxlength="100"' />
-                    <@cBtn href='#' class='secondary btn-sm p-2' id='lutece-password-toggler' label='' params='title="Afficher / masquer le mot de passe"'>
+                    <@cBtn href='#' class='secondary btn-sm p-2' id='lutece-password-toggler' label='' params='title="Show / hide the password"'>
                         <@cIcon name='eye' />
                     </@cBtn>
-                    <@cBtn href='#' class='secondary btn-sm p-2' id='generate_password' label='' params='title="Générer un mot de passe"'>
+                    <@cBtn href='#' class='secondary btn-sm p-2' id='generate_password' label='' params='title="Generate a password"'>
                         <@cIcon name='settings' class='me-1' />
-                        <@cInline class='d-none'>Générer un mot de passe</@cInline>
+                        <@cInline class='d-none'>Generate a password</@cInline>
                     </@cBtn>
                 </@cInputGroup>
             </@cField>
@@ -824,7 +824,7 @@ En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** corres
 </@cTpl>
 ```
 
-### Formulaire de connexion type
+### Typical login form
 
 ```freemarker
 <@cTpl>
@@ -864,7 +864,7 @@ En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** corres
 </@cTpl>
 ```
 
-### Page recap multi-étapes type (avec cStepDone, cStepCurrent, cStepNext)
+### Typical multi-step recap page (with cStepDone, cStepCurrent, cStepNext)
 
 ```freemarker
 <@cStepDone step='1' title='#i18n{...stepOneTitle}' idx=0>
@@ -901,14 +901,14 @@ En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** corres
 <@cStepNext step='5' title='#i18n{...confirmationTitle}' />
 ```
 
-### Page article / contenu riche (sémantique HTML5 + breadcrumb dynamique)
+### Article / rich content page (semantic HTML5 + dynamic breadcrumb)
 
-Pattern recommandé pour une page de détail article (blog, news, etc.) avec :
-- Breadcrumb construit dynamiquement à partir de paramètres URL
-- Header avec métadonnées (tags, date, durée de lecture)
-- Image héro via `<@cFigure caption=...>`
-- Aside avec sommaire (TOC)
-- Section d'articles liés en bas
+Recommended pattern for an article detail page (blog, news, etc.) with:
+- Breadcrumb built dynamically from URL parameters
+- Header with metadata (tags, date, reading time)
+- Hero image via `<@cFigure caption=...>`
+- Aside with table of contents (TOC)
+- Related articles section at the bottom
 
 ```freemarker
 <@cTpl>
@@ -917,7 +917,7 @@ Pattern recommandé pour une page de détail article (blog, news, etc.) avec :
     <@cRow>
         <@cCol>
             <@cArticle class='bg-light'>
-                <#-- Breadcrumb dynamique construit selon les params reçus -->
+                <#-- Dynamic breadcrumb built from the received params -->
                 <#assign breadcrumbItems = []>
                 <#if from_page_name?? && from_page_name != ''>
                     <#assign fromPageUrl = ''>
@@ -994,10 +994,10 @@ Pattern recommandé pour une page de détail article (blog, news, etc.) avec :
 </@cTpl>
 ```
 
-**Points clés de ce pattern** :
-- `<@cArticle>`, `<@cHeader>`, `<@cSection>`, `<@cBlock type='aside'>` pour la sémantique HTML5
-- `<#assign>` blocs pour pré-construire URLs, dates ISO et noms de classes dynamiques (jamais d'inline FreeMarker dans les paramètres de macro)
-- `<@cInline type='time'>` pour la balise `<time>` (pas de macro dédiée)
-- `<@cFigure caption=...>` plutôt que `<figure>` + `<figcaption>` séparés
-- `<@cLink class='card' label=''>` pour les cards cliquables (pas `<@cBtn>`)
-- `<@chList id='...'></@chList>` pour une liste vide à remplir côté JS
+**Key points of this pattern**:
+- `<@cArticle>`, `<@cHeader>`, `<@cSection>`, `<@cBlock type='aside'>` for HTML5 semantics
+- `<#assign>` blocks to pre-build URLs, ISO dates and dynamic class names (never inline FreeMarker in macro parameters)
+- `<@cInline type='time'>` for the `<time>` tag (no dedicated macro)
+- `<@cFigure caption=...>` rather than separate `<figure>` + `<figcaption>`
+- `<@cLink class='card' label=''>` for clickable cards (not `<@cBtn>`)
+- `<@chList id='...'></@chList>` for an empty list to fill on the JS side

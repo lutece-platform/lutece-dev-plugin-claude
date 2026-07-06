@@ -1,42 +1,42 @@
 ---
 name: update-template-bo
-description: Met à jour un template Lutèce BO (Back Office / admin) en remplaçant le HTML brut par les macros FreeMarker BO de lutece-core (thème Tabler). Utiliser quand l'utilisateur demande de migrer, convertir ou mettre à jour un template admin/BO avec les macros Lutèce.
-argument-hint: "chemin-du-template"
+description: Updates a Lutece BO (Back Office / admin) template by replacing raw HTML with the BO FreeMarker macros from lutece-core (Tabler theme). Use when the user asks to migrate, convert or update an admin/BO template with the Lutece macros.
+argument-hint: "template-path"
 ---
 
-# Mise à jour de templates BO Lutèce (admin)
+# Updating Lutece BO templates (admin)
 
-Tu dois mettre à jour un template BO (Back Office) Lutèce en remplaçant tout le HTML brut par les macros FreeMarker admin définies dans `lutece-core/webapp/WEB-INF/templates/admin/themes/tabler/`.
+You must update a Lutece BO (Back Office) template by replacing all raw HTML with the admin FreeMarker macros defined in `lutece-core/webapp/WEB-INF/templates/admin/themes/tabler/`.
 
-## Étapes
+## Steps
 
-1. **Lire le template** cible fourni par l'utilisateur
-2. **Identifier** tous les éléments HTML bruts remplaçables par des macros BO
-3. **Consulter les macros** si besoin en lisant les fichiers `.ftl` de définition dans le thème tabler
-4. **Réécrire** le template en utilisant exclusivement les macros BO
-5. **Ne pas modifier** les fichiers i18n sauf si nécessaire et demandé
+1. **Read the target template** provided by the user
+2. **Identify** all raw HTML elements that can be replaced by BO macros
+3. **Consult the macros** if needed by reading the `.ftl` definition files in the tabler theme
+4. **Rewrite** the template using exclusively the BO macros
+5. **Do not modify** the i18n files unless necessary and requested
 
-## Table de correspondance HTML → Macros BO
+## HTML → BO Macros mapping table
 
-### Structure de page (Layout)
+### Page structure (Layout)
 
 | HTML | Macro BO | Notes |
 |---|---|---|
-| Conteneur de page | `<@pageContainer>` | Conteneur principal, params: `id`, `height`, `class`, `actions` |
-| Colonne de page | `<@pageColumn>` | Colonne responsive, params: `width`, `height`, `responsiveMenuSize` |
-| En-tête de page | `<@pageHeader title='...'>` | Titre + zone d'actions en nested, params: `description`, `titleClass` |
+| Page container | `<@pageContainer>` | Main container, params: `id`, `height`, `class`, `actions` |
+| Page column | `<@pageColumn>` | Responsive column, params: `width`, `height`, `responsiveMenuSize` |
+| Page header | `<@pageHeader title='...'>` | Title + actions area nested, params: `description`, `titleClass` |
 | `<div class="row">` | `<@row>` | Params: `class`, `id`, `align` |
 | `<div class="col-...">` | `<@columns>` | Params: `xs`, `sm`, `md`, `lg`, `xl`, `offsetMd`, etc. |
 
-### Box / Card (conteneurs)
+### Box / Card (containers)
 
 | HTML | Macro BO | Notes |
 |---|---|---|
 | `<div class="card">` | `<@box>` | Params: `color`, `id`, `class`, `title`, `collapsed` |
-| En-tête de box | `<@boxHeader>` | Params: `title`, `i18nTitleKey`, `titleLevel`, `boxTools` |
-| Corps de box | `<@boxBody>` | Params: `class`, `collapsed`, `align`, `id` |
-| Pied de box | `<@boxFooter>` | |
-| Card Bootstrap | `<@card>` | Params: `headerTitle`, `headerClass`, `headerIcon`, `status`, `ribbon` |
+| Box header | `<@boxHeader>` | Params: `title`, `i18nTitleKey`, `titleLevel`, `boxTools` |
+| Box body | `<@boxBody>` | Params: `class`, `collapsed`, `align`, `id` |
+| Box footer | `<@boxFooter>` | |
+| Bootstrap card | `<@card>` | Params: `headerTitle`, `headerClass`, `headerIcon`, `status`, `ribbon` |
 
 ### Tables
 
@@ -45,98 +45,98 @@ Tu dois mettre à jour un template BO (Back Office) Lutèce en remplaçant tout 
 | `<table>` | `<@table>` | Params: `headBody`, `responsive`, `condensed`, `hover`, `striped`, `bordered` |
 | `<thead>` | `<@tableHead>` | |
 | `<tbody>` | `<@tableBody>` | |
-| Transition thead→tbody | `<@tableHeadBodySeparator />` | Utilisé avec `headBody=true` |
+| thead→tbody transition | `<@tableHeadBodySeparator />` | Used with `headBody=true` |
 | `<tr>` | `<@tr>` | Params: `id`, `class`, `hide` |
 | `<th>` | `<@th>` | Params: `scope`, `colspan`, `rowspan`, `align`, `cols` |
 | `<td>` | `<@td>` | Params: `id`, `class`, `colspan`, `rowspan`, `align` |
 
-### Liste de features (card-based, remplace les tables pour les listes d'entités)
+### Feature list (card-based, replaces tables for entity lists)
 
 | HTML | Macro BO | Notes |
 |---|---|---|
-| Conteneur de liste | `<@manageFeature>` | Params: `class`, `colClass`, `listClass`, `id` |
-| Item de liste | `<@manageFeatureItem>` | Params: `class`, `align`, `valign`, `bodyClass` |
-| Colonne d'item | `<@manageFeatureItemColumn>` | Params: `auto`, `flex`, `cols`, `valign`, `align`, `class` |
+| List container | `<@manageFeature>` | Params: `class`, `colClass`, `listClass`, `id` |
+| List item | `<@manageFeatureItem>` | Params: `class`, `align`, `valign`, `bodyClass` |
+| Item column | `<@manageFeatureItemColumn>` | Params: `auto`, `flex`, `cols`, `valign`, `align`, `class` |
 
 ### Pagination
 
 | HTML | Macro BO | Notes |
 |---|---|---|
-| Pagination standard | `<@paginationAdmin paginator=paginator>` | Params: `combo`, `showcount`, `showall`, `nb_items_per_page` |
-| Pagination AJAX | `<@paginationAjax>` | Params: `paginator`, `columns`, `ajaxUrl`, `tableId`, `actions` |
+| Standard pagination | `<@paginationAdmin paginator=paginator>` | Params: `combo`, `showcount`, `showall`, `nb_items_per_page` |
+| AJAX pagination | `<@paginationAjax>` | Params: `paginator`, `columns`, `ajaxUrl`, `tableId`, `actions` |
 
-### Formulaires
+### Forms
 
 | HTML | Macro BO | Notes |
 |---|---|---|
 | `<form>` | `<@tform>` | Params: `type` ('horizontal','inline','flex'), `action`, `method`, `name`, `enctype` |
-| Groupe label+input | `<@formGroup>` | Params: `labelKey`, `labelFor`, `helpKey`, `mandatory`, `formStyle` |
+| label+input group | `<@formGroup>` | Params: `labelKey`, `labelFor`, `helpKey`, `mandatory`, `formStyle` |
 | `<input>` | `<@input>` | Params: `type`, `name`, `value`, `size`, `maxlength`, `placeHolder`, `mandatory`, `readonly`, `disabled` |
 | `<select>` | `<@select>` | Params: `name`, `items`, `default_value`, `multiple`, `sort`, `mandatory` |
 | `<input type="checkbox">` | `<@checkBox>` | Params: `name`, `labelKey`, `value`, `checked`, `orientation` ('vertical','switch') |
 | `<input type="radio">` | `<@radioButton>` | Params: `name`, `labelKey`, `value`, `checked`, `orientation` ('vertical','inline') |
-| Boîte de recherche | `<@searchBox id='...'>` | Recherche avec soumission auto |
+| Search box | `<@searchBox id='...'>` | Search with auto submit |
 
-### Boutons
+### Buttons
 
 | HTML | Macro BO | Notes |
 |---|---|---|
 | `<button>` | `<@button>` | Params: `type`, `name`, `title`, `color`, `size`, `buttonIcon`, `hideTitle`, `cancel`, `disabled` |
 | `<a class="btn">` | `<@aButton>` | Params: `href`, `title`, `color`, `size`, `buttonIcon`, `hideTitle`, `target` |
-| Paire Valider/Annuler | `<@actionButtons>` | Params: `button1Name`, `button2Name`, `url1`, `url2`, `icon1`, `icon2` |
-| Groupe de boutons | `<@btnGroup>` | Params: `class`, `ariaLabel` |
+| Validate/Cancel pair | `<@actionButtons>` | Params: `button1Name`, `button2Name`, `url1`, `url2`, `icon1`, `icon2` |
+| Button group | `<@btnGroup>` | Params: `class`, `ariaLabel` |
 
-### Messages, alertes et états vides
+### Messages, alerts and empty states
 
 | HTML | Macro BO | Notes |
 |---|---|---|
-| Messages info/erreur | `<@messages>` | Params: `infos`, `errors`, `warnings` |
+| Info/error messages | `<@messages>` | Params: `infos`, `errors`, `warnings` |
 | `<div class="alert">` | `<@alert>` | Params: `color`, `title`, `dismissible`, `iconTitle` |
 | Callout | `<@callOut>` | |
-| État vide (liste sans résultat) | `<@empty>` | Params: `title`, `iconName`, `subtitle`, `actionTitle`, `actionUrl`, `actionBtn`, `actionIcon` |
+| Empty state (list with no result) | `<@empty>` | Params: `title`, `iconName`, `subtitle`, `actionTitle`, `actionUrl`, `actionBtn`, `actionIcon` |
 
-### Offcanvas (panneaux latéraux)
+### Offcanvas (side panels)
 
 | HTML | Macro BO | Notes |
 |---|---|---|
-| Panneau offcanvas | `<@offcanvas>` | Params: `id`, `position`, `title`, `btnColor`, `btnTitle`, `btnIcon`, `btnClass`, `btnDisabled`, `btnDropdown`, `btnDropdownContent`, `hideTitle`, `bodyClass`, `badgeContent`, `badgeColor`, `backdrop`, `size`, `btnSize`, `targetUrl`, `targetElement`, `useIframe`, `redirectForm`, `reloadOnClose`, `params` |
+| Offcanvas panel | `<@offcanvas>` | Params: `id`, `position`, `title`, `btnColor`, `btnTitle`, `btnIcon`, `btnClass`, `btnDisabled`, `btnDropdown`, `btnDropdownContent`, `hideTitle`, `bodyClass`, `badgeContent`, `badgeColor`, `backdrop`, `size`, `btnSize`, `targetUrl`, `targetElement`, `useIframe`, `redirectForm`, `reloadOnClose`, `params` |
 
 ### Modal
 
 | HTML | Macro BO | Notes |
 |---|---|---|
 | `<div class="modal">` | `<@modal>` | Params: `id`, `size`, `fullScreen`, `vCentered` |
-| Corps de modal | `<@modalBody>` | |
-| En-tête de modal | `<@modalHeader>` | |
-| Pied de modal | `<@modalFooter>` | |
+| Modal body | `<@modalBody>` | |
+| Modal header | `<@modalHeader>` | |
+| Modal footer | `<@modalFooter>` | |
 
-### Éléments de texte et inline
+### Text and inline elements
 
 | HTML | Macro BO | Notes |
 |---|---|---|
-| `<h1>` à `<h6>` | `<@h level=N>` | N = 1 à 6 |
+| `<h1>` to `<h6>` | `<@h level=N>` | N = 1 to 6 |
 | `<p>` | `<@p>` | Params: `class`, `align`, `hide` |
 | `<span>` | `<@span>` | Params: `class`, `id`, `hide` |
 | `<a href>` | `<@link href='...'>` | Params: `label`, `title`, `target`, `class` |
-| `<div>` générique | `<@div>` | Params: `class`, `id`, `align`, `collapsed`, `hide` |
+| generic `<div>` | `<@div>` | Params: `class`, `id`, `align`, `collapsed`, `hide` |
 | `<pre>` | `<@pre>` | |
 | `<pre><code>` | `<@code>` | |
 
-### Icônes et badges
+### Icons and badges
 
 | HTML | Macro BO | Notes |
 |---|---|---|
-| `<i class="ti ti-xxx">` | `<@icon style='xxx' />` | Préfixe `ti ti-` automatique. Params: `prefix`, `style`, `class`, `title` |
+| `<i class="ti ti-xxx">` | `<@icon style='xxx' />` | `ti ti-` prefix automatic. Params: `prefix`, `style`, `class`, `title` |
 | `<span class="badge">` | `<@tag>` | Params: `color`, `title`, `tagIcon`, `size` |
 
 ### Images
 
 | HTML | Macro BO | Notes |
 |---|---|---|
-| `<img>` | `<@img url='...' alt='...' />` | `class='img-fluid'` par défaut |
+| `<img>` | `<@img url='...' alt='...' />` | `class='img-fluid'` by default |
 | `<figure>` | `<@figure>` | Params: `caption`, `captionPos` |
 
-### Listes
+### Lists
 
 | HTML | Macro BO | Notes |
 |---|---|---|
@@ -145,74 +145,74 @@ Tu dois mettre à jour un template BO (Back Office) Lutèce en remplaçant tout 
 | List group | `<@listGroup>` | Bootstrap list-group |
 | List group item | `<@listGroupItem>` | |
 
-### Onglets
+### Tabs
 
 | HTML | Macro BO | Notes |
 |---|---|---|
-| Conteneur d'onglets | `<@tabs>` | Params: `id`, `color`, `style`, `class` |
-| Liste d'onglets | `<@tabList>` | Params: `style`, `vertical`, `id`, `class`, `color` |
-| Lien d'onglet | `<@tabLink>` | Params: `active`, `href` (ex: `'#tab1'`), `title`, `tabLabel`, `tabIcon`, `id`, `class`, `hide` |
-| Contenu d'onglets | `<@tabContent>` | Params: `class`, `id` |
-| Panneau d'onglet | `<@tabPanel>` | Params: `id` (requis, doit correspondre au href du tabLink sans #), `active`, `class` |
+| Tabs container | `<@tabs>` | Params: `id`, `color`, `style`, `class` |
+| Tab list | `<@tabList>` | Params: `style`, `vertical`, `id`, `class`, `color` |
+| Tab link | `<@tabLink>` | Params: `active`, `href` (e.g.: `'#tab1'`), `title`, `tabLabel`, `tabIcon`, `id`, `class`, `hide` |
+| Tabs content | `<@tabContent>` | Params: `class`, `id` |
+| Tab panel | `<@tabPanel>` | Params: `id` (required, must match the tabLink href without #), `active`, `class` |
 
-### Accordéon
+### Accordion
 
 | HTML | Macro BO | Notes |
 |---|---|---|
-| Conteneur | `<@accordion>` | |
-| Panneau | `<@accordionPanel>` | |
-| En-tête | `<@accordionHeader>` | |
-| Corps | `<@accordionBody>` | |
+| Container | `<@accordion>` | |
+| Panel | `<@accordionPanel>` | |
+| Header | `<@accordionHeader>` | |
+| Body | `<@accordionBody>` | |
 
-### Barre de progression
+### Progress bar
 
 | HTML | Macro BO | Notes |
 |---|---|---|
 | `<div class="progress">` | `<@progress>` | |
-| Barre | `<@progressBar>` | |
+| Bar | `<@progressBar>` | |
 
-## Conventions obligatoires
+## Mandatory conventions
 
-### Détecter et ignorer les templates email
-Certains fichiers `.html` présents dans `webapp/WEB-INF/templates/admin/plugins/<plugin>/` ne sont **pas** des templates BO — ce sont des templates de **corps d'email** rendus par du code Java (ex. `NewsLetterRegistrationService.java`, `NewsletterJspBean.sendNewsletter`) et envoyés aux utilisateurs finaux. Ces templates doivent rester en **HTML table-based pur** pour compatibilité avec les clients mail (Outlook, Gmail, Apple Mail, etc.) — **ne jamais les migrer vers les macros BO**.
+### Detect and ignore email templates
+Some `.html` files present in `webapp/WEB-INF/templates/admin/plugins/<plugin>/` are **not** BO templates — they are **email body** templates rendered by Java code (e.g. `NewsLetterRegistrationService.java`, `NewsletterJspBean.sendNewsletter`) and sent to end users. These templates must remain **pure table-based HTML** for compatibility with mail clients (Outlook, Gmail, Apple Mail, etc.) — **never migrate them to the BO macros**.
 
-**Signes de détection d'un template email** :
-- Le fichier contient `<table cellpadding="0" cellspacing="0">`, `<td>` avec `style="..."` inline, commentaires `<!--[if mso]>` ou `<!--[if gte mso 9]>`
-- Présence d'un `<meta name="x-apple-disable-message-reformatting">`, de classes comme `email-bg`, `darkmode-bg`, `email-container`
-- Variables type `${content_1}`, `${content_2}`, `${newsletter_content}`, `${unsubscribe_key}`, `${subscriber_email}`
-- Le nom du fichier contient `model_`, `send_`, `confirm_mail`, `notification_`
-- Chargé depuis Java via `AppTemplateService.getTemplate(TEMPLATE_XXX, ...)` puis envoyé via `MailService.sendMail*`
+**Signs to detect an email template**:
+- The file contains `<table cellpadding="0" cellspacing="0">`, `<td>` with inline `style="..."`, comments `<!--[if mso]>` or `<!--[if gte mso 9]>`
+- Presence of a `<meta name="x-apple-disable-message-reformatting">`, of classes like `email-bg`, `darkmode-bg`, `email-container`
+- Variables like `${content_1}`, `${content_2}`, `${newsletter_content}`, `${unsubscribe_key}`, `${subscriber_email}`
+- The file name contains `model_`, `send_`, `confirm_mail`, `notification_`
+- Loaded from Java via `AppTemplateService.getTemplate(TEMPLATE_XXX, ...)` then sent via `MailService.sendMail*`
 
-**Action** : laisser le fichier **strictement inchangé** et le signaler à l'utilisateur comme "hors scope migration BO". Exemples courants :
-- `confirm_mail.html`, `confirm_mail_css.html` — email de confirmation d'inscription
-- `send_newsletter.html` — corps d'email de newsletter envoyé
-- `templates/model_newsletter.html`, `templates/model_blogs.html` — fragments d'email (sections)
+**Action**: leave the file **strictly unchanged** and report it to the user as "out of BO migration scope". Common examples:
+- `confirm_mail.html`, `confirm_mail_css.html` — subscription confirmation email
+- `send_newsletter.html` — sent newsletter email body
+- `templates/model_newsletter.html`, `templates/model_blogs.html` — email fragments (sections)
 
-### Structure globale d'une page BO
-- **Toujours** structurer : `<@pageContainer>` → `<@pageColumn>` → `<@pageHeader>` → contenu
-- Le `<@pageHeader>` contient le titre de la page et les boutons d'action principaux en nested (créer, filtrer, etc.)
-- Le contenu principal est dans un `<@box>` + `<@boxBody>` ou directement dans un `<@manageFeature>`
-- **Ne jamais** utiliser un `<@box>` comme conteneur racine d'une page complète (recap, confirmation, formulaire dédié). Un template qui commence par `<@box>` au lieu de `<@pageContainer>` doit être restructuré avec la hiérarchie standard `<@pageContainer>` → `<@pageColumn>` → `<@pageHeader>`, le `<@box>` devenant un conteneur de contenu sous le header
-- **Exception page éditeur** : le `<@tform>` peut envelopper le `<@pageHeader>` et le contenu (voir pattern éditeur ci-dessous)
-- **Exception panels/fragments embarqués** : les templates chargés comme contenu d'onglets ou fragments inclus dans une page parent n'utilisent **pas** `<@pageContainer>` / `<@pageColumn>` / `<@pageHeader>`. Ils structurent directement leur contenu avec des `<@box>` / `<@boxHeader>` / `<@boxBody>`. Chaque section logique est un `<@box>` séparé avec un titre dans `<@boxHeader>` et les boutons d'action via `boxTools=true`.
+### Overall structure of a BO page
+- **Always** structure: `<@pageContainer>` → `<@pageColumn>` → `<@pageHeader>` → content
+- The `<@pageHeader>` contains the page title and the main action buttons nested (create, filter, etc.)
+- The main content is in a `<@box>` + `<@boxBody>` or directly in a `<@manageFeature>`
+- **Never** use a `<@box>` as the root container of a full page (recap, confirmation, dedicated form). A template that starts with `<@box>` instead of `<@pageContainer>` must be restructured with the standard hierarchy `<@pageContainer>` → `<@pageColumn>` → `<@pageHeader>`, the `<@box>` becoming a content container under the header
+- **Editor page exception**: the `<@tform>` may wrap the `<@pageHeader>` and the content (see editor pattern below)
+- **Embedded panels/fragments exception**: templates loaded as tab content or fragments included in a parent page do **not** use `<@pageContainer>` / `<@pageColumn>` / `<@pageHeader>`. They structure their content directly with `<@box>` / `<@boxHeader>` / `<@boxBody>`. Each logical section is a separate `<@box>` with a title in `<@boxHeader>` and the action buttons via `boxTools=true`.
 
-### Quand utiliser @table vs @manageFeature
-- **`@manageFeature`** : **toujours utiliser par défaut** pour les listes d'entités. C'est le pattern standard obligatoire pour toute page de gestion BO. Remplace systématiquement `@table` lors de la mise à jour des templates.
-- **`@table`** : réservé uniquement aux données purement tabulaires (rapports statistiques, grilles de données sans actions CRUD, exports). Ne pas utiliser pour les listes d'entités avec boutons modifier/supprimer.
+### When to use @table vs @manageFeature
+- **`@manageFeature`**: **always use by default** for entity lists. This is the mandatory standard pattern for any BO management page. Systematically replaces `@table` when updating templates.
+- **`@table`**: reserved only for purely tabular data (statistical reports, data grids without CRUD actions, exports). Do not use for entity lists with edit/delete buttons.
 
-### @manageFeature - Listes d'entités
-- Chaque item est une card avec des colonnes flexibles
-- Colonne principale (nom/titre) : `<@manageFeatureItemColumn auto=true flex=false>` (avec `flex=false` pour le contenu multi-lignes)
-- Colonnes secondaires avec label : `<@manageFeatureItemColumn auto=true flex=false valign='top'>` avec un `<@p class='fw-bold fs-3'>` comme titre de colonne
-- Colonne d'actions : `<@manageFeatureItemColumn align='end'>` (alignée à droite)
-- Colonne checkbox (sélection) : `<@manageFeatureItemColumn auto=true>` avec `<@checkBox orientation='switch' />`
-- Pas besoin de `<@box>` / `<@boxBody>` autour, `@manageFeatureItem` génère ses propres cards
+### @manageFeature - Entity lists
+- Each item is a card with flexible columns
+- Main column (name/title): `<@manageFeatureItemColumn auto=true flex=false>` (with `flex=false` for multi-line content)
+- Secondary columns with label: `<@manageFeatureItemColumn auto=true flex=false valign='top'>` with a `<@p class='fw-bold fs-3'>` as column title
+- Actions column: `<@manageFeatureItemColumn align='end'>` (right-aligned)
+- Checkbox column (selection): `<@manageFeatureItemColumn auto=true>` with `<@checkBox orientation='switch' />`
+- No need for `<@box>` / `<@boxBody>` around it, `@manageFeatureItem` generates its own cards
 
-### @manageFeature - Actions en masse (bulk actions)
-- Envelopper le `<@manageFeature>` dans un `<@tform>` avec `boxed=true`
-- Barre d'actions au-dessus de la liste avec `<@row class='justify-content-end align-items-center'>`
-- Utiliser `<@columns>` pour organiser le select d'action + bouton submit + checkbox "Tout sélectionner"
-- Pattern multi-actions (avec `@select` pour choisir l'action) :
+### @manageFeature - Bulk actions
+- Wrap the `<@manageFeature>` in a `<@tform>` with `boxed=true`
+- Actions bar above the list with `<@row class='justify-content-end align-items-center'>`
+- Use `<@columns>` to organize the action select + submit button + "Select all" checkbox
+- Multi-action pattern (with `@select` to choose the action):
   ```freemarker
   <@tform id='form_action' method='post' action='...' boxed=true>
       <@row class='justify-content-end align-items-center'>
@@ -232,10 +232,10 @@ Certains fichiers `.html` présents dans `webapp/WEB-INF/templates/admin/plugins
   </@tform>
   ```
 
-### @manageFeature - Bulk actions simplifié (une seule action)
-- Quand il n'y a qu'**une seule** action de masse (typiquement "Supprimer la sélection"), pas besoin de `@select` : juste un bouton submit + la checkbox "tout sélectionner"
-- Le bouton est `disabled=true` tant qu'aucun item n'est coché (géré par JS)
-- Pattern :
+### @manageFeature - Simplified bulk actions (single action)
+- When there is only **one** bulk action (typically "Delete selection"), no need for `@select`: just a submit button + the "select all" checkbox
+- The button is `disabled=true` as long as no item is checked (handled by JS)
+- Pattern:
   ```freemarker
   <@tform id='form_bulk_delete' method='post' action='...' boxed=true>
       <@input type='hidden' name='entity_id' value='${entity_id}' />
@@ -264,7 +264,7 @@ Certains fichiers `.html` présents dans `webapp/WEB-INF/templates/admin/plugins
       </@manageFeature>
   </@tform>
   ```
-- **JS standard** à placer à la fin du template pour activer/désactiver le bouton bulk :
+- **Standard JS** to place at the end of the template to enable/disable the bulk button:
   ```javascript
   <script>
   document.addEventListener('DOMContentLoaded', function() {
@@ -287,18 +287,18 @@ Certains fichiers `.html` présents dans `webapp/WEB-INF/templates/admin/plugins
   });
   </script>
   ```
-- Adapter `#items-list` et `name="item_selection"` à chaque contexte (ex: `#subscribers-list` + `subscriber_selection`, `#archive-list` + `newsletter_selection`)
+- Adapt `#items-list` and `name="item_selection"` to each context (e.g.: `#subscribers-list` + `subscriber_selection`, `#archive-list` + `newsletter_selection`)
 
-### @tform boxed=true - Remplacement de @box
-- Quand un `<@box>` / `<@boxBody>` ne contient qu'un `<@tform>` ou un `<@manageFeature>`, supprimer le `<@box>` et ajouter `boxed=true` au `<@tform>`
-- Idem quand un `<@box>` ne contient qu'une `<@table>` : la table sort du box et le box est supprimé
+### @tform boxed=true - Replacing @box
+- When a `<@box>` / `<@boxBody>` only contains a `<@tform>` or a `<@manageFeature>`, remove the `<@box>` and add `boxed=true` to the `<@tform>`
+- Same when a `<@box>` only contains a `<@table>`: the table comes out of the box and the box is removed
 
-### @empty - État vide (OBLIGATOIRE)
-- **Toujours** tester si la liste est vide avant d'afficher un `<@manageFeature>` ou un `<@table>` avec des données itérées
-- Quand la liste est vide, afficher un message avec `<@empty>` dans un `<@card>`
-- Params : `title`, `iconName`, `subtitle`, `actionTitle`, `actionUrl`, `actionBtn`, `actionIcon`
-- Choisir un `iconName` pertinent par rapport au contexte métier (ex: `calendar-off` pour des rendez-vous, `users-minus` pour des utilisateurs, `inbox-off` par défaut)
-- Pattern standard (page complète) :
+### @empty - Empty state (MANDATORY)
+- **Always** test whether the list is empty before displaying a `<@manageFeature>` or a `<@table>` with iterated data
+- When the list is empty, display a message with `<@empty>` in a `<@card>`
+- Params: `title`, `iconName`, `subtitle`, `actionTitle`, `actionUrl`, `actionBtn`, `actionIcon`
+- Choose an `iconName` relevant to the business context (e.g.: `calendar-off` for appointments, `users-minus` for users, `inbox-off` by default)
+- Standard pattern (full page):
   ```freemarker
   <#if list?has_content>
       <@manageFeature>...</@manageFeature>
@@ -308,7 +308,7 @@ Certains fichiers `.html` présents dans `webapp/WEB-INF/templates/admin/plugins
       </@card>
   </#if>
   ```
-- Pattern simplifié (widget/dashboard, sans bouton d'action) :
+- Simplified pattern (widget/dashboard, without action button):
   ```freemarker
   <#if list?has_content>
       <@manageFeature>...</@manageFeature>
@@ -317,14 +317,14 @@ Certains fichiers `.html` présents dans `webapp/WEB-INF/templates/admin/plugins
   </#if>
   ```
 
-### Actions dropdown dans les listes (manageFeature, adminDashboardWidget)
-- Dans un `<@manageFeature>` ou un `<@adminDashboardWidget>`, quand un item de liste a **plus de 2 boutons d'action**, regrouper les actions dans un dropdown menu
-- Utiliser `<@aButton dropdownMenu=true>` comme conteneur, puis convertir chaque `<@aButton>` en `<@link>` avec `class='dropdown-item'`
-- Lors de la conversion en `<@link>` : supprimer les paramètres `buttonIcon`, `color`, `size` et `hideTitle` (non applicables aux liens dropdown)
-- Conserver `href` et utiliser `label` au lieu de `title` pour le texte du lien
-- Pour l'action de suppression, ajouter `text-danger` à la classe du `<@link>` pour la signalétique visuelle
-- Dans un `<@manageFeature>`, placer le dropdown dans une `<@manageFeatureItemColumn align='end'>` et donner un `id` unique par item (suffixer avec l'identifiant de l'entité)
-- Pattern (dans `@manageFeature`) :
+### Actions dropdown in lists (manageFeature, adminDashboardWidget)
+- In a `<@manageFeature>` or a `<@adminDashboardWidget>`, when a list item has **more than 2 action buttons**, group the actions in a dropdown menu
+- Use `<@aButton dropdownMenu=true>` as the container, then convert each `<@aButton>` into a `<@link>` with `class='dropdown-item'`
+- When converting to `<@link>`: remove the `buttonIcon`, `color`, `size` and `hideTitle` parameters (not applicable to dropdown links)
+- Keep `href` and use `label` instead of `title` for the link text
+- For the delete action, add `text-danger` to the `<@link>` class for visual signaling
+- In a `<@manageFeature>`, place the dropdown in a `<@manageFeatureItemColumn align='end'>` and give a unique `id` per item (suffix with the entity identifier)
+- Pattern (inside `@manageFeature`):
   ```freemarker
   <@manageFeatureItemColumn align='end'>
       <@aButton class='dropdown-toggle' id='item-actions-${item.id}' dropdownMenu=true href='#' title='#i18n{portal.util.labelActions}' color='' hideTitle=['all'] buttonIcon='dots-vertical'>
@@ -337,9 +337,9 @@ Certains fichiers `.html` présents dans `webapp/WEB-INF/templates/admin/plugins
   ```
 
 ### @pageHeader - Actions
-- Le bouton de création d'une entité doit être dans le `<@pageHeader>` en nested
-- Utiliser un `<@offcanvas>` dans le header pour les formulaires de création/filtrage
-- Pattern standard :
+- The button to create an entity must be in the `<@pageHeader>` nested
+- Use an `<@offcanvas>` in the header for the creation/filtering forms
+- Standard pattern:
   ```freemarker
   <@pageHeader title='#i18n{...title}'>
       <@offcanvas id="create" title="..." btnTitle="..." btnIcon="plus" btnColor="primary" position="end">
@@ -348,11 +348,11 @@ Certains fichiers `.html` présents dans `webapp/WEB-INF/templates/admin/plugins
   </@pageHeader>
   ```
 
-### @pageHeader - Recherche dans un offcanvas
-- Quand la liste contient plus d'un élément, proposer un offcanvas de recherche dans le `<@pageHeader>`
-- Le bouton de recherche utilise `btnIcon='search'` et `size='sm'` pour un panneau compact
-- Utiliser `method='get'` sur le `<@tform>` de recherche : les paramètres de recherche apparaissent dans l'URL, ce qui permet le bookmark/partage/retour arrière
-- Pattern minimal (recherche texte simple) :
+### @pageHeader - Search in an offcanvas
+- When the list contains more than one element, offer a search offcanvas in the `<@pageHeader>`
+- The search button uses `btnIcon='search'` and `size='sm'` for a compact panel
+- Use `method='get'` on the search `<@tform>`: the search parameters appear in the URL, which allows bookmarking/sharing/back navigation
+- Minimal pattern (simple text search):
   ```freemarker
   <@pageHeader title='#i18n{...title}'>
       <#if list?has_content && list?size gt 1>
@@ -370,12 +370,12 @@ Certains fichiers `.html` présents dans `webapp/WEB-INF/templates/admin/plugins
   </@pageHeader>
   ```
 
-### @pageHeader - Recherche multi-filtres (texte, date, sélection)
-- Pour un formulaire de recherche avec plusieurs critères, utiliser un `<@formGroup>` par champ (pas d'`<@inputGroup>` imbriqué)
-- Types d'input standards : `type='text'` pour le nom, `type='date'` pour une date, `<@select>` pour un statut/catégorie
-- Ajouter un bouton **Reset** en `color='secondary'` à côté du bouton Search `color='primary'` — le back vide les valeurs de recherche quand `search_reset=1`
-- **Toujours** réinjecter les valeurs courantes dans les inputs via `value='${search_xxx!}'` pour que le formulaire se réaffiche avec les filtres actifs après soumission
-- Pattern :
+### @pageHeader - Multi-filter search (text, date, selection)
+- For a search form with several criteria, use one `<@formGroup>` per field (no nested `<@inputGroup>`)
+- Standard input types: `type='text'` for the name, `type='date'` for a date, `<@select>` for a status/category
+- Add a **Reset** button in `color='secondary'` next to the Search button `color='primary'` — the back-end clears the search values when `search_reset=1`
+- **Always** reinject the current values into the inputs via `value='${search_xxx!}'` so the form re-displays with the active filters after submission
+- Pattern:
   ```freemarker
   <@pageHeader title='#i18n{...title}'>
       <#if list?has_content && list?size gt 1>
@@ -404,11 +404,11 @@ Certains fichiers `.html` présents dans `webapp/WEB-INF/templates/admin/plugins
   </@pageHeader>
   ```
 
-### @pageHeader - Boutons d'action directe (Import, Export, etc.)
-- Certaines actions déclenchées depuis le header ne nécessitent pas de formulaire à remplir (Import d'un fichier, Export, Clean subscribers, etc.) : le clic soumet directement un formulaire caché
-- Utiliser `<@tform type='inline'>` avec un `<@input type='hidden'>` pour l'identifiant, et un seul `<@button type='submit'>` — **pas d'offcanvas**
-- Appliquer `class='me-1'` pour l'espacement et `hideTitle=['xs','sm']` pour n'afficher que l'icône sur mobile
-- Pattern :
+### @pageHeader - Direct action buttons (Import, Export, etc.)
+- Some actions triggered from the header do not require a form to fill in (importing a file, Export, Clean subscribers, etc.): the click directly submits a hidden form
+- Use `<@tform type='inline'>` with an `<@input type='hidden'>` for the identifier, and a single `<@button type='submit'>` — **no offcanvas**
+- Apply `class='me-1'` for spacing and `hideTitle=['xs','sm']` to only show the icon on mobile
+- Pattern:
   ```freemarker
   <@pageHeader title='#i18n{...title}'>
       <#if is_import_right>
@@ -425,16 +425,16 @@ Certains fichiers `.html` présents dans `webapp/WEB-INF/templates/admin/plugins
       </#if>
   </@pageHeader>
   ```
-- Placer ces boutons **après** les offcanvas (Properties/Search/Create) — ce sont des actions secondaires
-- Les actions destructrices type "Import+Delete" (remplacer toute la liste) utilisent `color='danger'` mais restent en bouton direct (pas d'offcanvas)
+- Place these buttons **after** the offcanvas (Properties/Search/Create) — they are secondary actions
+- Destructive actions like "Import+Delete" (replace the whole list) use `color='danger'` but remain a direct button (no offcanvas)
 
-### @pageHeader - Ordre conseillé des offcanvas
-Quand le `<@pageHeader>` contient plusieurs offcanvas (configuration, recherche, création), les ordonner de **gauche à droite** en suivant la logique :
-1. **Configuration / Properties** (`btnIcon='cog'`, `btnColor=''` par défaut) — paramétrage général de la fonctionnalité, facultatif
-2. **Recherche / Filter** (`btnIcon='search'`, `btnColor=''` par défaut) — conditionnel à `list?size gt 1`
-3. **Création** (`btnIcon='plus'`, `btnColor='primary'`) — action principale, toujours en dernier (à droite)
+### @pageHeader - Recommended order of offcanvas
+When the `<@pageHeader>` contains several offcanvas (configuration, search, creation), order them from **left to right** following the logic:
+1. **Configuration / Properties** (`btnIcon='cog'`, `btnColor=''` by default) — general configuration of the feature, optional
+2. **Search / Filter** (`btnIcon='search'`, `btnColor=''` by default) — conditional on `list?size gt 1`
+3. **Creation** (`btnIcon='plus'`, `btnColor='primary'`) — main action, always last (on the right)
 
-Le bouton primaire (création) reste visuellement le plus à droite. Les boutons secondaires (properties, search) utilisent `btnClass='me-1'` pour l'espacement.
+The primary button (creation) stays visually the rightmost. The secondary buttons (properties, search) use `btnClass='me-1'` for spacing.
 
 ```freemarker
 <@pageHeader title='#i18n{...title}'>
@@ -452,13 +452,13 @@ Le bouton primaire (création) reste visuellement le plus à droite. Les boutons
 </@pageHeader>
 ```
 
-### @pageHeader - Toolbar éditeur (pattern éditeur)
-- Pour les pages éditeur (create/modify avec contenu riche), le `<@tform>` enveloppe le `<@pageHeader>` et le contenu
-- La toolbar est dans le `<@pageHeader>` via `<@row>` + `<@columns class='d-flex justify-content-end align-items-center'>`
-- Les propriétés additionnelles (tags, fichiers, URL, commentaire) sont dans un `<@offcanvas>` dans la toolbar
-- Boutons de la toolbar avec `hideTitle=['xs','sm', 'md', 'lg']` pour n'afficher que les icônes
-- Un bouton submit dupliqué en bas du contenu pour faciliter l'accès
-- Pattern :
+### @pageHeader - Editor toolbar (editor pattern)
+- For editor pages (create/modify with rich content), the `<@tform>` wraps the `<@pageHeader>` and the content
+- The toolbar is in the `<@pageHeader>` via `<@row>` + `<@columns class='d-flex justify-content-end align-items-center'>`
+- The additional properties (tags, files, URL, comment) are in an `<@offcanvas>` in the toolbar
+- Toolbar buttons with `hideTitle=['xs','sm', 'md', 'lg']` to only show the icons
+- A submit button duplicated at the bottom of the content for easier access
+- Pattern:
   ```freemarker
   <@pageContainer>
       <@pageColumn>
@@ -475,34 +475,34 @@ Le bouton primaire (création) reste visuellement le plus à droite. Les boutons
                   </@row>
               </@pageHeader>
               <@messages errors=errors />
-              ...champs éditables...
+              ...editable fields...
               <@button class='my-3 action' type='submit' buttonIcon='check me-2' title='#i18n{...save}' />
           </@tform>
       </@pageColumn>
   </@pageContainer>
   ```
 
-### @offcanvas - Panneaux latéraux
-- Utilisé pour l'édition inline : `<@offcanvas targetUrl="..." targetElement="..." btnIcon="edit" />`
-- Utilisé pour les formulaires de création : `<@offcanvas id="..." btnTitle="..." position="end">...</@offcanvas>`
-- Utilisé pour la recherche/filtres : `<@offcanvas id="..." btnIcon="search" placement="end" size="sm">...</@offcanvas>`
-- Utilisé pour les propriétés d'un éditeur : `<@offcanvas id="..." btnIcon="cog me-2" position="end" btnClass="me-1 rounded-end">...</@offcanvas>`
-- `position='end'` pour les panneaux à droite (défaut recommandé)
-- `targetUrl` charge le contenu via AJAX
-- **Optionnel** — `useIframe=true` : charge le contenu de `targetUrl` dans un iframe au lieu d'un appel AJAX. Utile quand la page cible est une page complète autonome (ex : publication, historique). Ne pas appliquer systématiquement, uniquement sur demande explicite de l'utilisateur. Pattern :
+### @offcanvas - Side panels
+- Used for inline editing: `<@offcanvas targetUrl="..." targetElement="..." btnIcon="edit" />`
+- Used for creation forms: `<@offcanvas id="..." btnTitle="..." position="end">...</@offcanvas>`
+- Used for search/filters: `<@offcanvas id="..." btnIcon="search" placement="end" size="sm">...</@offcanvas>`
+- Used for the properties of an editor: `<@offcanvas id="..." btnIcon="cog me-2" position="end" btnClass="me-1 rounded-end">...</@offcanvas>`
+- `position='end'` for panels on the right (recommended default)
+- `targetUrl` loads the content via AJAX
+- **Optional** — `useIframe=true`: loads the content of `targetUrl` in an iframe instead of an AJAX call. Useful when the target page is a full standalone page (e.g.: publication, history). Do not apply systematically, only on explicit user request. Pattern:
   ```freemarker
   <@offcanvas id='my-panel' targetUrl='jsp/admin/...' useIframe=true title='#i18n{...}' btnTitle='#i18n{...}' btnIcon='globe' btnClass='me-1' position='end' size='full' />
   ```
-- **Optionnel** — `reloadOnClose=true` : recharge la page parente à la fermeture de l'offcanvas. Utile quand le contenu de l'offcanvas modifie des données affichées sur la page (ex : publication, dépublication). Défaut : `false`. Ne pas appliquer systématiquement, uniquement quand nécessaire. Pattern :
+- **Optional** — `reloadOnClose=true`: reloads the parent page when the offcanvas closes. Useful when the offcanvas content modifies data displayed on the page (e.g.: publication, unpublication). Default: `false`. Do not apply systematically, only when necessary. Pattern:
   ```freemarker
   <@offcanvas id='my-panel' targetUrl='jsp/admin/...' useIframe=true reloadOnClose=true title='#i18n{...}' btnTitle='#i18n{...}' btnIcon='globe' position='end' size='full' />
   ```
 
-### @offcanvas - Remplacement de liens dans un dropdown menu
-- Quand on remplace des `<@link>` à l'intérieur d'un `<@aButton dropdownMenu=true>`, utiliser `<@offcanvas>` avec `btnClass='dropdown-item portlet-type-ref'` et `btnColor=''` pour conserver le style dropdown
-- L'`id` doit être unique par item de liste (suffixer avec l'identifiant de l'entité)
-- `btnIcon=''` pour ne pas afficher d'icône (cohérent avec les liens dropdown)
-- Pattern :
+### @offcanvas - Replacing links in a dropdown menu
+- When replacing `<@link>` inside a `<@aButton dropdownMenu=true>`, use `<@offcanvas>` with `btnClass='dropdown-item portlet-type-ref'` and `btnColor=''` to keep the dropdown style
+- The `id` must be unique per list item (suffix with the entity identifier)
+- `btnIcon=''` to not show an icon (consistent with the dropdown links)
+- Pattern:
   ```freemarker
   <@aButton class='dropdown-toggle' id='portlet-type' dropdownMenu=true href='#' title='#i18n{portal.util.labelActions}' color=''>
       <@offcanvas id='offcanvasModify-${item.id}' targetUrl='jsp/admin/...' useIframe=true title='#i18n{...labelModify}' btnTitle='#i18n{...labelModify}' btnIcon='' btnColor='' btnClass='dropdown-item portlet-type-ref' position='end' size='half' />
@@ -511,11 +511,11 @@ Le bouton primaire (création) reste visuellement le plus à droite. Les boutons
   </@aButton>
   ```
 
-### @offcanvas - Remplacement de boutons d'action dans une liste
-- Quand on remplace des `<@aButton>` dans une colonne d'actions `<@manageFeatureItemColumn align='end'>`, utiliser `<@offcanvas>` avec `btnColor=''` et `btnClass='me-1'` pour conserver l'espacement
-- L'`id` doit être unique par item de liste (suffixer avec l'identifiant de l'entité)
-- Conserver les actions de suppression/retrait en `<@aButton>` (pas pertinent en offcanvas)
-- Pattern :
+### @offcanvas - Replacing action buttons in a list
+- When replacing `<@aButton>` in an actions column `<@manageFeatureItemColumn align='end'>`, use `<@offcanvas>` with `btnColor=''` and `btnClass='me-1'` to keep the spacing
+- The `id` must be unique per list item (suffix with the entity identifier)
+- Keep the delete/remove actions as `<@aButton>` (not relevant in offcanvas)
+- Pattern:
   ```freemarker
   <@manageFeatureItemColumn align='end'>
       <@offcanvas id='offcanvasModify-${item.key}' targetUrl='jsp/admin/.../Modify.jsp?key=${item.key}' useIframe=true title='#i18n{portal.util.labelModify}' btnTitle='#i18n{portal.util.labelModify}' btnIcon='edit' btnColor='' btnClass='me-1' hideTitle=['xs','sm'] position='end' size='half' />
@@ -524,11 +524,11 @@ Le bouton primaire (création) reste visuellement le plus à droite. Les boutons
   </@manageFeatureItemColumn>
   ```
 
-### @offcanvas - Remplacement d'un bouton collapse par un offcanvas standard
-- Quand un bouton `<@button>` de type collapse (`style='card-control collapse'` / `buttonTargetId='#...'`) contrôle une `<@div>` contenant un formulaire de recherche, remplacer le tout par un `<@offcanvas>` standard qui embarque directement le formulaire
-- Supprimer la `<@div>` wrapper et déplacer son contenu (le `<@tform>`) à l'intérieur du `<@offcanvas>`
-- Le `<@tform>` embarqué dans l'offcanvas ne nécessite pas `boxed=true`
-- Pattern :
+### @offcanvas - Replacing a collapse button with a standard offcanvas
+- When a `<@button>` of collapse type (`style='card-control collapse'` / `buttonTargetId='#...'`) controls a `<@div>` containing a search form, replace the whole thing with a standard `<@offcanvas>` that embeds the form directly
+- Remove the wrapper `<@div>` and move its content (the `<@tform>`) inside the `<@offcanvas>`
+- The `<@tform>` embedded in the offcanvas does not require `boxed=true`
+- Pattern:
   ```freemarker
   <@pageHeader title='#i18n{...title}'>
       <@offcanvas id='offcanvasSearch' title='#i18n{...buttonSearch}' btnTitle='#i18n{...buttonSearch}' btnIcon='search' btnClass='me-1' position='end' size='sm'>
@@ -545,21 +545,21 @@ Le bouton primaire (création) reste visuellement le plus à droite. Les boutons
   </@pageHeader>
   ```
 
-### @tform - Formulaires
-- `type='horizontal'` pour les formulaires standards (label à gauche, input à droite)
-- `type='inline'` pour les formulaires en ligne (boutons d'action)
-- `boxed=true` quand le formulaire remplace un `<@box>` wrapper (voir convention ci-dessus)
-- Utiliser `<@formGroup>` pour grouper label + input avec `labelKey`, `helpKey`, `mandatory`
+### @tform - Forms
+- `type='horizontal'` for standard forms (label on the left, input on the right)
+- `type='inline'` for inline forms (action buttons)
+- `boxed=true` when the form replaces a `<@box>` wrapper (see convention above)
+- Use `<@formGroup>` to group label + input with `labelKey`, `helpKey`, `mandatory`
 
-### @messages - Messages d'information/erreur
-- Placer `<@messages infos=infos />` en haut du contenu principal (après `<@pageHeader>`)
-- Placer `<@messages errors=errors />` dans le formulaire concerné (après `<@pageHeader>` dans le pattern éditeur)
-- `<@messages warnings=warnings />` pour les avertissements
-- Ne pas dupliquer `<@messages>` : un seul appel par type
+### @messages - Info/error messages
+- Place `<@messages infos=infos />` at the top of the main content (after `<@pageHeader>`)
+- Place `<@messages errors=errors />` in the relevant form (after `<@pageHeader>` in the editor pattern)
+- `<@messages warnings=warnings />` for warnings
+- Do not duplicate `<@messages>`: a single call per type
 
-### @alert - Alertes contextuelles
-- Utiliser `<@alert color='...' title=... />` (auto-fermant avec `title`) pour les messages simples
-- Quand le contenu de l'alerte est **conditionnel** (ex: message d'erreur de validation), pré-calculer le texte dans une variable puis le passer via `title` :
+### @alert - Contextual alerts
+- Use `<@alert color='...' title=... />` (self-closing with `title`) for simple messages
+- When the alert content is **conditional** (e.g.: validation error message), precompute the text in a variable then pass it via `title`:
   ```freemarker
   <#if error.mandatoryError>
       <#assign errorMsg = error.errorMessage>
@@ -568,84 +568,84 @@ Le bouton primaire (création) reste visuellement le plus à droite. Les boutons
   </#if>
   <@alert color='danger' title=errorMsg />
   ```
-- Ne **pas** utiliser `<@alert>contenu</@alert>` quand un simple `title` suffit — préférer la forme auto-fermante
-- `color` : `'danger'`, `'warning'`, `'info'`, `'success'`
-- `iconTitle` pour ajouter une icône : `<@alert color='warning' iconTitle='exclamation-circle'>`
-- `dismissible=true` pour permettre la fermeture manuelle
+- Do **not** use `<@alert>content</@alert>` when a simple `title` is enough — prefer the self-closing form
+- `color`: `'danger'`, `'warning'`, `'info'`, `'success'`
+- `iconTitle` to add an icon: `<@alert color='warning' iconTitle='exclamation-circle'>`
+- `dismissible=true` to allow manual closing
 
-### @checkBox - Cases à cocher
-- **Toujours** ajouter `orientation='switch'` sur toutes les `<@checkBox>` pour utiliser le style switch (toggle) standard du thème Tabler
-- Ne pas utiliser le paramètre `labelFor` sur `<@checkBox>` quand un `id` est déjà présent (redondant)
+### @checkBox - Checkboxes
+- **Always** add `orientation='switch'` on all `<@checkBox>` to use the standard switch (toggle) style of the Tabler theme
+- Do not use the `labelFor` parameter on `<@checkBox>` when an `id` is already present (redundant)
 
-### @button / @aButton - Boutons
-- `<@button>` pour les actions de formulaire (submit)
-- `<@aButton>` pour les liens stylés en boutons (navigation)
-- `buttonIcon` utilise les icônes Tabler (sans préfixe) : `'edit'`, `'trash'`, `'plus'`, `'check'`, `'times'`
-- `hideTitle=['all']` pour les boutons icône-seulement dans les listes
-- `hideTitle=['xs','sm', 'md', 'lg']` pour les boutons de toolbar (icône-seulement sauf grands écrans)
-- `cancel=true` sur le bouton Annuler d'un formulaire
-- `color` : `'primary'`, `'secondary'`, `'success'`, `'danger'`, `'warning'`, `'info'`
+### @button / @aButton - Buttons
+- `<@button>` for form actions (submit)
+- `<@aButton>` for links styled as buttons (navigation)
+- `buttonIcon` uses the Tabler icons (without prefix): `'edit'`, `'trash'`, `'plus'`, `'check'`, `'times'`
+- `hideTitle=['all']` for icon-only buttons in lists
+- `hideTitle=['xs','sm', 'md', 'lg']` for toolbar buttons (icon-only except on large screens)
+- `cancel=true` on the Cancel button of a form
+- `color`: `'primary'`, `'secondary'`, `'success'`, `'danger'`, `'warning'`, `'info'`
 
 ### @paginationAdmin - Pagination
-- Toujours placer après le `<@table>` ou `<@manageFeature>`
-- `combo=1` pour afficher le sélecteur du nombre d'items par page
-- Conditionner l'affichage au nombre d'items : `<#if list?size gte 10><@paginationAdmin ... /></#if>`
+- Always place after the `<@table>` or `<@manageFeature>`
+- `combo=1` to show the selector of the number of items per page
+- Condition the display on the number of items: `<#if list?size gte 10><@paginationAdmin ... /></#if>`
 
-### @columns - Grille responsive
-- Utiliser les paramètres nommés : `<@columns sm=9>`, `<@columns md=6 lg=4>`
-- Pour une colonne auto : `<@columns>` sans paramètre de taille
-- `offsetMd` pour le décalage : `<@columns md=2 offsetMd=5>`
+### @columns - Responsive grid
+- Use the named parameters: `<@columns sm=9>`, `<@columns md=6 lg=4>`
+- For an auto column: `<@columns>` without a size parameter
+- `offsetMd` for the offset: `<@columns md=2 offsetMd=5>`
 
-### @icon - Icônes Tabler
-- Le préfixe `ti ti-` est ajouté automatiquement
+### @icon - Tabler icons
+- The `ti ti-` prefix is added automatically
 - `<@icon style='edit' />` → `<i class="ti ti-edit">`
-- Classes supplémentaires via `class` : `<@icon style='check' class='me-1' />`
+- Additional classes via `class`: `<@icon style='check' class='me-1' />`
 
 ### i18n
-- Tous les textes affichés doivent utiliser `#i18n{plugin.key}`
-- Ne pas écrire de texte en dur dans le template
+- All displayed texts must use `#i18n{plugin.key}`
+- Do not write hardcoded text in the template
 
-### @aButton → @offcanvas - Conversion des boutons de navigation
-- **Toujours** convertir les `<@aButton>` de navigation vers des pages de création ou modification en `<@offcanvas>` avec `useIframe=true`
-- Cela inclut : bouton "Ajouter" dans le `<@pageHeader>`, bouton "Modifier" dans les colonnes d'actions
-- **Ne pas convertir** les boutons de suppression/confirmation (ils restent en `<@aButton>` car ils nécessitent une navigation réelle avec confirmation)
-- Pattern bouton "Ajouter" dans le header :
+### @aButton → @offcanvas - Converting navigation buttons
+- **Always** convert the navigation `<@aButton>` to creation or modification pages into `<@offcanvas>` with `useIframe=true`
+- This includes: the "Add" button in the `<@pageHeader>`, the "Modify" button in the actions columns
+- **Do not convert** the delete/confirmation buttons (they remain `<@aButton>` because they require a real navigation with confirmation)
+- "Add" button pattern in the header:
   ```freemarker
   <@offcanvas id='offcanvasCreate' targetUrl='jsp/admin/.../Create.jsp' useIframe=true title='#i18n{...buttonCreate}' btnTitle='#i18n{...buttonCreate}' btnIcon='plus' btnColor='primary' position='end' size='half' />
   ```
-- Pattern bouton "Modifier" dans une liste :
+- "Modify" button pattern in a list:
   ```freemarker
   <@offcanvas id='offcanvasModify-${item.id}' targetUrl='jsp/admin/.../Modify.jsp?id=${item.id}' useIframe=true title='#i18n{portal.util.labelModify}' btnTitle='#i18n{portal.util.labelModify}' btnIcon='edit' btnColor='' btnClass='me-1' hideTitle=['all'] position='end' size='half' />
   ```
 
-### Ce qu'il ne faut PAS faire
-- Ne pas utiliser de HTML brut quand une macro existe
-- Ne pas ajouter de JavaScript sauf si demandé
-- Ne pas envelopper un `<@manageFeature>` dans un `<@box>` (les items sont déjà des cards)
-- Ne JAMAIS utiliser `<@table>` pour une liste d'entités avec actions CRUD → toujours convertir en `<@manageFeature>`. Les `@table` existantes dans les templates à mettre à jour doivent être systématiquement remplacées par `@manageFeature`
-- Ne pas mettre le formulaire de création dans une colonne séparée → préférer un `<@offcanvas>` dans le `<@pageHeader>`
-- Ne pas utiliser `<@aButton>` pour naviguer vers une page de création ou modification → utiliser `<@offcanvas>` avec `useIframe=true` à la place
-- Ne pas dupliquer `<@messages>` (un seul appel par type de message)
-- Ne pas envelopper un `<@tform>` dans un `<@box>` quand le box ne sert qu'à contenir le form → utiliser `boxed=true`
-- Ne JAMAIS itérer une liste (`<#list>`) sans tester au préalable si elle est non vide (`?has_content`) et afficher un `<@empty>` dans le cas contraire
+### What NOT to do
+- Do not use raw HTML when a macro exists
+- Do not add JavaScript unless requested
+- Do not wrap a `<@manageFeature>` in a `<@box>` (the items are already cards)
+- NEVER use `<@table>` for an entity list with CRUD actions → always convert to `<@manageFeature>`. Existing `@table` in the templates to update must be systematically replaced by `@manageFeature`
+- Do not put the creation form in a separate column → prefer an `<@offcanvas>` in the `<@pageHeader>`
+- Do not use `<@aButton>` to navigate to a creation or modification page → use `<@offcanvas>` with `useIframe=true` instead
+- Do not duplicate `<@messages>` (a single call per message type)
+- Do not wrap a `<@tform>` in a `<@box>` when the box only serves to contain the form → use `boxed=true`
+- NEVER iterate a list (`<#list>`) without first testing whether it is non-empty (`?has_content`) and displaying a `<@empty>` otherwise
 
-## Référence des fichiers de macros
+## Macro files reference
 
-Les définitions se trouvent dans :
-- **Composants** : `lutece-core/webapp/WEB-INF/templates/admin/themes/tabler/components/`
+The definitions are located in:
+- **Components**: `lutece-core/webapp/WEB-INF/templates/admin/themes/tabler/components/`
   - `accordion/`, `alert/`, `box/`, `button/`, `card/`, `features/`, `icon/`, `list/`, `modal/`, `navbar/`, `offcanvas/`, `pagination/`, `progress/`, `table/`, `tabs/`, `tags/`
-- **Éléments** : `lutece-core/webapp/WEB-INF/templates/admin/themes/tabler/elements/`
+- **Elements**: `lutece-core/webapp/WEB-INF/templates/admin/themes/tabler/elements/`
   - `code/`, `div/`, `image/`, `link/`, `paragraph/`, `preformatted/`, `span/`, `title/`
-- **Formulaires** : `lutece-core/webapp/WEB-INF/templates/admin/themes/tabler/forms/`
+- **Forms**: `lutece-core/webapp/WEB-INF/templates/admin/themes/tabler/forms/`
   - `checkbox/`, `form/`, `input/`, `radio/`, `search/`, `select/`
-- **Layout** : `lutece-core/webapp/WEB-INF/templates/admin/themes/tabler/layout/`
+- **Layout**: `lutece-core/webapp/WEB-INF/templates/admin/themes/tabler/layout/`
   - `columns/`, `page/`, `row/`
 
-En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** correspondant pour consulter la signature.
+If in doubt about a macro's parameters, **read the corresponding .ftl file** to consult the signature.
 
-## Exemples de référence
+## Reference examples
 
-### Page de gestion avec @manageFeature (liste + création offcanvas)
+### Management page with @manageFeature (list + creation offcanvas)
 
 ```freemarker
 <@pageContainer>
@@ -683,7 +683,7 @@ En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** corres
 </@pageContainer>
 ```
 
-### Page de gestion avec @table (données tabulaires)
+### Management page with @table (tabular data)
 
 ```freemarker
 <@pageContainer>
@@ -721,7 +721,7 @@ En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** corres
 </@pageContainer>
 ```
 
-### Formulaire d'édition (page dédiée)
+### Edit form (dedicated page)
 
 ```freemarker
 <@pageContainer>
@@ -749,9 +749,9 @@ En cas de doute sur les paramètres d'une macro, **lire le fichier .ftl** corres
 </@pageContainer>
 ```
 
-### Page avec onglets (internes)
+### Page with tabs (internal)
 
-Onglets internes : `href='#panelId'` avec `data-bs-toggle="tab"` ajouté automatiquement.
+Internal tabs: `href='#panelId'` with `data-bs-toggle="tab"` added automatically.
 
 ```freemarker
 <@pageContainer>
@@ -783,9 +783,9 @@ Onglets internes : `href='#panelId'` avec `data-bs-toggle="tab"` ajouté automat
 </@pageContainer>
 ```
 
-### Page avec onglets (navigation URL)
+### Page with tabs (URL navigation)
 
-Onglets qui naviguent vers des JSP : `href='jsp/admin/...'` (pas de `#`, pas de `@tabPanel`).
+Tabs that navigate to JSPs: `href='jsp/admin/...'` (no `#`, no `@tabPanel`).
 
 ```freemarker
 <@pageContainer>
@@ -797,12 +797,12 @@ Onglets qui naviguent vers des JSP : `href='jsp/admin/...'` (pas de `#`, pas de 
 				<@tabLink href='jsp/admin/plugins/myplugin/ManageItems.jsp?view=settings' title='#i18n{plugin.tab.settings}' />
 			</@tabList>
 		</@tabs>
-		...contenu de la page courante...
+		...current page content...
 	</@pageColumn>
 </@pageContainer>
 ```
 
-### Page de gestion avancée (recherche offcanvas + bulk actions + état vide)
+### Advanced management page (search offcanvas + bulk actions + empty state)
 
 ```freemarker
 <@pageContainer>
@@ -901,7 +901,7 @@ Onglets qui naviguent vers des JSP : `href='jsp/admin/...'` (pas de `#`, pas de 
 </@pageContainer>
 ```
 
-### Page éditeur (create/modify avec toolbar, offcanvas propriétés, contenu riche)
+### Editor page (create/modify with toolbar, properties offcanvas, rich content)
 
 ```freemarker
 <@pageContainer>
@@ -930,7 +930,7 @@ Onglets qui naviguent vers des JSP : `href='jsp/admin/...'` (pas de `#`, pas de 
 										</@inputGroup>
 									</@formGroup>
 									<@listGroup id='tag-list'>
-										...tags dynamiques...
+										...dynamic tags...
 									</@listGroup>
 								</@boxBody>
 							</@box>
@@ -942,7 +942,7 @@ Onglets qui naviguent vers des JSP : `href='jsp/admin/...'` (pas de `#`, pas de 
 									<@input class='visually-hidden' name='attachment' id='attachment' type='file' />
 									<@div class="resources">
 										<@listGroup id='content-list'>
-											...fichiers existants...
+											...existing files...
 										</@listGroup>
 									</@div>
 								</@boxBody>
@@ -970,9 +970,9 @@ Onglets qui naviguent vers des JSP : `href='jsp/admin/...'` (pas de `#`, pas de 
 </@pageContainer>
 ```
 
-### Panel / fragment embarqué (contenu d'onglet, sans structure de page)
+### Embedded panel / fragment (tab content, without page structure)
 
-Template inclus dans un onglet ou une page parente. Pas de `@pageContainer` / `@pageColumn` / `@pageHeader`. Chaque section logique est un `@box` avec `@boxHeader boxTools=true` pour les actions.
+Template included in a tab or a parent page. No `@pageContainer` / `@pageColumn` / `@pageHeader`. Each logical section is a `@box` with `@boxHeader boxTools=true` for the actions.
 
 ```freemarker
 <@box>

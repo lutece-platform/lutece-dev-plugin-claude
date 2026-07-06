@@ -136,9 +136,9 @@ DBEOF
 cat > "$SITE_DIR/README.md" << READMEEOF
 # $SITE_DESCRIPTION
 
-Site Lutece généré automatiquement.
+Automatically generated Lutece site.
 
-## Prérequis
+## Prerequisites
 
 - Java 17+
 - Maven 3.8+
@@ -146,11 +146,11 @@ Site Lutece généré automatiquement.
 
 ## Configuration
 
-Configurer la connexion dans \`src/conf/default/WEB-INF/conf/db.properties\` si nécessaire (MySQL user/password).
+Configure the connection in \`src/conf/default/WEB-INF/conf/db.properties\` if needed (MySQL user/password).
 
-La base de données sera créée automatiquement par le script \`ant\`.
+The database will be created automatically by the \`ant\` script.
 
-## Build et lancement
+## Build and run
 
 \`\`\`bash
 mvn lutece:site-assembly
@@ -160,9 +160,9 @@ cd ../../../..
 mvn liberty:dev
 \`\`\`
 
-Le site sera accessible sur http://localhost:9080/${SITE_NAME}-1.0.0-SNAPSHOT/
+The site will be available at http://localhost:9080/${SITE_NAME}-1.0.0-SNAPSHOT/
 
-## Plugins inclus
+## Included plugins
 READMEEOF
 
 for ((i=0; i<PLUGINS_COUNT; i++)); do
