@@ -57,6 +57,32 @@
         </dependency>
         <!-- ============================ -->
 
+        <!-- Provides core_style/core_stylesheet/core_style_mode_stylesheet, absent from
+             core v8 but required by some plugins' core SQL (e.g. plugin-mylutece);
+             without it the whole Liquibase migration aborts -->
+        <dependency>
+            <groupId>fr.paris.lutece.plugins</groupId>
+            <artifactId>plugin-xmltransformer</artifactId>
+            <version>[2.0.0,)</version>
+            <type>lutece-plugin</type>
+        </dependency>
+
+        <!-- FO authentication — UNCOMMENT when the flow under test needs a logged-in
+             LuteceUser; see harness README "FO authentication" for the seed + enable steps.
+        <dependency>
+            <groupId>fr.paris.lutece.plugins</groupId>
+            <artifactId>plugin-mylutece</artifactId>
+            <version>[5.0.0,)</version>
+            <type>lutece-plugin</type>
+        </dependency>
+        <dependency>
+            <groupId>fr.paris.lutece.plugins</groupId>
+            <artifactId>module-mylutece-database</artifactId>
+            <version>[7.0.0,)</version>
+            <type>lutece-plugin</type>
+        </dependency>
+        -->
+
         <!-- Liquibase: builds the schema (core + plugin) on first boot; DATABASECHANGELOGLOCK serialises the instances -->
         <dependency>
             <groupId>fr.paris.lutece.plugins</groupId>

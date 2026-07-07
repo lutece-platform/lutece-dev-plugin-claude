@@ -44,7 +44,32 @@ round-robin LB. Things that make a basic run fail until you know them:
 - **Read the app's own field validation**: generic-attribute/identity fields can reject inputs (e.g. names
   with digits) — a validation bounce looks exactly like a state bug. Capture the re-rendered form, not just the URL.
 - **Always read docker logs before AND after** (`docker logs --since <t> <node>`): the decisive evidence
-  (e.g. the atomic guard rejecting over-capacity writes) is server-side, not in the browser.## Usage
+  (e.g. the atomic guard rejecting over-capacity writes) is server-side, not in the browser.
+
+## Boot & seed — gotchas
+- **plugin-xmltransformer is mandatory** (in `pom.xml.tpl`, always enabled): it provides
+  the legacy `core_style*` tables some plugins' core SQL still INSERTs into — without it
+  the whole Liquibase run aborts and NO plugin schema deploys. Never pre-create tables
+  by hand before the first migration: any pre-existing table defeats plugin-liquibase's
+  empty-db detection and kills the migration.
+- **FO authentication**: when the flow under test needs a logged-in LuteceUser, uncomment
+  the mylutece block in `pom.xml.tpl`, add `mylutece,mylutece-database` to `--enable`, and
+  uncomment the FO user seed in `db/post-init.sql` (grant the role the plugin checks).
+  Login URL: `Portal.jsp?page=mylutece&action=login&auth_provider=mylutece-database`,
+  fields `username`/`password`.
+- **First boot**: if app1's migration outlasts the healthcheck, `docker compose up -d`
+  exits with "dependency app1 unhealthy" and app2/app3/dbinit never start — re-run
+  `docker compose up -d` once app1 is healthy. If it stays unhealthy, the migration
+  failed: read its logs.
+- **Waiting for health**: grep on `healthy` also matches **un**healthy — use
+  `docker inspect -f '{{.State.Health.Status}}' lutece-app1`.
+- **dbinit re-runs on every `up`**: keep `db/post-init.sql` idempotent (INSERT IGNORE).
+- **e2e**: start from `e2e_skeleton.py` (copy into the plugin's `e2e/`, adapt the CONFIG
+  block + form selectors). Same skeleton adapts to the failover proof: map the form's
+  `X-Upstream` IP to its container, `docker kill` it before submit, retry the submit
+  once (nginx may hit the dead upstream first), then `docker start` and assert rejoin.
+
+## Usage
 ```bash
 # from the plugin root:
 bash ../scripts/gen-test-site.sh --local . --enable <plugin,deps> --out e2e/.scalability-test

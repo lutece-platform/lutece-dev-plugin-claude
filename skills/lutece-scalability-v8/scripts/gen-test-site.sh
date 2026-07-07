@@ -53,7 +53,7 @@ sed -e "s#@@PUT_GROUPID@@#$G#" -e "s#@@PUT_ARTIFACTID@@#$A#" \
     -e "s#@@PUT_VERSION@@#$V#" -e "s#@@PUT_TYPE@@#$PTYPE#" \
     "$HARNESS/pom.xml.tpl" > "$OUT/pom.xml"
 
-ENABLED_LINES=$(echo "$ENABLE" | tr ',' '\n' | sed 's/[[:space:]]//g; s/$/.installed=1/')
+ENABLED_LINES=$(echo "$ENABLE,xmltransformer" | tr ',' '\n' | sed 's/[[:space:]]//g; s/$/.installed=1/' | sort -u)
 awk -v repl="$ENABLED_LINES" '{gsub(/@@PUT_PLUGINS_ENABLED@@/, repl)}1' \
     "$HARNESS/webapp/WEB-INF/plugins/plugins.dat.tpl" > "$OUT/webapp/WEB-INF/plugins/plugins.dat"
 

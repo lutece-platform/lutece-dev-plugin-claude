@@ -39,6 +39,31 @@ Each JVM has its own map → two nodes book the same slot → **double-booking**
 
 ## Primitive B — DB distributed lock (COUNT(*)-based resources)
 
+**Match the lock to the critical section's lifetime — decide B1 vs B2 FIRST:**
+
+| Critical section | Primitive | Why |
+|---|---|---|
+| **short** — a few statements inside ONE request/transaction (e.g. `MAX+1` → set-not-current → insert; count → decide → insert) | **B1 — transactional row lock (`SELECT … FOR UPDATE`)** | held only for the tx, **auto-released on commit/rollback — including on node crash** (the DB rolls back). No TTL, no heartbeat, no orphan-lock failure mode. Prefer this. |
+| **long / cross-request** — a single-writer role that outlives one request and whose holder could die mid-work (daemon, Lucene indexer, batch) | **B2 — TTL lease lock (forms `LockDAO`)** | needs `expired_date` + heartbeat so a dead holder's lock eventually frees. Only here is the TTL machinery justified. |
+
+> Don't copy the forms TTL lease onto a short section: a crashed holder would block the resource until the TTL expires, and you'd carry heartbeat/uuid code for nothing. Conversely, `SELECT … FOR UPDATE` can't guard a role that spans many requests (the tx can't stay open). The forms `LockDAO` is a **lease for the indexer**, not a generic lock — pick by lifetime, not by familiarity.
+
+### B1 — transactional row lock (short critical section)
+Lock the **existing row** the operation is scoped to (the entity being edited, the slot being booked) — often **no lock table is needed**. All statements run on the transaction's connection (Lutece binds it per-thread), so the `FOR UPDATE` lock holds until commit and serialises concurrent writers to that row **cluster-wide** (shared DB), while different rows don't block each other.
+```java
+TransactionManager.beginTransaction( plugin );
+try {
+    _dao.lockEntity( entityId, plugin );          // SELECT <pk> FROM <table> WHERE <pk>=? FOR UPDATE
+    // ... the short critical section: read-decide-write, all on this tx ...
+    TransactionManager.commitTransaction( plugin );
+} catch ( Exception e ) {
+    TransactionManager.rollBack( plugin );        // lock released here too (and on crash)
+    throw new AppException( e.getMessage(), e );
+}
+```
+Reference: `TransactionManager` in `lutece-core` (`fr.paris.lutece.util.sql`); usage in forms `FormResponseService`. Empirically: N concurrent writers on the same row → exactly N ordered writes, invariant intact (vs. lost writes / broken invariant without the lock — reproduce it, see SKILL Phase A.4).
+
+### B2 — TTL lease lock (long-running single writer) — forms `LockDAO`
 **Lock table** (one row = one named lock):
 ```sql
 CREATE TABLE IF NOT EXISTS <plugin>_lock (
@@ -95,5 +120,5 @@ No node election in core → a daemon runs on **every** instance. Two valid opti
 2. **`lutece-tech-plugin-quartz-scheduler`** (v8-native): a DB-backed Quartz scheduler that serialises jobs cluster-wide (`disallowedClusterConcurrentExecution`). Prefer it when the plugin already needs scheduled jobs. (Core also offers cron via Jakarta Concurrency `ManagedScheduledExecutorService`/`DaemonScheduler`, but that runs per-node — still needs a lock for run-once.)
 
 ## Rules
-- DO: **counter → atomic CAS UPDATE** (preferred); `COUNT(*)` → DB lock + re-read under the lock, **granular** lock name (`...slot.<id>`), DB-side clock, TTL+heartbeat, release in `finally` + cleanup on shutdown, pre-create the lock row; add a `CHECK` invariant on counters; `UNIQUE` as last line of defence (double-click).
-- DON'T: `synchronized`/`ReentrantLock`/lock map for shared state; in-memory counter; `SELECT MAX+1`; read-modify-write decrement without a guard; reach for a distributed lock when a counter CAS would do.
+- DO: **counter → atomic CAS UPDATE** (preferred); short critical section → **B1 transactional `SELECT … FOR UPDATE`** on the scoped row (no lock table, auto-released on commit/crash); long single-writer → **B2 TTL lease** (forms `LockDAO`) with re-read under the lock, **granular** lock name (`...slot.<id>`), DB-side clock, TTL+heartbeat, release in `finally` + cleanup on shutdown, pre-create the lock row; add a `CHECK` invariant on counters; `UNIQUE` as last line of defence (double-click).
+- DON'T: `synchronized`/`ReentrantLock`/lock map for shared state; in-memory counter; `SELECT MAX+1`; read-modify-write decrement without a guard; reach for a distributed lock when a counter CAS would do; **use a TTL lease (B2) for a short single-request critical section** (B1 is simpler and has no orphan-lock failure mode).

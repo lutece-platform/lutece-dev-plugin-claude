@@ -61,7 +61,7 @@ services:
     networks: [lutece-net]
 
   app2:
-    # image construite par app1 (meme tag) -> pas de rebuild ici
+    # image built by app1 (same tag) -> no rebuild here
     image: lutece-site:latest
     container_name: lutece-app2
     restart: unless-stopped
@@ -87,7 +87,7 @@ services:
     networks: [lutece-net]
 
   app3:
-    # image construite par app1 (meme tag) -> pas de rebuild ici
+    # image built by app1 (same tag) -> no rebuild here
     image: lutece-site:latest
     container_name: lutece-app3
     restart: unless-stopped
