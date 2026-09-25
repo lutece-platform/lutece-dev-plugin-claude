@@ -1045,6 +1045,51 @@ COUNT=0; [ -n "$SQ07_MATCHES" ] && COUNT=$(echo "$SQ07_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "SQ07" "PASS" "No validCheckSum outside prerun_db_* scripts" 0
 else emit "SQ07" "WARN" "validCheckSum outside a prerun_db_* script: plugin-liquibase never replays these files on an existing site, the directive only hides a changed body (rules/sql-liquibase.md)" "$COUNT" "$SQ07_MATCHES"; fi
 echo ""
+# SQ08: an install script shipped in the war without the Liquibase header. The lutece-maven-plugin reports every
+# plugins/<p>/(plugin|core)/(create|init)_*.sql of WEB-INF/sql that is not a changeset; plugin-liquibase then refuses
+# to start with safeRun=true. src/sql is SQ01's; this looks at webapp/WEB-INF/sql, copied into the war as it is.
+SQ08_MATCHES=""
+if [ -d webapp/WEB-INF/sql ]; then
+    SQ08_MATCHES=$(find webapp/WEB-INF/sql -type f -name "*.sql" 2>/dev/null | grep -E "/plugins/[^/]+/(modules/[^/]+/)?(plugin|core)/(create|init)_[^/]*\.sql$" | sort | while read -r f; do
+        grep -m1 -v '^[[:space:]]*$' "$f" | grep -q "liquibase formatted sql" || echo "$f"
+    done) || SQ08_MATCHES=""
+fi
+COUNT=0; [ -n "$SQ08_MATCHES" ] && COUNT=$(echo "$SQ08_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "SQ08" "PASS" "No untagged install script under webapp/WEB-INF/sql" 0
+else emit "SQ08" "FAIL" "Install script in webapp/WEB-INF/sql without the Liquibase header: plugin-liquibase refuses to start in safeRun (add the header, move it to src/sql, or remove it)" "$COUNT" "$SQ08_MATCHES"; fi
+
+# SQ09: a SQL directory named after no component of the project. plugin-liquibase reads sql/plugins/<plugin>/ and
+# sql/plugins/<plugin>/modules/<module>/ as the scripts of the component <plugin> or <plugin>-<module>; a name no
+# descriptor declares is a packaging fault: startup aborts with safeRun=true, otherwise its scripts never run, a
+# fresh install included.
+SQ09_MATCHES=""
+if [ -d src/sql/plugins ] && ls webapp/WEB-INF/plugins/*.xml >/dev/null 2>&1; then
+    SQ09_NAMES=$(sed -n 's:.*<name>[[:space:]]*\([^<[:space:]]*\)[[:space:]]*</name>.*:\1:p' webapp/WEB-INF/plugins/*.xml 2>/dev/null | sort -u)
+    SQ09_MATCHES=$(find src/sql/plugins -type f -name "*.sql" 2>/dev/null | sed -n 's:^src/sql/plugins/\([^/]*\)/modules/\([^/]*\)/.*:\1-\2:p; t; s:^src/sql/plugins/\([^/]*\)/.*:\1:p' | sort -u | while read -r c; do
+        printf '%s\n' "$SQ09_NAMES" | grep -qxF "$c" || echo "src/sql/plugins: '$c' is the name of no <name> in webapp/WEB-INF/plugins/*.xml"
+    done) || SQ09_MATCHES=""
+fi
+COUNT=0; [ -n "$SQ09_MATCHES" ] && COUNT=$(echo "$SQ09_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "SQ09" "PASS" "Every SQL directory is named after a component of the project" 0
+else emit "SQ09" "FAIL" "SQL directory named after no plugin of the project: plugin-liquibase aborts the startup in safeRun, otherwise never runs its scripts (name the directory after the plugin <name>, a module as <plugin>/modules/<module>)" "$COUNT" "$SQ09_MATCHES"; fi
+
+# SQ10: a changeset without any SQL statement. Liquibase validates the whole changelog before running it: an empty
+# formatted-sql changeset fails with "'sql' is required" and no changeset of the site runs, whatever failOnError.
+SQ10_MATCHES=""
+if [ -d src/sql ]; then
+    SQ10_MATCHES=$(find src/sql -type f -name "*.sql" 2>/dev/null | sort | while read -r f; do
+        head -1 "$f" | grep -q "liquibase formatted sql" || continue
+        awk -v f="$f" '
+            /^--[[:space:]]*changeset[[:space:]]/ { if (cs != "" && !body) print f ": " cs; cs = $0; body = 0; next }
+            /^[[:space:]]*--/ || /^[[:space:]]*$/ { next }
+            { body = 1 }
+            END { if (cs != "" && !body) print f ": " cs }' "$f"
+    done) || SQ10_MATCHES=""
+fi
+COUNT=0; [ -n "$SQ10_MATCHES" ] && COUNT=$(echo "$SQ10_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "SQ10" "PASS" "Every changeset carries SQL" 0
+else emit "SQ10" "FAIL" "Changeset without SQL: Liquibase validation fails and no changeset of the site runs (remove the changeset or give it its statements)" "$COUNT" "$SQ10_MATCHES"; fi
+echo ""
 
 # I18N03: a key the default bundle carries and _fr does not, or the reverse (the two languages the core ships): the
 # missing language falls back, a French user reads the English text, nothing logs it. I18N04: the other languages.

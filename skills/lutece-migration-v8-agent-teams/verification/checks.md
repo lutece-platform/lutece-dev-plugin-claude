@@ -202,6 +202,9 @@ after the gate.
 | SQ05 | FAIL | value concatenated into a SQL literal in a DAO (`"… LIKE '%" + str`): injection point | `'\" +` in *DAO.java | *DAO.java |
 | SQ06 | FAIL | Liquibase-headed SQL file absent from `WEB-INF/classes/sql` of the assembled webapp: the lutece-maven-plugin copies only a name it parses (`update_db_<plugin>-<from>-<to>.sql`, digits and dots), plugin-liquibase reads nothing else | (assembly check) | src/sql |
 | SQ07 | WARN | `-- validCheckSum:` in a script other than `prerun_db_*`: plugin-liquibase filters `init_*` and old `update_*` files out before Liquibase, so the directive never helps and hides a changed body; a released upgrade is fixed by a new changeset | `^--\s*validCheckSum` outside `prerun_db_*` | src/sql |
+| SQ08 | FAIL | install script `plugins/<p>/(plugin\|core)/(create\|init)_*.sql` under `webapp/WEB-INF/sql` without the Liquibase header: the war ships it and plugin-liquibase refuses to start in `safeRun` | first non-empty line ≠ `-- liquibase formatted sql` | webapp/WEB-INF/sql |
+| SQ09 | FAIL | `src/sql/plugins/<name>/` (or `<plugin>/modules/<module>/`, read as `<plugin>-<module>`) named after no `<name>` of the project descriptors: plugin-liquibase aborts the startup in `safeRun`, otherwise never runs its scripts, a fresh install included | directory names vs `webapp/WEB-INF/plugins/*.xml` `<name>` | src/sql |
+| SQ10 | FAIL | Liquibase changeset without any SQL statement: validation fails (`'sql' is required`) and no changeset of the site runs, whatever `failOnError` | changeset header followed by comments or blank lines only | src/sql |
 
 **SQ02** — a fresh install runs the creation script and is green; an existing site runs only the
 `update_db_*` scripts newer than its recorded version. An older upgrade that (re)creates the table
