@@ -26,10 +26,11 @@ skill_body() {
   tr -d '\r' < "$1" | sed '1s/^\xEF\xBB\xBF//' | awk 'NR==1 && $0=="---" {skip=1; next} skip && $0=="---" {skip=0; next} !skip'
 }
 
-# Encodes stdin as a JSON string literal, with every control character escaped.
+# Encodes stdin as a JSON string literal, with every control character escaped. A python3 that exists but does not
+# run (the Windows Store alias) falls through to jq, then to the shell encoder.
 json_string() {
-  if command -v python3 >/dev/null 2>&1; then python3 -c 'import json,sys; sys.stdout.write(json.dumps(sys.stdin.read()))'
-  elif command -v jq >/dev/null 2>&1; then jq -Rs .
+  if python3 -c '' >/dev/null 2>&1; then python3 -c 'import json,sys; sys.stdout.write(json.dumps(sys.stdin.read()))'
+  elif jq --version >/dev/null 2>&1; then jq -Rs .
   else
     local s; s="$(tr -d '\000-\010\013\014\016-\037' | cat)"
     s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; s="${s//$'\n'/\\n}"; s="${s//$'\r'/\\r}"; s="${s//$'\t'/\\t}"

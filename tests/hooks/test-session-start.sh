@@ -56,6 +56,12 @@ check_shape "Unknown harness defaults to nested shape" nested "$(run_hook "$CLAU
 check_shape "Cursor by env: additional_context + env" cursor "$(run_hook '{}' CURSOR_PROJECT_DIR="$TMP")"
 check_shape "Cursor by argument" cursor "$(run_hook '{}' cursor)"
 check_shape "OpenCode by argument: nested shape" nested "$(run_hook '' opencode)"
+STUB="$TMP/store-alias"; mkdir -p "$STUB"
+printf '#!/bin/sh\necho "Python was not found; run without arguments to install from the Microsoft Store" >&2\nexit 49\n' > "$STUB/python3"
+chmod +x "$STUB/python3"
+check_shape "python3 that exists but does not run (Windows Store alias): valid JSON anyway" nested "$(run_hook "$CLAUDE_IN" CLAUDE_PLUGIN_ROOT="$ROOT" PATH="$STUB:$PATH")"
+cp "$STUB/python3" "$STUB/jq"
+check_shape "neither python3 nor jq runs: the shell encoder still emits valid JSON" nested "$(run_hook "$CLAUDE_IN" CLAUDE_PLUGIN_ROOT="$ROOT" PATH="$STUB:$PATH")"
 
 CRLF_PLUGIN="$TMP/crlf-plugin"; mkdir -p "$CRLF_PLUGIN"
 cp -r "$ROOT/hooks" "$ROOT/skills" "$ROOT/rules" "$CRLF_PLUGIN/"
