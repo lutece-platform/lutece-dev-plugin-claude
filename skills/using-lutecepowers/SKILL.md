@@ -24,9 +24,19 @@ Skills, agents and scripts refer to the installed plugin directory as `${LUTECEP
 
 - The session-start hook prints the absolute value at the top of the context it injects and substitutes it in this text. On Claude Code it is also exported to your shell.
 - If the variable is not set in your shell, substitute the literal path from the injected context.
-- Every script also resolves the root from its own location, so `bash "${LUTECEPOWERS_ROOT}/skills/<skill>/scripts/<script>.sh"` works as soon as the path is right.
+- Every script also resolves the root from its own location, so `bash "${LUTECEPOWERS_ROOT}/tools/<script>.sh"` works as soon as the path is right.
 - Fallback when nothing is injected: `find ~ -maxdepth 7 -path '*/skills/using-lutecepowers/SKILL.md' 2>/dev/null | head -1`, then take the directory containing `skills/`.
 - When you dispatch a subagent or teammate, write the literal path into its prompt. A subagent does not see this context.
+
+## Toolkit
+
+One command checks any Lutece project, a v7 one to migrate as a v8 one:
+
+- `bash ${LUTECEPOWERS_ROOT}/tools/lutece-check.sh <project>` runs every check and prints only the findings of this
+  project, each with what to do; `--explain CODE` says what a check proves and how to fix it.
+
+On Claude Code, every edit of a Lutece file is checked at once: what `verify-file.sh` finds comes back to you. What a
+script reports is not repeated in the skills: fix what it says.
 
 ## Skills
 
@@ -36,15 +46,14 @@ Skills, agents and scripts refer to the installed plugin directory as `${LUTECEP
 | `lutece-brainstorming` | Use before any creative Lutece work: a new plugin, a new feature, a new screen, or a behaviour change. Explores intent, requirements and design with the user before any implementation. Triggers on 'I want to build', 'add a feature', 'new plugin', 'how should we design'. |
 | `lutece-cache` | Use when adding, fixing or reviewing a cache in a Lutece 8 plugin: AbstractCacheableService, CDI initialization, cache keys, invalidation through CDI events. Triggers on 'cache', 'cacheable', 'invalidate', 'CacheService'. |
 | `lutece-checkup` | Use when the user wants the mechanical state of a Lutece 8 project (core, plugin, module, site) without changing it: runs every check script of the toolkit in one pass (verify-migration, template scanner, i18n keys, template parse), summarises the blocking and the warning findings, then asks the user what to do. Triggers on 'checkup', 'bilan', 'état du plugin', 'lance les contrôles', 'vérifie le projet', 'mechanical check'. |
-| `lutece-dao` | Use when creating, modifying or reviewing a Lutece 8 DAO, Home or business class: DAOUtil lifecycle, SQL constants, Home static facade, CDI lookup, collection types, interface conventions. Must be consulted before touching anything under a business package. |
 | `lutece-e2e` | Use to give any Lutece 8 core, plugin, module or site an e2e/ bench that runs with one command: isolated Docker stack (Open Liberty HotSpot, MariaDB instrumented), synthetic volume, static + dynamic inventory of every back-office screen and action, Playwright suites (screens, YAML scenarios, forms) with a clean-console rule, server timings, SQL digests, JFR, k6, and a compact report. Also proves a migration's upgrade path: `run.sh compare` builds the artefact before its migration on a v7 site, then the v8 one on that same database, so a missing update_db script is caught instead of hidden by a fresh install. Triggers on 'e2e', 'tests de bout en bout', 'Playwright', 'tester tous les écrans', 'banc de test', 'non-régression BO', 'prouver la migration', 'chemin de mise à jour'. |
 | `lutece-elasticdata` | Use when creating or modifying an Elasticsearch DataSource module for Lutece 8: DataSource and DataObject interfaces, CDI auto-discovery, @ConfigProperty injection, batch processing, two-daemon indexing, incremental updates through CDI events. Triggers on 'elasticdata', 'Elasticsearch', 'DataSource module'. |
 | `lutece-lucene-indexer` | Use when adding plugin-internal Lucene search to a Lutece 8 plugin: custom index, indexing daemon, CDI events, batch processing. Triggers on 'Lucene', 'full-text search inside the plugin', 'indexer'. |
-| `lutece-migration-v8-agent-teams` | Use when migrating a Lutece plugin, module or library of any version before 8 to v8: Spring to CDI, javax to jakarta, XML context to JSON, templates, tests. Script-heavy, JSON-driven task decomposition run by teammates or subagents, with a sequential fallback. Triggers on 'migrate to v8', 'migration v7 v8', 'CDI migration'. |
 | `lutece-patterns` | Use before writing or reviewing any Lutece 8 code (CRUD, JspBean, XPage, service, DAO, daemon, template) and when answering questions about Lutece 8 architecture, layered design or coding conventions. Canonical patterns extracted from lutece-core. |
 | `lutece-rbac` | Use when adding or reviewing permissions in a Lutece 8 plugin: RBAC entity permissions, ResourceIdService, plugin.xml declaration, JspBean authorization checks. Triggers on 'RBAC', 'permission', 'right', 'authorization', 'ResourceIdService'. |
 | `lutece-scalability-v8` | Use after a migration to v8 to make a Lutece plugin horizontally scalable and prove it: scans scalability anti-patterns, fixes them, deploys a real 3-instance cluster (Liberty, MariaDB, nginx, Hazelcast) and verifies through UI end-to-end tests. Triggers on 'scalability', 'cluster', 'multi-instance', 'horizontal scaling'. |
 | `lutece-solr-indexer` | Use when creating or modifying a Solr search module for Lutece 8: SolrIndexer interface, CDI auto-discovery, SolrItem dynamic fields, batch indexing, incremental updates through CDI events. Triggers on 'Solr', 'search module', 'SolrIndexer'. |
+| `lutece-update` | Use when bringing a Lutece plugin, module or library to the Lutece level lutecepowers supports, whatever its starting point: migrating from v7 or older (Spring to CDI, javax to jakarta, XML context, templates, tests), or updating a v8 project to the current level (parent, deprecated API, checks, bench). The scripts report every checkable finding with what to do, one agent makes every change, a read-only reviewer and the e2e bench prove the result. Triggers on 'migrate to v8', 'migration v7 v8', 'CDI migration', 'update', 'mettre à jour', 'mise à niveau', 'remettre au niveau'. |
 | `lutece-update-template-bo` | Converts a Lutece Back Office (admin) template to the BO FreeMarker macros of lutece-core (Tabler theme). Discovers the macros from the core sources rather than from a fixed list, so it never goes stale, and applies the house rules that are not readable from the macro files: manageFeature versus table, the mandatory empty state, the page hierarchy, no offcanvas (a modal or a plain link), no inline form, and the e-mail templates that must never be converted. Takes the template path as argument. Triggers on 'migrer un template BO', 'convertir un template admin', 'macros BO', 'thème tabler', 'update back office template'. |
 | `lutece-update-template-fo` | Converts a Lutece Front Office (skin) template to the FO FreeMarker macros of lutece-core. Discovers the macros from the core sources rather than from a fixed list, so it never goes stale, and applies the rules that are not readable from the macro files: the FO macros are never the Back Office ones, the FreeMarker syntax to use, Bootstrap 5 classes, and the jQuery that must become vanilla JS. Takes the template path as argument. Triggers on 'migrer un template FO', 'convertir un template skin', 'macros FO', 'front office template', 'update skin template'. |
 | `lutece-v8-review` | Use when the user asks to review, audit, check or verify a Lutece plugin, module or library for v8 compliance or conformity, or after a migration to v8 before delivering. Read-only. Dispatches the lutece-v8-reviewer instructions as a subagent, or follows them inline on a harness without dispatch. |
@@ -96,12 +105,12 @@ Never run plain `mvn test`. Lutece tests need the `lutece:exploded antrun:run` g
 
 ## Subagents and teams
 
-Two skills (`lutece-migration-v8-agent-teams`, `lutece-scalability-v8`) are written as a lead orchestrating **teammates** described in `teammates/*.md` files.
+`lutece-update` runs in one agent and dispatches two read-only or self-contained subagents, one after the other (the reviewer, the e2e bench). `lutece-scalability-v8` is written as a lead orchestrating **teammates** described in `teammates/*.md` files.
 
 - **Harness with a team or subagent tool**: dispatch one subagent per teammate with the spawn template given in the skill. On Claude Code, Agent Teams is experimental and needs `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`; without it, use regular subagents.
-- **Harness without dispatch**: run the teammates yourself, sequentially, in the dependency order the skill gives. Read each teammate file, execute it fully, then move to the next. Never invent a tool call.
+- **Harness without dispatch**: run the subagent or teammate instructions yourself, sequentially, in the order the skill gives. Read each file, execute it fully, then move to the next. Never invent a tool call.
 
-Rules shared by both skills: once teammates are dispatched the lead only orchestrates and never edits files; each file has exactly one owner; only the Verifier runs Maven; no skill ever creates a git commit.
+Rules shared by every skill: a project has one writer at a time; no skill ever creates a git commit.
 
 ## Harness adaptation
 

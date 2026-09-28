@@ -30,7 +30,7 @@ ALTER TABLE my_table ADD CONSTRAINT chk_... CHECK ( ... );
 
 ## Rules
 
-- **`changeset` author = plugin name** (the `<name>` of `webapp/WEB-INF/plugins/<plugin>.xml`, which is the artifactId without its `plugin-`/`module-`/`library-` prefix, e.g. `forms`, `workflow-forms`; never the parent artifactId) ; **id = the exact file name** (with `.sql`). `add-liquibase-headers.sh` derives it that way. Together with the file **path**, they form the identity Liquibase tracks in `DATABASECHANGELOG` — the triple `(ID, AUTHOR, FILENAME)`.
+- **`changeset` author = plugin name** (the `<name>` of `webapp/WEB-INF/plugins/<plugin>.xml`, which is the artifactId without its `plugin-`/`module-`/`library-` prefix, e.g. `forms`, `workflow-forms`; never the parent artifactId) ; **id = the exact file name** (with `.sql`). Together with the file **path**, they form the identity Liquibase tracks in `DATABASECHANGELOG` — the triple `(ID, AUTHOR, FILENAME)`.
 - **Never change the author, the id or the path of an already-shipped changeset** — they are the identity Liquibase tracks, and changing any of them replays it. One consequence: after a plugin rename, the changesets keep an author bearing the **former** plugin name — see `sql-rename.md`.
 - **Editing the content of an already-shipped changeset is fatal as soon as the file is still part of the changelog for that run.** Being *included* is enough to be *validated*: Liquibase finds the row by its triple, compares `MD5SUM`, and raises `ValidationFailedException` before executing anything — the changeset is not replayed, it is refused. `TestIncludeAllFilter` excludes `create_*` / `init_*` files only once `core.plugins.status.<plugin>.version` is recorded, so on a plugin whose metadata is consistent the edit is invisible and reaches new installs only. That is the house practice and it holds — until a site has no version key: `No plugin metadata for <x>`, a datastore restored without those rows, or the first startup after a rename, where the key is written at the *end* of the run while the creation script is still included.
 - The header is **mandatory on NEW files too** — when you add an upgrade script or edit `create_db`, match the header already present on the sibling files.
@@ -90,7 +90,7 @@ and the update goes on. Check `XT03`.
 plugin that writes to them:
 
 - **ports its portlet to HTML and removes those statements** when it can
-  (`skills/lutece-migration-v8-agent-teams/patterns/mvc-patterns.md` §10). Check `XT01`.
+  (`skills/lutece-update/patterns/mvc-patterns.md` §10). Check `XT01`.
 - **otherwise declares plugin-xmltransformer** in its pom, and puts `-- lutece runAfter:xmltransformer` as the second
   line of every install script that writes to those tables, so they exist when the script runs. Check `XT02`. The
   same header serves any dependency on another plugin's tables (`runAfter:genericattributes` for entry types).
@@ -120,7 +120,8 @@ sequence. Check `SQ03`.
 
 `SqlPathInfo` (library-sql-utils) recognises an upgrade script by a regular expression whose two versions are
 `[0-9]+(\.[0-9]+)*`: `sql/plugins/<plugin>/upgrade/update_db_<plugin>-<from>-<to>.sql`, `sql/upgrade/update_db_lutece_core-<from>-<to>.sql`.
-The directory is part of the match: an upgrade script under `plugins/<plugin>/plugin/` is dropped as well, that
+The directory is part of the match: `upgrade/` or `upgrades/` for a plugin or a module (`sql/plugins/<plugin>/modules/<module>/upgrade/`),
+`upgrade/` only for the core and a theme. An upgrade script under `plugins/<plugin>/plugin/` is dropped as well, that
 directory is for the install scripts (`create_db_`, `init_db_`). Check `SQ06`.
 A name that does not match parses to `null` and the file is **dropped silently, twice**: the lutece-maven-plugin
 does not copy it to `WEB-INF/classes/sql/` at assembly, and `plugin-liquibase` would not include it at startup.
@@ -130,7 +131,7 @@ Rules that follow:
 - **versions in a script name are digits and dots only** — no `x`, no `SNAPSHOT`, no `beta`;
 - a migration that changes a schema ships `update_db_<plugin>-<v7 version>-<v8 version>.sql` with a real
   version on both sides; only the destination is compared to the installed version, the source documents;
-- a major switch is named `<prev>.9.9-<new>`, as the core's `update_db_lutece_core-7.9.9-8.0.0.sql`;
+- a major switch is named `<prev>.9.9-<new>`, as the core's `update_db_lutece_core-7.9.9-8.0.0.sql`: `<prev>.9.9` is no release, it only documents, since only the destination is compared (this is the one exception to a real version on both sides);
 - after `lutece:site-assembly`, compare `src/sql` with `WEB-INF/classes/sql`: a file missing there is a file
   Liquibase will never see. `run.sh compare` (lutece-e2e) prints that difference.
 

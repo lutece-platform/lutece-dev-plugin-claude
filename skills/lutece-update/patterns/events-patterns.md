@@ -181,7 +181,7 @@ CDI.current().getBeanManager().getEvent().fire(event);
 
 ## 3. CDI Events with TypeQualifier
 
-Fire/observe table (sync, async, qualifier): `lutece-patterns` skill §8. Actions: `EventAction.CREATE` / `UPDATE` / `REMOVE`, observed with `@Type(EventAction.X)`.
+Fire/observe table (sync, async, qualifier): `lutece-patterns` skill, section Events. Actions: `EventAction.CREATE` / `UPDATE` / `REMOVE`, observed with `@Type(EventAction.X)`.
 
 Use `@ObservesAsync` for events that don't need to block the caller (e.g., indexation, notifications). Use `@Observes` for events that must complete before the caller continues.
 

@@ -10,7 +10,7 @@ A read-only health check. It changes nothing; the user decides what comes next.
 ## 1. Run
 
 ```bash
-bash ${LUTECEPOWERS_ROOT}/skills/lutece-checkup/scripts/checkup.sh <project-dir>
+bash ${LUTECEPOWERS_ROOT}/tools/lutece-check.sh <project-dir>
 ```
 
 A few seconds once the project is assembled (the scanner and the i18n check assemble it with
@@ -26,12 +26,12 @@ Give the user, in their language, three short groups taken from the script's out
 - **To fix**: every WARN, grouped by code, with the files.
 - **To decide**: the INFO codes and their counts.
 
-For the meaning of a code and how to fix it, read its row in
-`skills/lutece-migration-v8-agent-teams/verification/checks.md`; the rule it points to is in `rules/`.
+The meaning of a code and how to fix it: `bash ${LUTECEPOWERS_ROOT}/tools/lutece-check.sh --explain CODE`.
 Never add a finding the tools did not print, never drop one.
 
 ## 3. Ask
 
-Ask the user what to do, with these options: fix the blocking findings, fix blocking and warnings, explain
-one finding, or stop here. Fixing follows the skill that owns the files (lutece-patterns for Java,
-lutece-update-template-bo / -fo for templates) and ends by running this checkup again.
+Ask the user what to do, with these options: bring the project to the supported level with the `lutece-update` skill
+(every finding, the build, the review and the e2e bench, gate green), fix the blocking findings only, explain one
+finding, or stop here. Fixing findings only follows the skill that owns the files (lutece-patterns for Java,
+lutece-update-template-bo / -fo for templates), and ends by running this checkup again.

@@ -210,7 +210,7 @@ When proposing approaches, evaluate against:
 - **Existing Lutece patterns** — consult `~/.lutece-references/` for real implementations
 - **Plugin descriptor constraints** — what the XML descriptor supports
 - **CDI scope implications** — `@ApplicationScoped` vs `@Dependent` vs `@RequestScoped`
-- **DAO/Home layer conventions** — see `/lutece-dao` skill
+- **DAO/Home layer conventions** — `rules/dao-patterns.md`
 - **Template conventions** — Freemarker macros, admin theme, front-office skin
 - **Workflow integration** — does this need workflow states?
 - **RBAC** — does this need permission management?
@@ -305,7 +305,7 @@ Ask the user (multiple choice):
 If yes:
 
 1. **Relevant skills** — point to the skills needed for implementation:
-   - `/lutece-dao` for DAO/Home layer
+   - `rules/dao-patterns.md` for the DAO/Home layer
    - `/lutece-patterns` for architecture patterns
    - `/lutece-workflow` if workflow integration is needed
    - `/lutece-rbac` if RBAC is needed

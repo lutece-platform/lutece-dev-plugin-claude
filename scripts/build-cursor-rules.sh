@@ -3,6 +3,7 @@
 # Run after editing any rule. Output is committed so the plugin works without a build step.
 
 set -euo pipefail
+P="$(dirname "$0")/../tools/python.sh"; [ -f "$P" ] && . "$P"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/rules"
 DST="$ROOT/rules-cursor"

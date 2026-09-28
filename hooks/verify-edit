@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# verify-edit — PostToolUse hook: after an edit of a file of a Lutece project, reports what verify-file.sh finds on it.
+#
+# Silent on a clean file, on a file of another kind, outside a Lutece project, and when Python is missing. Exit 2 hands
+# the FAIL and WARN lines of that file back to the agent while the edit is fresh (the edit itself stays).
+set -uo pipefail
+
+IN=$(cat)
+T="${CLAUDE_PLUGIN_ROOT:-}/tools"
+[ -f "$T/verify-file.sh" ] || exit 0
+. "$T/python.sh" 2>/dev/null || exit 0
+[ -n "${LP_PYTHON:-}" ] || exit 0
+
+F=$(printf '%s' "$IN" | python3 -c 'import json, sys; print((json.load(sys.stdin).get("tool_input") or {}).get("file_path", ""))' 2>/dev/null)
+[ -n "$F" ] && [ -f "$F" ] || exit 0
+case "$F" in *.java|*.html|*.jsp|*.sql|*.xml|*.properties) ;; *) exit 0 ;; esac
+
+D=$(cd "$(dirname "$F")" && pwd); ROOT=""
+while [ -n "$D" ] && [ "$D" != "/" ]; do
+    [ -f "$D/pom.xml" ] && { ROOT="$D"; break; }
+    D=$(dirname "$D")
+done
+[ -n "$ROOT" ] && grep -qE "fr\.paris\.lutece|lutece-global-pom" "$ROOT/pom.xml" 2>/dev/null || exit 0
+
+FOUND=$(cd "$ROOT" && bash "$T/verify-file.sh" "$F" 2>/dev/null | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except ValueError:
+    sys.exit(0)
+for x in d.get("details", []):
+    if x.get("status") in ("FAIL", "WARN"):
+        print("  %s %s: %s%s" % (x["status"], x["id"], x.get("description", ""), " (%s)" % x["count"] if x.get("count") else ""))
+' 2>/dev/null)
+[ -n "$FOUND" ] || exit 0
+
+{
+    echo "lutecepowers: $(basename "$F") breaks a Lutece 8 check:"
+    echo "$FOUND"
+    echo "  what it means and how to fix it: bash \${LUTECEPOWERS_ROOT}/tools/lutece-check.sh --explain CODE"
+} >&2
+exit 2

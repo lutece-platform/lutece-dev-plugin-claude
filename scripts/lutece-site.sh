@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+. "$(dirname "$0")/../tools/portable.sh"
 
 if [ "$#" -lt 2 ]; then
     echo "Usage: $0 <config.json> <output_directory>"
@@ -47,7 +48,7 @@ DB_PORT=$(jq -r '.database.port // 3306' "$CONFIG_FILE")
 latest_release() {
     local v
     v=$(curl -s -m 10 "https://dev.lutece.paris.fr/maven_repository/fr/paris/lutece/tools/$1/maven-metadata.xml" 2>/dev/null \
-        | grep -o '<version>8\.[0-9.]*</version>' | sed 's/<[^>]*>//g' | sort -V | tail -1)
+        | grep -o '<version>8\.[0-9.]*</version>' | sed 's/<[^>]*>//g' | lp_version_sort | tail -1)
     echo "${v:-$2}"
 }
 

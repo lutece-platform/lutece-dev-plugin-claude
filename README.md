@@ -65,6 +65,11 @@ The script takes the coding agent name as an optional argument (Cursor and OpenC
 
 Coding agents without a usable session hook load the bootstrap another way: OpenCode through an in-process plugin that runs the same hook script and injects its output into the first user message, Grok through the skill description alone.
 
+## Other hooks
+
+- `hooks/verify-edit` (after each edit, Claude Code): runs `tools/verify-file.sh` on the edited file of a Lutece project and hands its FAIL and WARN lines back to the agent at once.
+- `hooks/migration-gate` (Stop, Claude Code): while a project carries `.migration/gate-required`, refuses to end the turn until a full `final-gate.sh` passes.
+
 ## Skills
 
 <!-- skills:start -->
@@ -73,15 +78,14 @@ Coding agents without a usable session hook load the bootstrap another way: Open
 | `lutece-brainstorming` | Use before any creative Lutece work: a new plugin, a new feature, a new screen, or a behaviour change. Explores intent, requirements and design with the user before any implementation. Triggers on 'I want to build', 'add a feature', 'new plugin', 'how should we design'. |
 | `lutece-cache` | Use when adding, fixing or reviewing a cache in a Lutece 8 plugin: AbstractCacheableService, CDI initialization, cache keys, invalidation through CDI events. Triggers on 'cache', 'cacheable', 'invalidate', 'CacheService'. |
 | `lutece-checkup` | Use when the user wants the mechanical state of a Lutece 8 project (core, plugin, module, site) without changing it: runs every check script of the toolkit in one pass (verify-migration, template scanner, i18n keys, template parse), summarises the blocking and the warning findings, then asks the user what to do. Triggers on 'checkup', 'bilan', 'état du plugin', 'lance les contrôles', 'vérifie le projet', 'mechanical check'. |
-| `lutece-dao` | Use when creating, modifying or reviewing a Lutece 8 DAO, Home or business class: DAOUtil lifecycle, SQL constants, Home static facade, CDI lookup, collection types, interface conventions. Must be consulted before touching anything under a business package. |
 | `lutece-e2e` | Use to give any Lutece 8 core, plugin, module or site an e2e/ bench that runs with one command: isolated Docker stack (Open Liberty HotSpot, MariaDB instrumented), synthetic volume, static + dynamic inventory of every back-office screen and action, Playwright suites (screens, YAML scenarios, forms) with a clean-console rule, server timings, SQL digests, JFR, k6, and a compact report. Also proves a migration's upgrade path: `run.sh compare` builds the artefact before its migration on a v7 site, then the v8 one on that same database, so a missing update_db script is caught instead of hidden by a fresh install. Triggers on 'e2e', 'tests de bout en bout', 'Playwright', 'tester tous les écrans', 'banc de test', 'non-régression BO', 'prouver la migration', 'chemin de mise à jour'. |
 | `lutece-elasticdata` | Use when creating or modifying an Elasticsearch DataSource module for Lutece 8: DataSource and DataObject interfaces, CDI auto-discovery, @ConfigProperty injection, batch processing, two-daemon indexing, incremental updates through CDI events. Triggers on 'elasticdata', 'Elasticsearch', 'DataSource module'. |
 | `lutece-lucene-indexer` | Use when adding plugin-internal Lucene search to a Lutece 8 plugin: custom index, indexing daemon, CDI events, batch processing. Triggers on 'Lucene', 'full-text search inside the plugin', 'indexer'. |
-| `lutece-migration-v8-agent-teams` | Use when migrating a Lutece plugin, module or library of any version before 8 to v8: Spring to CDI, javax to jakarta, XML context to JSON, templates, tests. Script-heavy, JSON-driven task decomposition run by teammates or subagents, with a sequential fallback. Triggers on 'migrate to v8', 'migration v7 v8', 'CDI migration'. |
 | `lutece-patterns` | Use before writing or reviewing any Lutece 8 code (CRUD, JspBean, XPage, service, DAO, daemon, template) and when answering questions about Lutece 8 architecture, layered design or coding conventions. Canonical patterns extracted from lutece-core. |
 | `lutece-rbac` | Use when adding or reviewing permissions in a Lutece 8 plugin: RBAC entity permissions, ResourceIdService, plugin.xml declaration, JspBean authorization checks. Triggers on 'RBAC', 'permission', 'right', 'authorization', 'ResourceIdService'. |
 | `lutece-scalability-v8` | Use after a migration to v8 to make a Lutece plugin horizontally scalable and prove it: scans scalability anti-patterns, fixes them, deploys a real 3-instance cluster (Liberty, MariaDB, nginx, Hazelcast) and verifies through UI end-to-end tests. Triggers on 'scalability', 'cluster', 'multi-instance', 'horizontal scaling'. |
 | `lutece-solr-indexer` | Use when creating or modifying a Solr search module for Lutece 8: SolrIndexer interface, CDI auto-discovery, SolrItem dynamic fields, batch indexing, incremental updates through CDI events. Triggers on 'Solr', 'search module', 'SolrIndexer'. |
+| `lutece-update` | Use when bringing a Lutece plugin, module or library to the Lutece level lutecepowers supports, whatever its starting point: migrating from v7 or older (Spring to CDI, javax to jakarta, XML context, templates, tests), or updating a v8 project to the current level (parent, deprecated API, checks, bench). The scripts report every checkable finding with what to do, one agent makes every change, a read-only reviewer and the e2e bench prove the result. Triggers on 'migrate to v8', 'migration v7 v8', 'CDI migration', 'update', 'mettre à jour', 'mise à niveau', 'remettre au niveau'. |
 | `lutece-update-template-bo` | Converts a Lutece Back Office (admin) template to the BO FreeMarker macros of lutece-core (Tabler theme). Discovers the macros from the core sources rather than from a fixed list, so it never goes stale, and applies the house rules that are not readable from the macro files: manageFeature versus table, the mandatory empty state, the page hierarchy, no offcanvas (a modal or a plain link), no inline form, and the e-mail templates that must never be converted. Takes the template path as argument. Triggers on 'migrer un template BO', 'convertir un template admin', 'macros BO', 'thème tabler', 'update back office template'. |
 | `lutece-update-template-fo` | Converts a Lutece Front Office (skin) template to the FO FreeMarker macros of lutece-core. Discovers the macros from the core sources rather than from a fixed list, so it never goes stale, and applies the rules that are not readable from the macro files: the FO macros are never the Back Office ones, the FreeMarker syntax to use, Bootstrap 5 classes, and the jQuery that must become vanilla JS. Takes the template path as argument. Triggers on 'migrer un template FO', 'convertir un template skin', 'macros FO', 'front office template', 'update skin template'. |
 | `lutece-v8-review` | Use when the user asks to review, audit, check or verify a Lutece plugin, module or library for v8 compliance or conformity, or after a migration to v8 before delivering. Read-only. Dispatches the lutece-v8-reviewer instructions as a subagent, or follows them inline on a harness without dispatch. |
@@ -120,20 +124,25 @@ Short constraints applied to files matching a glob. Source of truth: `rules/*.md
 
 ## Orchestrated workflows
 
-Two skills are written as a lead that dispatches teammates described in `teammates/*.md`. How they run on each coding agent is described once, in the `using-lutecepowers` skill (section Subagents and teams). The lead never edits files after dispatch, only the verifier builds, and no skill ever commits.
+How subagents and teammates run on each coding agent is described once, in the `using-lutecepowers` skill (section Subagents and teams). No skill ever commits.
 
-### Migration (`lutece-migration-v8-agent-teams`)
+### Update (`lutece-update`)
 
-| Phase | What | Who |
-|-------|------|-----|
-| A — Scan | `scan-project.sh` → JSON inventory, dependency v8 check | lead |
-| B — Task decomposition | `task-splitter.sh` → per-teammate JSON task files | lead |
-| C — Dispatch | config-migrator, java-migrator (×1-3), template-migrator, test-migrator, verifier | lead |
-| D — Dependencies | config → java → template migrator → template reviewer + test → verifier final build | lead |
-| E — Monitoring | `progress-report.sh`, blocker resolution | lead |
-| F — Final gate | 0 FAIL on `verify-migration.sh`, compile success, 0 failures and 0 errors in the surefire reports, `lutece-v8-reviewer` | verifier + lead |
+Brings a plugin, module or library to the supported Lutece level whatever its starting point: a pre-v8 artefact gets
+the full migration and the takeover of its v7 database, a v8 one is aligned on the current level. One agent, in a
+fixed order; the scripts report every checkable finding with what to do, the agent makes every change.
 
-Scripts (`skills/lutece-migration-v8-agent-teams/scripts/`): `scan-project.sh`, `task-splitter.sh`, `migrate-java-mechanical.sh`, `migrate-template-mechanical.sh`, `scan-template-design.py`, `check-template-parse.sh`, `render-template.sh`, `check-i18n-keys.sh`, `extract-context-beans.sh`, `verify-migration.sh` (100+ checks, `--json`), `verify-file.sh`, `add-liquibase-headers.sh`, `progress-report.sh`.
+| Phase | What |
+|-------|------|
+| A — Scan | `scan-project.sh` → JSON inventory, starting point (`pre-v8` or `v8`), dependency v8 check |
+| B — First check | `lutece-check.sh`: every finding by code, the work of the steps |
+| C — Steps | config, Java, templates, tests (`steps/*.md`): all of them from pre-v8, only those with a finding from v8 |
+| D — Build | `final-gate.sh --no-e2e`: 0 compiler warning, 0 failures and 0 errors in the surefire reports, 0 FAIL |
+| E — Review | `lutece-v8-reviewer`, a read-only subagent |
+| F — e2e bench | `lutece-e2e`, and `run.sh compare` from pre-v8, one subagent |
+| G — Gate loop | `final-gate.sh` until green, every WARN fixed or justified |
+
+Scripts (`tools/`): `lutece-check.sh`, `scan-project.sh`, `final-gate.sh`, `verify-migration.sh` (100+ checks, `--json`), `verify-file.sh`, and what they call.
 
 ### Scalability (`lutece-scalability-v8`)
 

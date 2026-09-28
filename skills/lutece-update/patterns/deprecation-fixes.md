@@ -11,9 +11,10 @@ mvn -B clean compile -Dmaven.compiler.showWarnings=true -Dmaven.compiler.showDep
 |---|---|---|
 | `RBACService.isAuthorized( …, AdminUser )`, `getAuthorizedCollection( …, AdminUser )`, `getAuthorizedActionsCollection( …, AdminUser )` | the same methods taking `fr.paris.lutece.api.user.User` | `AdminUser implements User`, so the compiler picks the **deprecated** overload unless the argument is cast: `(User) getUser( )`, `(User) AdminUserService.getAdminUser( request )` |
 | `AdminWorkgroupService.isAuthorized( …, AdminUser )`, `getAuthorizedCollection( …, AdminUser )` | same, with `User` | same cast |
-| `MVCAdminJspBean.getModel( )` | a `Models` parameter on the view method (`lutece-patterns` §4) | a helper that filled the map takes `Models` and returns it; `models.asMap()` is unmodifiable |
+| `MVCAdminJspBean.getModel( )` | a `Models` parameter on the view method (`cdi-patterns.md` §16) | a helper that filled the map takes `Models` and returns it; `models.asMap()` is unmodifiable |
 | `StringUtils.equals`, `StringUtils.replace` (commons-lang3 ≥ 3.18) | `Strings.CS.equals`, `Strings.CS.replace` (`org.apache.commons.lang3.Strings`) | case-insensitive variants: `Strings.CI` |
 | `org.apache.commons.lang3.StringEscapeUtils` | `org.apache.commons.text.StringEscapeUtils` | commons-text comes with the core |
+| `CaptchaSecurityService` (deprecated for removal, DP04) | `@Inject @Named( BeanUtils.BEAN_CAPTCHA_SERVICE ) Instance<ICaptchaService> _captchaService;` | the core's javadoc of the class; `Instance` because the captcha plugin may be absent (`isResolvable( )`) |
 | `Class.forName( x ).newInstance( )` | `Class.forName( x ).getDeclaredConstructor( ).newInstance( )` | the catch becomes `ReflectiveOperationException` |
 | `BigDecimal.divide( divisor, scale )` | `divide( divisor, scale, RoundingMode.HALF_UP )` | state the rounding, never let it be implicit |
 | `<Service>.getInstance( )` of a v8 plugin (`DocumentService`, `DocumentSpacesService`…) | `@Inject` in a CDI bean, `CDI.current( ).select( X.class ).get( )` in a class the core instantiates by reflection | the service is `@ApplicationScoped @Named` in its own plugin |

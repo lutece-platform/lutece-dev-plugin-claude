@@ -10,7 +10,7 @@
 # Dockerfile, Liberty/Hazelcast/nginx config, and the assembled war -> ready for `docker compose up -d`.
 set -euo pipefail
 HARNESS="$(cd "$(dirname "$0")/../harness" && pwd)"
-FLOOR="$(cd "$(dirname "$0")/../../lutece-migration-v8-agent-teams/scripts" && pwd)/check-v8-floor.sh"
+FLOOR="$(cd "$(dirname "$0")/../../../tools" && pwd)/check-v8-floor.sh"
 HZ_VERSION="5.5.0"
 OUT="./e2e/.scalability-test"; LOCAL=""; PLUGIN=""; PTYPE="lutece-plugin"; ENABLE=""; BUILD=1
 

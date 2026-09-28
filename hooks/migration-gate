@@ -2,8 +2,9 @@
 # migration-gate — Stop hook: refuses to end the turn while a migration in progress is not re-verified.
 #
 # Opt-in by design. It does nothing unless the project carries the marker `.migration/gate-required`, which the
-# migration skill drops at the start and removes once the gate passes. Without that marker every other session ends
-# normally.
+# lutece-update skill drops when its gate loop starts and which only a full final-gate.sh,
+# e2e included, removes: a green gate without e2e lets the turn end but keeps the marker. Without that marker every
+# other session ends normally.
 #
 # Why a hook and not a rule in the skill: a rule is skipped by whoever is convinced their last edit was harmless.
 # Exit 2 blocks the stop and hands the reason back to the agent, which is the only deterministic way to make
@@ -20,20 +21,27 @@ if [ -f "$STAMP" ] && [ "$(find "$STAMP" -mmin -2 2>/dev/null)" ]; then
 fi
 mkdir -p .migration && touch "$STAMP"
 
-GATE="${CLAUDE_PLUGIN_ROOT:-}/skills/lutece-migration-v8-agent-teams/scripts/final-gate.sh"
+GATE="${CLAUDE_PLUGIN_ROOT:-}/tools/final-gate.sh"
 [ -x "$GATE" ] || exit 0
 
+# A gate or a bench run already holds the bench lock: its own verdict is on its way, and a second gate would only be
+# refused by that lock. The turn may end while the agent waits for it.
+if [ -s e2e/.run.lock/pid ] && kill -0 "$(cat e2e/.run.lock/pid)" 2>/dev/null; then
+    rm -f "$STAMP"
+    exit 0
+fi
+
 if OUT=$(bash "$GATE" . --no-e2e 2>&1); then
-    rm -f "$MARKER" "$STAMP"
+    rm -f "$STAMP"
     exit 0
 fi
 
 {
-    echo "The migration gate is red, so this migration is not done."
+    echo "The gate is red, so this update is not done."
     echo "$OUT" | sed "s/$(printf '\033')\[[0-9;]*m//g" | grep -E "^(FAIL|OK)|GATE" | tail -12
     echo
     echo "Fix what is red, then run the gate again:"
-    echo "  bash \${LUTECEPOWERS_ROOT}/skills/lutece-migration-v8-agent-teams/scripts/final-gate.sh ."
-    echo "Remove .migration/gate-required only when it passes."
+    echo "  bash \${LUTECEPOWERS_ROOT}/tools/final-gate.sh ."
+    echo "final-gate.sh removes .migration/gate-required itself once the full gate, e2e included, passes."
 } >&2
 exit 2

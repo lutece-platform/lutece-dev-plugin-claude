@@ -16,15 +16,17 @@ paths:
 Canonical statement of the rule; other files link here instead of repeating it.
 
 - A plugin's own `getInstance()` is **deleted**, not bridged: no `@Deprecated` method returning `CDI.current().select( X.class ).get()`.
+- One exception: a portlet home (`extends PortletHome`) keeps `public static PortletHome getInstance( )` returning `CDI.current( ).select( X.class ).get( )`, because its callers need an instance (`rules/dao-patterns.md` § Portlet Home, HM01).
 - Migrate every caller: `@Inject` in CDI beans, `CDI.current().select( X.class ).get()` in non-CDI contexts (Home facades, reflection-instantiated classes, objects created with `new`).
-- lutece-core keeps `@Deprecated( since = "8.0", forRemoval = true )` on 23 of its own `getInstance()` methods (`WorkflowService`, `SecurityTokenService`, `FileService`, `PortalMenuService`, `QueryListenersService`, `RSAKeyPairUtil`, `ExtendableResourceActionHit`…). Callers replace them with `@Inject` / `CDI.current().select()`. The complete list lives in one place: check `DP01` in `skills/lutece-migration-v8-agent-teams/scripts/verify-migration.sh`.
+- lutece-core keeps `@Deprecated( since = "8.0", forRemoval = true )` on 23 of its own `getInstance()` methods (`WorkflowService`, `SecurityTokenService`, `FileService`, `PortalMenuService`, `QueryListenersService`, `RSAKeyPairUtil`, `ExtendableResourceActionHit`…). Callers replace them with `@Inject` / `CDI.current().select()`. Check `DP01` reads the list in the core of the references.
 - `SecurityService.getInstance()` and `AdminAuthenticationService.getInstance()` are **not** deprecated in core: calling them is fine.
 
 ## Injection
 
 - Prefer `@Inject` field injection for services
-- Use `CDI.current().select(IMyService.class).get()` only in static contexts (Home classes)
-- Multiple implementations: `CDI.current().select(IProvider.class).stream().filter(...)`
+- Use `CDI.current().select(IMyService.class).get()` only in static contexts (Home classes, objects created with `new`); a CDI bean injects what it looks up (CD08)
+- Multiple implementations or a name known at run time, in a bean: `@Inject @Any Instance<IProvider> _providers`, then `_providers.stream( )` or `CdiHelper.resolve( _providers, strName )`; outside a bean: `CDI.current().select(IProvider.class).stream()`
+- An event, in a bean: `@Inject Event<X> _event`, then `_event.fire( x )` or `fireAsync( x )`
 
 ## CDI Eligibility — Decision Matrix
 

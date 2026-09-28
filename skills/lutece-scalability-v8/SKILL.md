@@ -22,10 +22,10 @@ The 6 scalability axes are documented under `patterns/`. Reference-first rule: `
 ### A.0 — Verify v8 compliance (FIRST)
 Check that the plugin is **already v8-compliant**:
 ```bash
-bash ${LUTECEPOWERS_ROOT}/skills/lutece-migration-v8-agent-teams/scripts/check-v8-floor.sh .
+bash ${LUTECEPOWERS_ROOT}/tools/check-v8-floor.sh .
 mvn -B clean verify -DskipTests
 ```
-If `check-v8-floor.sh` exits 1, stop: the plugin is below the Lutece 8 level lutecepowers supports; raise its `lutece-core` and parent as the message says. If the build **FAILS**, stop. Ask the user: *"The plugin does not build on v8. Please run `lutece-migration-v8-agent-teams` first, then re-run this skill."* — scalability work cannot begin until migration is complete and the code compiles.
+If `check-v8-floor.sh` exits 1, stop: the plugin is below the Lutece 8 level lutecepowers supports; raise its `lutece-core` and parent as the message says. If the build **FAILS**, stop. Ask the user: *"The plugin does not build on v8. Please run `lutece-update` first, then re-run this skill."* — scalability work cannot begin until migration is complete and the code compiles.
 
 If the build **SUCCEEDS**, proceed to A.1.
 

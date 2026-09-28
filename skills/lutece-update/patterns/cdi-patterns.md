@@ -43,9 +43,9 @@ Lutece's `Plugin.java` instantiates classes listed in plugin descriptor XML (`we
 | `<dashboard-component-class>` | `DashboardComponent` |
 | `<daemon-class>` | `Daemon` (`DaemonEntry.loadDaemon` → `Class.forName`) |
 
-**Exception:** `<application-class>` (XPages) — these tags are **removed** by the Config Migrator (v8 auto-discovers XPages via CDI), so the Java class DOES get `@SessionScoped`/`@RequestScoped` + `@Named`.
+**Exception:** `<application-class>` (XPages) — this tag is **removed** from the descriptor (WB02; v8 discovers XPages through CDI), so the Java class DOES get `@SessionScoped`/`@RequestScoped` + `@Named`.
 
-**Rule:** If a class is still listed in one of these XML tags and NOT removed by the Config Migrator, do NOT add a CDI scope. If you want to CDI-manage it, coordinate with the Config Migrator to remove the XML tag first.
+**Rule:** A class still listed in one of these XML tags gets no CDI scope. To CDI-manage it, remove the tag first, when the core offers another way to register it.
 
 ### DAO and Service classes
 
@@ -80,7 +80,7 @@ public class MyPluginJspBean extends MVCAdminJspBean {
 }
 ```
 
-Pagination fields (`_nItemsPerPage`, `_strCurrentPageIndex`) are not session state any more: they are replaced by `@Inject @Pager IPager` (§20), which is what lets a list bean become `@RequestScoped`.
+Pagination fields (`_nItemsPerPage`, `_strCurrentPageIndex`) are not session state any more: they are replaced by `@Inject @Pager IPager` (§20), which is what lets a list bean become `@RequestScoped`; such an admin bean then overrides `getPlugin( )` with `PluginService.getPlugin( PLUGIN_NAME )`, the inherited one is null without the `plugin_name` parameter (WB10, `rules/web-bean.md`).
 
 **`@RequestScoped`** -- bean is stateless (no session instance fields):
 ```java
@@ -130,7 +130,7 @@ Key XPage migration rules:
 3. Replace all `SpringContextService.getBean()` with `@Inject`
 4. Remove `SecurityTokenService` usage: `securityTokenEnabled = true` on `@Controller` handles CSRF (`rules/web-bean.md`)
 5. Replace `WorkflowService.getInstance()` with `@Inject private WorkflowService`
-6. Replace `new CaptchaSecurityService()` with `@Inject @Named(BeanUtils.BEAN_CAPTCHA_SERVICE) Instance<ICaptchaService>`
+6. Replace `new CaptchaSecurityService()` with `@Inject @Named(BeanUtils.BEAN_CAPTCHA_SERVICE) Instance<ICaptchaService>`, and drop any `PluginService.isPluginEnable( "jcaptcha" )`: v8 has no jcaptcha plugin, `isResolvable( )` alone says whether a captcha is deployed (CD09)
 7. Replace static upload handler access with `@Inject`
 
 ### EntryType classes (GenericAttributes-based plugins)
@@ -204,7 +204,7 @@ public final class MyHome {
 
 ### Field injection (@Inject)
 
-For CDI-managed beans (classes annotated with `@ApplicationScoped`), prefer `@Inject` over `CDI.current().select()`:
+A CDI-managed bean (any scope annotation) injects what it uses: `CDI.current( )` in one of its instance methods is CD08. `CDI.current().select()` stays for static contexts and objects created with `new` (`rules/service-layer.md`, Injection):
 ```java
 @Inject
 private IMyDAO _dao;
@@ -240,6 +240,19 @@ for ( IMyProvider provider : _providers )
     provider.process();
 }
 
+// A bean chosen by a name known at run time (EntryServiceManager, ResourceJspBean)
+@Inject
+@Any
+private Instance<IBreadcrumb> _breadcrumbs;
+
+IBreadcrumb breadcrumb = CdiHelper.resolve( _breadcrumbs, form.getBreadcrumbName( ) );
+
+// An event: inject it instead of CDI.current( ).getBeanManager( ).getEvent( )
+@Inject
+private Event<MyEvent> _event;
+
+_event.fireAsync( new MyEvent( nId ) );
+
 // Check availability in @PostConstruct (like WorkflowService does)
 @Inject
 @Named("workflow.workflowProvider")
@@ -260,6 +273,8 @@ void init()
 | `isAmbiguous()` | Multiple beans match — needs qualifier to disambiguate |
 | `get()` | Returns the resolved bean instance (call only after `isResolvable()`) |
 | `stream()` | Iterate all matching implementations |
+
+**Notifying the plugin's own listeners:** a new notification is an `Event<X>` fired by the service and received by `@Observes X` methods: the sender knows no listener (forms `FormControlJspBean` fires `ControlEvent`). An existing loop over the listener beans (`for ( IXListener l : _listeners )`, an `Instance<IXListener>` or a `stream()`) is kept as it is: lutece-core keeps that form (`ExtendableResourceActionHit`).
 
 ### Constructor injection (workflow tasks/components)
 
@@ -517,7 +532,7 @@ public class MyService {
 
 ### Deprecated `getInstance()` methods in lutece-core
 
-lutece-core marks 23 of its own `getInstance()` methods `@Deprecated(since = "8.0", forRemoval = true)`. The single maintained list is the `DP01` check in `scripts/verify-migration.sh`; do not copy it here. Replace each call with `@Inject` in CDI-managed classes or `CDI.current().select()` in static contexts. `SecurityService.getInstance()` and `AdminAuthenticationService.getInstance()` are not deprecated and stay as they are.
+lutece-core marks 23 of its own `getInstance()` methods `@Deprecated(since = "8.0", forRemoval = true)`. Check `DP01` reads the list in the core of the references; do not copy it here. Replace each call with `@Inject` in CDI-managed classes or `CDI.current().select()` in static contexts. `SecurityService.getInstance()` and `AdminAuthenticationService.getInstance()` are not deprecated and stay as they are.
 
 Rules for replacement:
 - Use the **interface type** when one exists (e.g., `ISecurityTokenService`, `IEditorBbcodeService`)
@@ -802,7 +817,9 @@ Use case: pass data from an @Action (POST) to the redirect target @View (GET).
 
 Replaces `AbstractPaginatorJspBean` and manual pagination (`_nItemsPerPage`, `_strCurrentPageIndex`, `new LocalizedPaginator`). Allows `@RequestScoped` instead of `@SessionScoped`.
 
-`IPager` API (core `web/util/IPager.java`): `withBaseUrl`, `withItemsPerPage`, `withIdList`, `withListItem`, `populateModels( request, models, locale )`, `populateModels( request, models, delegate, locale )`, `getPaginator()`. Full JspBean + template example: `lutece-patterns` skill §5.
+`IPager` API (core `web/util/IPager.java`): `withBaseUrl`, `withItemsPerPage`, `withIdList`, `withListItem`, `populateModels( request, models, locale )`, `populateModels( request, models, delegate, locale )`, `getPaginator()`. Full JspBean example: core `web/style/PortletTemplateJspBean.java` (`@Inject @Pager( listBookmark = …, defaultItemsPerPage = PROPERTY_ITEMS_PER_PAGE, baseUrl = … )`).
+
+`defaultItemsPerPage` is the **key of a property**, not a number: `PagerProducer` reads `config.getOptionalValue( key, Integer.class ).orElse( 50 )`, so `defaultItemsPerPage = "10"` looks up a property named `10` and pages by 50, and a key the plugin's properties do not declare pages by 50 too (MV08).
 
 ### Two pagers in one bean must be named apart
 
@@ -906,6 +923,49 @@ Common self-registration calls affected by this pattern:
 - `CacheService.registerCacheableService(this)`
 - `ImageResourceManager.registerProvider(this)`
 - Any `SomeService.register*(this)` in a constructor
+
+## 23. Startup initialisation: the plugin's `init( )` and the removal listeners
+
+A v7 plugin class initialised its services from `PluginDefaultImplementation.init( )`
+(`XService.getInstance( ).init( )`), and a service registered its removal listeners on a static service
+(`WorkgroupRemovalListenerService.getService( ).registerListener( … )`). Converting the lookup to
+`CDI.current( ).select( XService.class ).get( ).init( )` keeps the v7 shape (PI01). The v8 form: the service observes the
+startup itself, the core's removal services are injected by name (`BeanUtils.BEAN_WORKGROUP_REMOVAL_SERVICE`,
+`BEAN_ROLE_REMOVAL_SERVICE`, `BEAN_RBAC_REMOVAL_SERVICE`, `BEAN_PORTLET_REMOVAL_SERVICE`…; the core consults them before a
+removal, `AdminWorkgroupJspBean`), and the static `*RemovalListenerService` is not used (DP04):
+
+```java
+@ApplicationScoped
+public class AgendaService
+{
+    @Inject
+    @Named( BeanUtils.BEAN_WORKGROUP_REMOVAL_SERVICE )
+    private RemovalListenerService _workgroupRemovalService;
+
+    @Inject
+    @Named( BeanUtils.BEAN_ROLE_REMOVAL_SERVICE )
+    private RemovalListenerService _roleRemovalService;
+
+    /**
+     * Registers the removal listeners when the application starts.
+     *
+     * @param context the servlet context
+     */
+    public void initializedService( @Observes @Initialized( ApplicationScoped.class ) ServletContext context )
+    {
+        _workgroupRemovalService.registerListener( new AgendaWorkgroupRemovalListener( ) );
+        _roleRemovalService.registerListener( new AgendaRoleRemovalListener( ) );
+    }
+}
+```
+
+The core registers its own listeners the same way, through an `@Inject` method taking the named service
+(`PageService.setRoleRemovalService`); a plugin uses the startup observer, since nothing may inject its bean (§22). The plugin's
+`init( )` loses what moved; a plugin class left with nothing but an empty `init( )` or constants is deleted, its constants
+(`PLUGIN_NAME`) move to the plugin's service, and its descriptor's `<class>` names
+`fr.paris.lutece.portal.service.plugin.PluginDefaultImplementation` (PD03, `rules/plugin-descriptor.md`). A plugin class the descriptor does not name is never instantiated,
+so its `init( )` never ran, in v7 either (PD02): what it meant to do moves the same way, and the class goes. A `static init( )` of a business class that
+only registered listeners moves the same way.
 
 ## Key Imports Reference
 

@@ -8,7 +8,7 @@ alwaysApply: false
 ## JspBean (back-office admin)
 
 - MUST have CDI scope + `@Named` + `@Controller` + extend `MVCAdminJspBean`. Without a scope annotation and `@Named`, the page will be BLANK.
-- **Scope rule**: `@SessionScoped` if the bean stores per-user state as instance fields (working objects like `_task`, filters, multi-step context). This is the typical case for CRUD beans. Note: with `@Inject @Pager IPager` pagination state is managed automatically — no manual `_strCurrentPageIndex`/`_nItemsPerPage` fields needed. `@RequestScoped` if the bean is stateless (no session instance fields).
+- **Scope rule**: `@SessionScoped` if the bean stores per-user state as instance fields (working objects like `_task`, filters, multi-step context). This is the typical case for CRUD beans. Note: with `@Inject @Pager IPager` pagination state is managed automatically — no manual `_strCurrentPageIndex`/`_nItemsPerPage` fields needed. `@RequestScoped` if the bean is stateless (no session instance fields). A `@RequestScoped` bean that calls `getPlugin( )` overrides it with `PluginService.getPlugin( PLUGIN_NAME )`: the inherited one is set by `init` from the `plugin_name` parameter only, so it is null on every request without it (WB10).
 - Right check: `processController()` calls `init(request, right)` itself with the `@Controller.right` value. Do NOT call `init()` from the JSP or from the bean. `init()` is only for non-MVC beans (portlets, legacy JspBeans).
 
 ### `@Controller` attributes (admin, `fr.paris.lutece.portal.util.mvc.admin.annotations.Controller`)
@@ -89,6 +89,12 @@ View and action constants share the same value for a given form: `VIEW_CREATE_EN
 
 `BindingResult` API (`mvc/binding/BindingResult.java`): `isFailed()`, `getAllMessages()`, `getAllErrors()`, `getBindingErrors()`, `getValidationErrors()`, `getErrors(param)`. Each `ParamError` exposes `getMessage()` and `getParamName()`. No `hasErrors()` / `getDefaultMessage()` (Spring names).
 
+## Workgroups — a row loaded by its id is checked
+
+When the listing filters by workgroup (`AdminWorkgroupService.getAuthorizedCollection`), every view and action that loads
+one of those rows by its id checks it too, `AdminWorkgroupService.isAuthorized( resource, (User) getUser( ) )`, and
+refuses otherwise: the listing hides the row, the id typed in the url still opens it (WG01).
+
 ## CSRF Policy — `securityTokenEnabled = true` (single source of truth)
 
 Set `securityTokenEnabled = true` on every `@Controller` (JspBean and XPage). This is the current core mechanism; manual `MARK_TOKEN` / `validate()` is legacy.
@@ -118,9 +124,12 @@ public String doRemoveTask( HttpServletRequest request )
 
 **Blind spots of the automatic token**: write the controller around them and
 cover each one with a negative e2e scenario:
-- **An `@Action` also runs on GET, unvalidated.** The filter skips GET while `processController` dispatches the action
-  whatever the method, so `ManageX.jsp?action=removeX&id=1` in a link or an `<img>` deletes. Every mutation is a POST
-  form (a link to a confirmation `@View`, never to the action), and the negative scenario proves the GET forgery.
+- **An `@Action` also runs on GET, unvalidated: a core defect.** `SecurityTokenHandler` exempts GET, HEAD, TRACE and
+  OPTIONS (`ALLOWED_METHODS`) while `processController` dispatches the action whatever the method, so
+  `ManageX.jsp?action=removeX&id=1` in a link or an `<img>` deletes. The core owns the fix: never add a GET guard or a
+  method check in the plugin. Every mutation stays a POST form (a link goes to a confirmation `@View`, never to the
+  action), the negative e2e scenario that forges the GET carries `core_defect:`, and the hand-over lists it as a core
+  defect not handled.
 - **A `@View` never calls a `do*` `@Action` of its bean** (MV05): a view is a GET, the filter checks only the action
   the request names, so the write runs unvalidated, and a crawler or a link preview triggers it. A view with nothing
   to show (an entry type without creation screen, a workflow action without form) redirects to an
@@ -140,6 +149,24 @@ cover each one with a negative e2e scenario:
 
 Forbidden with `securityTokenEnabled = true`: `SecurityTokenService.MARK_TOKEN` in the model, `getToken()`, `validate()`, `@Inject SecurityTokenService` in the bean. Keep them ONLY in non-MVC beans (no `@Controller`), where `getSecurityTokenService()` (inherited from `AdminFeaturesPageJspBean`) is the accessor.
 
+## Request parameters arrive sanitized
+
+The core `SafeRequestFilter` (`/jsp/admin/*` and `/jsp/site/*`, `lutece.safe.request.*.sanitizeFilterMode=true` by
+default) passes every request parameter through `XSSSanitizerService.sanitize`, whose v8 implementation is
+`OwaspXSSSanitizer` (OWASP policy FORMATTING, LINKS, BLOCKS, IMAGES, STYLES, TABLES). What
+`request.getParameter( )` returns:
+
+- text characters as entities: `&` → `&amp;`, `=` → `&#61;`, `'` → `&#39;`, `"` → `&#34;`, `` ` `` → `&#96;`
+  (`@` and `+` kept);
+- allowed tags kept (`<b>`, `<a href>`, `<table>`…), other tags removed with their content (`<script>`), an unclosed
+  one closed (`a<b` → `a<b></b>`).
+
+Never escape a parameter again in Java (a v7 `replace( "&", "&amp;" )` or `StringEscapeUtils.escapeHtml*` encodes
+twice: `&amp;amp;` in the database, a broken link on screen) (WB11), and do not add `?html` in the template for a
+value that came from a request. A field that must hold the raw text (a URL, a pattern, code) reads
+`StringEscapeUtils.unescapeHtml4( request.getParameter( … ) )`, as core `SecurityHeaderJspBean` does. A servlet or a
+REST resource is outside the filter and receives raw parameters.
+
 ## Errors from a view
 
 `addError( … )` then `redirectView( … )` carries the message only from an `@Action` (the redirect goes through the
@@ -150,4 +177,4 @@ uses `addError` + `redirectView` back to the form.
 
 ## Pagination (list views)
 
-Use `@Inject @Pager IPager` for CDI-managed pagination (recommended). The `@Pager` qualifier configures paginator name, list bookmark, default items per page, and base URL. Call `_pager.withListItem(list).populateModels(request, model, getLocale())`. For AJAX tables, add a `@ResponseBody` endpoint and use the `paginationAjax` macro. See `/lutece-patterns` skill §5 for full details.
+Use `@Inject @Pager IPager` for CDI-managed pagination (recommended). The `@Pager` qualifier configures paginator name, list bookmark, default items per page, and base URL. Call `_pager.withListItem(list).populateModels(request, model, getLocale())`. For AJAX tables, add a `@ResponseBody` endpoint and use the `paginationAjax` macro. Full example: core `web/style/PortletTemplateJspBean.java`; `defaultItemsPerPage` names a property, not a number, declared in the plugin's properties (MV08: an undeclared key pages by 50 whatever is configured).

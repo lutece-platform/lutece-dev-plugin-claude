@@ -4,6 +4,7 @@
 # Run after adding or editing a skill or rule. Output is committed.
 
 set -euo pipefail
+P="$(dirname "$0")/../tools/python.sh"; [ -f "$P" ] && . "$P"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 python3 - "$ROOT" <<'PY'
 import re, sys, pathlib

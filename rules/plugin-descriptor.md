@@ -37,14 +37,14 @@ This is a template for **new plugins only**. During migration, do NOT overwrite 
 
 ## `<class>` Tag — PluginDefaultImplementation vs Custom Plugin Class
 
-Most plugins use `PluginDefaultImplementation`. However, **preserve the existing custom class** when the plugin has initialization logic in `init()`:
+Most plugins use `PluginDefaultImplementation`. A custom class stays only while it overrides something the core calls:
 
 | `<class>` value | When to use | Examples |
 |---|---|---|
-| `PluginDefaultImplementation` | No custom `init()` logic needed. Plugin only declares rights, XPages, daemons, services. | a plugin with no setup code |
-| Custom `XxxPlugin` | Plugin registers providers (ImageResourceProvider, FileResourceProvider) or runs setup logic in `init()`. | `MyPlugin extends PluginDefaultImplementation` overriding `init()` |
+| `PluginDefaultImplementation` | The plugin declares rights, XPages, daemons, services; a service that needs setup observes the startup itself (`@Observes @Initialized( ApplicationScoped.class )`, PI01, `cdi-patterns.md` §23). | most plugins |
+| Custom `XxxPlugin` | It overrides a method of `Plugin` with behaviour of its own (an `init( )` that only concerns the plugin, such as a startup check, or another override). | `FormsPlugin` logging its deployment audit |
 
-**MIGRATION RULE: During migration to v8, NEVER replace an existing custom `XxxPlugin` class with `PluginDefaultImplementation`. If the current plugin.xml has a custom class, keep it — it likely has `init()` logic that is required at runtime (e.g. registering image/file providers via CDI).**
+**MIGRATION RULE:** an existing custom class is not replaced blindly: its `init( )` work moves into startup observers first (PI01, RL01). A class left with nothing but constants (`PLUGIN_NAME`) gives way to `PluginDefaultImplementation` in the descriptor, the constants moving to the plugin's service (PD03). A class the descriptor does not name never runs (PD02).
 
 ## Recommended Tags
 

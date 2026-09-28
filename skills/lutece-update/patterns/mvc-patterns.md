@@ -80,7 +80,7 @@ public List<MyItem> getData(@RequestParam("page") int nPage) {
 }
 ```
 
-Used for AJAX pagination with the `paginationAjax` macro — see `/lutece-patterns` §5 for the macro and the JSON endpoint. GET requests are never filtered by the CSRF filter; add `securityTokenDisabled = true` only if the endpoint is called by POST without a form token.
+Used for AJAX pagination with the `paginationAjax` macro — the macro is in core `webapp/WEB-INF/templates/admin/themes/tabler/components/pagination/paginationAdmin.ftl`. GET requests are never filtered by the CSRF filter; add `securityTokenDisabled = true` only if the endpoint is called by POST without a form token.
 
 ## 6. @RequestBody
 
@@ -104,6 +104,41 @@ Policy and mechanism: `rules/web-bean.md` § CSRF Policy. Migration steps for a 
 4. Confirm dialogs: `@View(value = VIEW_CONFIRM_REMOVE, securityTokenAction = ACTION_REMOVE)` redirecting to `AdminMessageService.getMessageUrl(..., TYPE_CONFIRMATION)`; the remove `@Action` needs nothing.
 5. POST actions that cannot carry a form token (external clients, imports validated otherwise): `@Action(value = ACTION_X, securityTokenDisabled = true)`. GET requests are never filtered.
 6. Templates: remove `<input type="hidden" name="token" ...>`; the core injects `_csrftoken` into every `<form>`.
+7. One screen, several forms posting different actions: a page carries the token of **one** name, its view's
+   `securityTokenAction` or else the view name (`SecurityTokenHandler.handleToken`), and the filter checks a POST
+   against the action it names (`SecurityTokenFilterAdmin`). Only the form whose action has that name passes; the
+   `securityTokenAction` of an `@Action` changes nothing to the check. Give each other action its own confirmation
+   view (`@View( securityTokenAction = ACTION_Y )`, the core's pattern), or post them all to one dispatch action named
+   like the token. A dispatch action branches on a parameter only one of the forms sends, and every form of the page
+   posts `action=` that name:
+   ```java
+   @View( value = VIEW_MANAGE_ASSIGNATIONS, securityTokenAction = ACTION_UPDATE_ASSIGNATIONS )
+   public String getManageAssignations( HttpServletRequest request ) { … }
+
+   @Action( ACTION_UPDATE_ASSIGNATIONS )
+   public String doUpdateAssignations( HttpServletRequest request )
+   {
+       if ( request.getParameter( PARAMETER_ORDER ) != null )
+       {
+           moveItem( request );
+       }
+       else
+       {
+           assignItems( request.getParameterValues( PARAMETER_ITEM ) );
+       }
+       return redirect( request, VIEW_MANAGE_ASSIGNATIONS, PARAMETER_ID, nId );
+   }
+   ```
+   Forms never nest: a `<form>` inside another is dropped by the browser, and its fields post with the outer one.
+8. The core injects `_csrftoken` into a `<form` followed by **one** space and an attribute
+   (`SecurityTokenHandler.PATTERN_FORM`); `@cForm` and `@tform` without `class` render `<form  id=…` and get no token
+   (a core defect, fixed by a regex that accepts any whitespace). Until the core carrying that fix is the one you build
+   on, give such a form a `class`.
+9. The default view reached without `?view=` (the admin menu link, WB12) gets no token: `SecurityTokenHandler.handleToken`
+   generates the token of a view only when the request names it (`MVCUtils.getView( request ) != null`), although the
+   MVC observer passes it `DEFAULT_VIEW` (a core defect, fixed by generating it for any `@View` method). Until the core
+   carrying that fix is the one you build on, a default view that renders a form it posts itself leaves the bench red on
+   that form: report it as a core defect, do not redirect around it.
 
 Non-MVC beans (no `@Controller`, portlets): keep `getSecurityTokenService().getToken()/validate()` (inherited accessor), never `SecurityTokenService.getInstance()`.
 
@@ -113,7 +148,7 @@ See `fileupload-patterns.md` for complete migration guide.
 
 ## 9. Pagination
 
-`@Inject @Pager IPager` and the `paginationAdmin` / `paginationAjax` macros: `/lutece-patterns` §5 (single source). List layout choice (`@manageFeature` vs `@table`): `rules/template-back-office.md`.
+`@Inject @Pager IPager`: `cdi-patterns.md` §20; the `paginationAdmin` / `paginationAjax` macros: core `webapp/WEB-INF/templates/admin/themes/tabler/components/pagination/paginationAdmin.ftl`. List layout choice (`@manageFeature` vs `@table`): `rules/template-back-office.md`.
 
 ## 10. XSL portlet → HTML portlet (MANDATORY, no exception)
 
@@ -132,6 +167,8 @@ target. The port is four moves:
 **1. Extend the core base class.** `PortletHtmlContent` forces the HTML path: it makes
 `getHtmlContent` abstract, neutralises `getXml`/`getXmlDocument` (both return `null`) and
 returns `false` from `isContentGeneratedByXmlAndXsl()`. Never override that method by hand.
+`createPortletModel( )` and `renderTemplate( )` below are in the core `tools/v8-floor.conf` names (`V8_FLOOR_CORE`),
+which `check-v8-floor.sh` proves the build resolves: keep `lutece-core` on `[8.0.0,)`, never raise its lower bound.
 Build the model with `createPortletModel( )` (the portlet, its id, its device display classes, its
 name when the title is shown) and render with `renderTemplate( request, TEMPLATE_DEFAULT, model )`:
 it applies the template chosen for the portlet in the back office, and the default template of the
@@ -228,3 +265,21 @@ Four traps:
 - **The bench's own scenarios break.** Any scenario that drove a mutation by a forged URL now
   gets refused, and one that only asserted "an error is shown" turns green for the wrong
   reason. Rewrite them to submit the real form, which is the real user path anyway.
+
+**An unknown portlet id.** Core `PortletHome.findByPrimaryKey` dereferences the row it loads, so a
+missing id throws a `NullPointerException` (a core defect: report it, do not patch the core). Check that the
+row exists through the plugin's own home or DAO before calling it, and answer by the return type:
+`getModify` returns HTML that the JSP prints, so it returns an error fragment rendered from a template (an
+`AdminMessage` URL would show as text); `doModify` returns a URL, so it returns
+`AdminMessageService.getMessageUrl( … )`. `gru-plugin-appointment` `AbstractPortletJspBean` guards the same way.
+
+## 12. An admin JSP outside the MVC dispatch (JS04)
+
+One `@Controller` per JSP: `@Controller( controllerJsp = "ManageX.jsp", controllerPath = "jsp/admin/plugins/x/", right = …,
+securityTokenEnabled = true )`, and the JSP prints what `processController( pageContext.request, pageContext.response )`
+returns between `AdminHeader.jsp` and `AdminFooter.jsp`, and calls nothing else (core `ManageAutoIncludes.jsp` /
+`AutoIncludeJspBean`). A page the JSP rendered by calling
+a bean method becomes a `@View` of that controller, its `defaultView` when the admin menu links the JSP (WB12). A menu
+home page that belongs to no existing controller (a dashboard listing the plugin's features) gets a small controller of
+its own on its JSP rather than a second JSP of another controller. A download or an export is an `@Action` calling
+`download( … )` of `MVCAdminJspBean`.
