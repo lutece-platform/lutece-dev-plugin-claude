@@ -20,7 +20,6 @@ Read before changing a tool choice.
 | Load | **k6 1.5** (`grafana/k6` container) on the entry screens, p95 / error-rate thresholds | Single binary, thresholds = exit code. Gatling rejected (JVM, heavy HTML report): load is only a short phase of the bench. |
 | Screen fingerprint | **Aria snapshot** (YAML of the accessibility tree) + JPEG capture | The structural diff is textual, stable across machines, and costs a few lines; pixels are for humans, not for assertions. |
 | Browser console | `console` (error/warning), `pageerror`, `requestfailed`, responses ≥ 400 on every page | "Console 100 % clean" is an assertion, not an option. |
-| Requirements | **EARS** generated from the inventory + scenarios (`requirements.ears.md`) | One testable sentence per screen or action; coverage reads per requirement. Generated, never maintained by hand. |
 | Report | `summary.md` (compact) + `report.html` (gallery) + `junit-*.xml` | The markdown is what the agent reads; JUnit is what Jenkins reads; the HTML is what the project manager looks at. |
 
 ## What is rejected, and why
@@ -38,7 +37,7 @@ Read before changing a tool choice.
 ```
 build      floor check → mvn install (target) → e2e site (generated pom) → war → app image
 up         compose up db+lutece → healthcheck → dbinit (post-init + seed)
-inventory  inventory.py (SQL rights, plugin.xml, JSP, @Controller/@View/@Action, templates) → EARS
+inventory  inventory.py (SQL rights, plugin.xml, JSP, @Controller/@View/@Action, templates)
 discover   authenticated crawl: GET links from the menu and the entry points (never Do*/action=) → concrete urls
 test       harness → screens → fo → scenarios → forms; /metrics before/after; one runner container (docker exec)
 perf       [k6] → [JFR] → access log → SQL digests → perf.json
@@ -78,7 +77,7 @@ What the scripts enforce, and no change may loosen:
 12. **Three failure populations**: functional (parametrised screen, scenario, form), front (JS, console) and
     robustness (screen called without parameters). Console cleanliness is judged by the screens suite, once per screen.
 13. **Discovery**: depth 8, 25 variants per screen (path + `view`), forms collected at every depth, GET forms followed.
-14. **Bench invariants**: the fuzzer never touches the bench accounts (`PROTECTED_SCREEN`, `protected`); after the
+14. **Bench invariants**: the fuzzer never touches the bench accounts (`PROTECTED_SCREEN`, `protected`) nor deletes a seeded row (`SEED_ID`); after the
     tests `run.sh` checks that the admin account still exists, otherwise code 4 and an alert at the top of the report.
 15. **Isolation of parallel scenarios**: anything that changes a shared form (attributes, parameters) picks neutral
     values or goes `serial`.
@@ -87,7 +86,7 @@ What the scripts enforce, and no change may loosen:
 17. **A skip proves nothing**: a suite that had something to prove and whose every test is skipped fails the run
     (code 8); the summary marks it. Exception: an exclusion written and justified in the bench (`screens.yaml` key
     `skip`, or a scenario's `versions`) stays green, with its reason in the summary.
-18. **The report says what was tested** (`artifacts/fingerprint.json`): source commit, war hash, image digests. The
+18. **The report says what was tested** (`artifacts/fingerprint.json`): source commit, source key, image digests. The
     exit codes tell the causes apart: 1 stack, 2 usage, 3 oracle, 4 invariant (the admin account altered, or a
     security key switched off in `conf/override` and not named in `E2E_ALLOW_SECURITY_OFF`), 5 server errors,
     6 smoke, 7 review, 8 suite skipped, 9 an action of the artefact proven by no scenario, 10 lutece-core below the

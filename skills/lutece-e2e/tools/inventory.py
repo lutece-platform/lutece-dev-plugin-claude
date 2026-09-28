@@ -84,6 +84,11 @@ DECLARATIONS = {
 }
 
 
+def descriptor_text(xml):
+    """The plugin descriptor without its XML comments: a commented-out declaration is not declared."""
+    return re.sub(r"<!--.*?-->", "", xml.read_text(errors="replace"), flags=re.S)
+
+
 def in_build(path, root):
     """True for a file under a Maven target/ directory of the scanned tree (never for the tree itself, which may
     be an exploded webapp living under target/)."""
@@ -140,7 +145,7 @@ def features_from_plugin_xml(root):
     for xml in root.rglob("WEB-INF/plugins/*.xml"):
         if in_build(xml, root):
             continue
-        text = xml.read_text(errors="replace")
+        text = descriptor_text(xml)
         plugin = (re.search(r"<name>([^<]+)</name>", text) or [None, xml.stem])[1]
         for block in re.finditer(r"<admin-feature>(.*?)</admin-feature>", text, re.S):
             b = block.group(1)
@@ -162,7 +167,7 @@ def fo_pages(root):
     for xml in root.rglob("WEB-INF/plugins/*.xml"):
         if in_build(xml, root):
             continue
-        text = xml.read_text(errors="replace")
+        text = descriptor_text(xml)
         plugin = (re.search(r"<name>([^<]+)</name>", text) or [None, xml.stem])[1]
         for m in re.finditer(r"<application-id>([^<]+)</application-id>", text):
             pid = m.group(1).strip()
@@ -199,8 +204,7 @@ def jsp_inventory(root):
         bean, verb, method = (call.group(1), call.group(2), call.group(2) + call.group(3)) if call else (None, None, None)
         right = INIT_RIGHT.search(text)
         entry = {"id": rel[:-4].replace("/", "."), "url": "jsp/admin/" + rel, "kind": "jsp", "bean": bean,
-                 "method": method, "right": right.group(1) if right else None, "surface": "bo",
-                 "needs_params": bean_params(root, bean, method)}
+                 "method": method, "right": right.group(1) if right else None, "surface": "bo"}
         is_action = name.startswith("Do") or verb in ("do", "process") or (REDIRECT.search(text) and verb != "get")
         (actions if is_action else screens).append(entry)
     for jsp in sorted(root.rglob("jsp/site/plugins/**/*.jsp")):
@@ -211,69 +215,11 @@ def jsp_inventory(root):
         call = BEAN_CALL.search(text)
         bean, verb, method = (call.group(1), call.group(2), call.group(2) + call.group(3)) if call else (None, None, None)
         entry = {"id": "site." + rel[:-4].replace("/", "."), "url": "jsp/site/" + rel, "kind": "jsp", "bean": bean,
-                 "method": method, "right": None, "surface": "fo", "needs_params": bean_params(root, bean, method)}
+                 "method": method, "right": None, "surface": "fo"}
         is_action = jsp.name.startswith("Do") or verb in ("do", "process")
         (actions if is_action else screens).append(entry)
     return screens, actions
 
-
-
-PARAM_CALL = re.compile(r'request\.getParameter\(\s*([A-Za-z0-9_."]+)\s*\)')
-
-
-def bean_params(root, bean, method):
-    """Request parameters the bean method reads, so a screen is never opened without what it requires.
-
-    A JSP whose bean method reads `page_id` answers with an internal error when opened bare, and the bench would
-    record a broken screen instead of testing it. The names come from the constant the code uses, resolved against
-    the same class when it is declared there."""
-    if not bean or not method:
-        return []
-    for java in root.rglob("*.java"):
-        if in_build(java, root) or java.stem.lower() != bean.lower():
-            continue
-        text = java.read_text(errors="replace")
-        m = re.search(r'\b%s\s*\([^)]*\)\s*\{' % re.escape(method), text)
-        if not m:
-            return []
-        depth, i = 0, m.end() - 1
-        while i < len(text):
-            if text[i] == "{":
-                depth += 1
-            elif text[i] == "}":
-                depth -= 1
-                if depth == 0:
-                    break
-            i += 1
-        body = text[m.end():i]
-        for helper in set(re.findall(r'\b([a-z]\w*)\(\s*request\s*\)', body)):
-            if helper == method:
-                continue
-            h = re.search(r'\b%s\s*\([^)]*\)\s*\{' % re.escape(helper), text)
-            if not h:
-                continue
-            d2, j = 0, h.end() - 1
-            while j < len(text):
-                if text[j] == "{":
-                    d2 += 1
-                elif text[j] == "}":
-                    d2 -= 1
-                    if d2 == 0:
-                        break
-                j += 1
-            body += text[h.end():j]
-        names = []
-        for raw in PARAM_CALL.findall(body):
-            if raw.startswith('"'):
-                names.append(raw.strip('"'))
-                continue
-            const = re.search(r'%s\s*=\s*"([^"]+)"' % re.escape(raw), text)
-            if const:
-                names.append(const.group(1))
-            elif raw.startswith("PARAMETER_"):
-                names.append(raw[len("PARAMETER_"):].lower())
-        return sorted(set(names))
-    return []
 
 def app_java(root):
     """Java sources of the artefact itself: outside test roots, outside the MVC framework, outside target/."""
@@ -544,7 +490,7 @@ def artefact_markers(root, pkg):
     for xml in root.rglob("WEB-INF/plugins/*.xml"):
         if in_build(xml, root):
             continue
-        m = re.search(r"<name>([^<]+)</name>", xml.read_text(errors="replace"))
+        m = re.search(r"<name>([^<]+)</name>", descriptor_text(xml))
         if m:
             names.add(m.group(1).strip())
     for n in names:
@@ -572,10 +518,23 @@ def declarations(root):
     for xml in root.rglob("WEB-INF/plugins/*.xml"):
         if in_build(xml, root):
             continue
-        text = xml.read_text(errors="replace")
+        text = descriptor_text(xml)
         for key, pat in DECLARATIONS.items():
             counts[key] += len(pat.findall(text))
     return counts
+
+
+def portlet_types(root):
+    """Portlet types the artefact's plugin descriptors declare: type id, creation and update urls."""
+    out = []
+    for xml in root.rglob("WEB-INF/plugins/*.xml"):
+        if in_build(xml, root):
+            continue
+        for block in re.findall(r"<portlet>(.*?)</portlet>", descriptor_text(xml), re.S):
+            tag = lambda t: (re.search(r"<%s>\s*([^<]+?)\s*</%s>" % (t, t), block) or [None, None])[1]
+            if tag("portlet-type-id"):
+                out.append({"type": tag("portlet-type-id"), "create": tag("portlet-creation-url"), "update": tag("portlet-update-url")})
+    return out
 
 
 def java_surface(root):
@@ -754,6 +713,7 @@ def main():
            "features": sorted(feats.values(), key=lambda f: f["right"]),
            "screens": sorted(screens, key=lambda s: s["id"]), "actions": sorted(actions, key=lambda a: a["id"]),
            "rest": sorted(rest, key=lambda r: (r["url"], r["verb"])),
+           "portlets": portlet_types(root),
            "stats": {"features": len(feats), "screens": len(screens), "actions": len(actions),
                      "templates_with_links": len(links),
                      "target_screens": sum(1 for s in screens if s["origin"] == "target"),

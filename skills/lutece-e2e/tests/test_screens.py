@@ -14,16 +14,21 @@ BASELINES = lutece.E2E / "baselines" / "aria"
 ARIA_OUT = lutece.ARTIFACTS / "aria"
 SESSIONLESS = re.compile(r"AdminLogin|AdminForgot|AdminResetPassword|AdminFormContact|ReactivateAccount", re.I)
 """Public screens: visiting them inside the admin session destroys it, they have their own anonymous tests."""
-CONFIRM_SCREENS = lutece.rule_re("confirm", r"/(Remove|Confirm|DoConfirm|Anonymize|GetChangeUse)\w*\.jsp|view=(get)?confirm")
+CONFIRM_SCREENS = lutece.rule_re("confirm", r"/(Remove|Confirm|DoConfirm|Anonymize|GetChangeUse)\w*\.jsp|view=(get|view)?confirm")
 """Screens whose normal answer is a Lutece confirmation question, not a menu-bearing screen."""
 """Screens that answer with a fragment (offcanvas, insert service popup) or a front-office preview are declared
 per bench in scenarios/screens.yaml, key `fragment`, and read through lutece.is_fragment."""
 
 
+ORPHANS = set()
+"""Urls only the static inventory names, opened bare although no link of the application leads to them."""
+
+
 def _screens():
     """Concrete urls to open: discovered screens first (they carry real ids), then inventory screens
     without parameters that discovery did not reach, the default view of a controller opened as its bare JSP (a
-    popup no menu links to is reached that way). Login and session-less screens are separate tests."""
+    popup no menu links to is reached that way), and the views a `params` rule of screens.yaml names. Login and
+    session-less screens are separate tests."""
     seen, out = set(), []
     in_scope = lutece.scope()
     disc = lutece.load_json("artifacts/discovered.json", {"screens": []})
@@ -31,12 +36,18 @@ def _screens():
         u = s["url"]
         if u not in seen and not SESSIONLESS.search(u) and in_scope(u):
             seen.add(u); out.append(u)
+            if s.get("orphan"):
+                ORPHANS.add(u)
     inv = lutece.load_json("artifacts/inventory.json", {"screens": []})
     for s in inv["screens"]:
         u = s["url"]
         if s.get("kind") == "mvc" and s.get("default"):
             u = u.split("?")[0]
-        if u not in seen and "?" not in u and not re.search(r"AdminLogin|AdminForgot|AdminResetPassword|AdminFormContact", u) and in_scope(u):
+        if u in seen or re.search(r"AdminLogin|AdminForgot|AdminResetPassword|AdminFormContact", u) or not in_scope(u):
+            continue
+        if "?" not in u:
+            seen.add(u); out.append(u); ORPHANS.add(u)
+        elif lutece.screen_query(u):
             seen.add(u); out.append(u)
     return out
 
@@ -53,8 +64,7 @@ def test_screen(bo, record, target):
         record["url"] = target
         pytest.skip(lutece.DECLARED_SKIP + "not opened standalone: " + reason)
     t0 = lutece.now_ms()
-    q = lutece.screen_query(target)
-    opened = target if not q or "?" in target else target + "?" + q
+    opened = lutece.with_params(target)
     resp = bo.goto(lutece.url(opened), wait_until="load")
     record["ms"] = round(lutece.now_ms() - t0)
     status = resp.status if resp else 0
@@ -66,7 +76,7 @@ def test_screen(bo, record, target):
     if kind == "auth":
         record["relogin"] = True
         assert lutece.bo_login(bo), "re-login failed"
-        resp = bo.goto(lutece.url(target), wait_until="load")
+        resp = bo.goto(lutece.url(opened), wait_until="load")
         status = resp.status if resp else 0
         kind = lutece.classify(bo, status)
     record["screenshot"] = lutece.shot(bo, slug, "jpg")
@@ -83,6 +93,11 @@ def test_screen(bo, record, target):
     # there is a defect, not a robustness finding.
     bare = "?" not in opened
     record["bare"] = bare
+    # No link of the application opens this url bare: only the static inventory names it. What it answers without
+    # its parameters is a robustness finding for the report, not a red run.
+    if bare and target in ORPHANS and kind not in ("screen", "error", "confirmation", "fragment"):
+        record["robustness"] = "%s: %s" % (kind, lutece.page_text(bo)[:160])
+        return
     if CONFIRM_SCREENS.search(target):
         expected = ("confirmation", "error", "warning", "info")
     elif lutece.is_fragment(target):

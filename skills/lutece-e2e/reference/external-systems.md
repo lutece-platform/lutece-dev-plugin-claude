@@ -104,7 +104,7 @@ the plugin is there and the bench ships none of its own. Without it the plugin k
 simply empty, which a scenario only catches when it reads the engine back.
 
 The core is created at startup. `plugin-solr` ships its own `solrconfig.xml` and `schema.xml` in
-`webapp/WEB-INF/plugins/solr/conf`: point `E2E_SOLR_CONF` at that directory (path relative to `harness/`) or the
-core is built from the `_default` configset — enough to prove the site boots and connects, not enough to index.
+`webapp/WEB-INF/plugins/solr/conf`: `run.sh up` takes it from the assembled site; set `E2E_SOLR_CONF` only for
+another schema. Without one the core is built from the `_default` configset — enough to boot and connect, not to index.
 Both containers are health-gated, so `run.sh up` waits for them like it waits for the database.
 

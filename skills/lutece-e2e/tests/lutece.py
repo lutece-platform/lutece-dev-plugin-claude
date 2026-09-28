@@ -645,6 +645,19 @@ def server_errors_allowed():
     return pats
 
 
+def log_entries(text):
+    """Entries of a Liberty log, each as [level, header line, continuation lines...]."""
+    entries, cur = [], None
+    for line in text.splitlines():
+        m = SERVER_ENTRY.match(line)
+        if m:
+            cur = [m.group(1), line]
+            entries.append(cur)
+        elif cur is not None:
+            cur.append(line)
+    return entries
+
+
 def server_errors(mark, allow=()):
     """Error entries (level E) the server logged since the mark, each as its header line and its first exception
     line. The log may have rotated since the mark: it is then read from its start. Entries matching the core noise,
@@ -658,14 +671,7 @@ def server_errors(mark, allow=()):
             text = f.read().decode("utf-8", "replace")
     except OSError:
         return []
-    entries, cur = [], None
-    for line in text.splitlines():
-        m = SERVER_ENTRY.match(line)
-        if m:
-            cur = [m.group(1), line]
-            entries.append(cur)
-        elif cur is not None:
-            cur.append(line)
+    entries = log_entries(text)
     patterns = list(CORE_LOG_NOISE) + server_errors_allowed() + [re.compile(p) for p in allow]
     out = []
     for level, *lines in entries:
@@ -753,7 +759,7 @@ def rule_re(name, default):
     return re.compile("|".join([default] + extra), re.I)
 
 
-FRAGMENT_DEFAULT = r"AdminMap\.jsp|AdminPagePreview\.jsp|GetAvailableInsertServices|DisplayInsertService|AdminThemePreview"
+FRAGMENT_DEFAULT = r"AdminMap\.jsp|AdminPagePreview\.jsp|GetAvailableInsertServices|DisplayInsertService|AdminThemePreview|/(Create|Modify)\w*Portlet\w*\.jsp"
 """Screens that answer without the surrounding layout, extended per bench in scenarios/screens.yaml, key `fragment`."""
 
 NOT_NORMAL = ("error-page", "blank", "auth", "login", "truncated")
@@ -777,14 +783,25 @@ def screen_query(url):
 
     `scenarios/screens.yaml`, key `params`: a list of `{match: <regex on the url>, query: "a=1&b=2"}`. A screen whose
     bean reads request parameters answers with an internal error when opened without them, and the suite would record
-    a broken screen instead of testing it. `inventory.json` names those parameters per screen in `needs_params`."""
+    a broken screen instead of testing it."""
     for rule in (bench_rules().get("params") or []):
         try:
             if rule.get("match") and re.search(rule["match"], url, re.I):
                 return rule.get("query") or ""
         except re.error:
             continue
+    for p in load_json("artifacts/inventory.json", {}).get("portlets", []):
+        if p.get("create") and url.split("?")[0].endswith(p["create"].split("?")[0]):
+            return "page_id=1&portlet_type_id=" + p["type"]
     return ""
+
+def with_params(url):
+    """The url with the parameters its `params` rule declares and the url does not already carry."""
+    q = screen_query(url)
+    have = set(re.findall(r"[?&]([^=&]+)=", url))
+    add = "&".join(p for p in q.split("&") if p and p.split("=")[0] not in have)
+    return url + ("&" if "?" in url else "?") + add if add else url
+
 
 def mail_count(to, subject=None, wait_s=15, contains=None):
     """Number of messages in the Mailpit sink addressed to `to` (optionally with `subject` in the subject and

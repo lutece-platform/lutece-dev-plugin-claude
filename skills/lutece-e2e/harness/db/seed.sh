@@ -5,13 +5,13 @@
 # @roles/@lists/@pages so a generated seed can scale itself; see reference/seed-volume-example.sql.
 set -eu
 case "${E2E_VOLUME:-none}" in
-  large) USERS=100000; GROUPS=500; ROLES=300; LISTS=500; PAGES=3000 ;;
-  small) USERS=2000;   GROUPS=50;  ROLES=30;  LISTS=50;  PAGES=200 ;;
-  *)     USERS=0;      GROUPS=0;   ROLES=0;   LISTS=0;   PAGES=0 ;;
+  large) USERS=100000; NGROUPS=500; ROLES=300; LISTS=500; PAGES=3000 ;;
+  small) USERS=2000;   NGROUPS=50;  ROLES=30;  LISTS=50;  PAGES=200 ;;
+  *)     USERS=0;      NGROUPS=0;   ROLES=0;   LISTS=0;   PAGES=0 ;;
 esac
 run() {
   mariadb -h db -ulutece -plutece lutece \
-    -e "SET @users=$USERS, @groups=$GROUPS, @roles=$ROLES, @lists=$LISTS, @pages=$PAGES; SOURCE $1;"
+    -e "SET @users=$USERS, @groups=$NGROUPS, @roles=$ROLES, @lists=$LISTS, @pages=$PAGES; SOURCE $1;"
 }
 # The bench's front-office account, when the mylutece database module is part of the site (E2E_MYLUTECE, gen-site.sh).
 if mariadb -h db -ulutece -plutece lutece -N -e "SELECT 1 FROM mylutece_database_user LIMIT 0" >/dev/null 2>&1; then

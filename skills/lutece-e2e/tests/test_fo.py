@@ -12,15 +12,6 @@ FO_OK = ("fo", "public-form")
 """A front-office response is the portal page or a public inline form; never a back-office screen or an error page."""
 
 
-def _with_params(u):
-    """Adds the query the bench declares for that screen (scenarios/screens.yaml, key `params`).
-
-    A front-office XPage whose view requires a parameter answers a Lutece message when opened bare, and the suite
-    would record a broken page instead of testing it. Same rule as the screens suite."""
-    q = lutece.screen_query(u)
-    return (u + ("&" if "?" in u else "?") + q) if q and q not in u else u
-
-
 def _fo_targets():
     """The front-office pages of the artefact under test: the site's other XPages (the bench's own mylutece login
     and account pages, for instance) belong to the environment and are not this bench's to judge."""
@@ -28,12 +19,12 @@ def _fo_targets():
     seen, out = set(), []
     disc = lutece.load_json("artifacts/discovered.json", {})
     for s in disc.get("fo_screens", []):
-        u = _with_params(s["url"])
+        u = lutece.with_params(s["url"])
         if u not in seen and in_scope(u):
             seen.add(u); out.append(u)
     inv = lutece.load_json("artifacts/inventory.json", {"screens": []})
     for s in inv.get("screens", []):
-        u = _with_params(s.get("url", ""))
+        u = lutece.with_params(s.get("url", ""))
         if s.get("surface") == "fo" and u not in seen and in_scope(u):
             seen.add(u); out.append(u)
     return out

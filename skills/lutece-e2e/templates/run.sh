@@ -4,7 +4,7 @@
 #   ./run.sh              build (if needed) + up + seed + inventory + discover + tests + perf + report
 #   ./run.sh build        install the artefact under test, assemble the war, build the app image
 #   ./run.sh up           start db + app, wait for health, seed (idempotent)
-#   ./run.sh inventory    static inventory (artifacts/inventory.json) + EARS requirements
+#   ./run.sh inventory    static inventory (artifacts/inventory.json)
 #   ./run.sh discover     dynamic crawl of the running back office (artifacts/discovered.json)
 #   ./run.sh test         every suite (screens, fo, scenarios, forms) against the running stack
 #   ./run.sh test <args>  one pytest call, e.g. `test tests/test_scenarios.py -k my_scenario` (seconds)
@@ -26,8 +26,10 @@
 # below the Lutece 8 level lutecepowers supports (tools/v8-floor.conf);
 # otherwise pytest's code (1 = a red test).
 set -euo pipefail
+[ -f "$(dirname "$0")/tools/python.sh" ] && . "$(dirname "$0")/tools/python.sh"
 E2E=$(cd "$(dirname "$0")" && pwd)
 cd "$E2E"
+case "${1:-all}" in logs|status|sh|review|report|-h|--help) ;; *) . tools/lock.sh; E2E_LOCK_CMD="run.sh $*" e2e_lock "$E2E" ;; esac
 # The environment wins over e2e.conf: E2E_VOLUME=large ./run.sh must not be silently overwritten.
 _e2e_env=$(export -p | grep -E "^(declare -x |export )E2E_" || true)
 set -a; . ./e2e.conf; set +a
@@ -60,7 +62,7 @@ START=$SECONDS
 # A bench refreshed long ago keeps old tools: warn when they differ from the skill that initialised it.
 if [ -f "$E2E/.toolkit" ] && [ -d "$(cat "$E2E/.toolkit")/tools" ]; then
   _tk=$(cat "$E2E/.toolkit")
-  if ! diff -rq --exclude __pycache__ "$_tk/tools" "$E2E/tools" >/dev/null 2>&1 || ! diff -rq --exclude __pycache__ "$_tk/tests" "$E2E/tests" >/dev/null 2>&1 || ! diff -q "$_tk/templates/run.sh" "$E2E/run.sh" >/dev/null 2>&1; then
+  if ! diff -rq --exclude __pycache__ --exclude check-v8-floor.sh --exclude v8-floor.conf --exclude python.sh --exclude py.sh "$_tk/tools" "$E2E/tools" >/dev/null 2>&1 || ! diff -rq --exclude __pycache__ "$_tk/tests" "$E2E/tests" >/dev/null 2>&1 || ! diff -q "$_tk/templates/run.sh" "$E2E/run.sh" >/dev/null 2>&1; then
     printf '\033[1mbench out of date: its tools differ from %s — run init-e2e.sh on the project to refresh them\033[0m\n' "$_tk" >&2
   fi
 fi
@@ -170,9 +172,9 @@ cmd_up() {
 
 cmd_inventory() {
   step "inventory"
-  local exploded; exploded=$(find harness/site/target -maxdepth 1 -type d -name "e2e-site-*" 2>/dev/null | head -1)
+  local exploded; exploded=$(find harness/site/target -maxdepth 1 -type d -name "e2e-site-*" 2>/dev/null | head -1 || true)
+  [ -n "$exploded" ] || echo "inventory: no assembled site yet (run.sh build), the artefact's own sources only"
   python3 tools/inventory.py "$E2E_SRC" ${exploded:+--extra "$exploded"} --markdown-out artifacts/inventory.md > artifacts/inventory.json
-  python3 tools/ears.py artifacts/inventory.json scenarios > artifacts/requirements.ears.md
   python3 -c "import json;print(json.load(open('artifacts/inventory.json'))['stats'])"
 }
 
@@ -181,8 +183,8 @@ cmd_discover() {
   runner tools/discover.py
 }
 
-# What exactly was tested, written where the report reads it: the war's hash, the image digests, the commit of the
-# sources. A green run means nothing when nobody can say which build it was.
+# What exactly was tested, written where the report reads it: the source key (tools/source-key.py), the image
+# digests, the commit of the sources. A green run means nothing when nobody can say which build it was.
 fingerprint() {
   python3 - "$E2E_SRC" <<'PY'
 import hashlib, json, os, pathlib, subprocess, sys
@@ -190,10 +192,9 @@ src = sys.argv[1]
 def run(*a):
     try: return subprocess.check_output(a, text=True, stderr=subprocess.DEVNULL).strip()
     except Exception: return ""
-war = pathlib.Path("harness/site/target/lutece.war")
 fp = {"source_commit": run("git", "-C", src, "rev-parse", "--short", "HEAD"),
       "source_dirty": bool(run("git", "-C", src, "status", "--porcelain")),
-      "war_sha256": hashlib.sha256(war.read_bytes()).hexdigest()[:16] if war.exists() else None,
+      "source_key": run(sys.executable, "tools/source-key.py", src),
       "base_url": os.environ.get("E2E_BASE_URL") or None,
       "images": {}}
 name = os.environ.get("E2E_NAME", "")
@@ -202,7 +203,7 @@ for img in (name + "-server:local", "mariadb:11.8", "mcr.microsoft.com/playwrigh
     if d: fp["images"][img] = d.split("|")[0] or d.split("|")[1][:19]
 pathlib.Path("artifacts").mkdir(exist_ok=True)
 pathlib.Path("artifacts/fingerprint.json").write_text(json.dumps(fp, indent=1))
-print("fingerprint: sources %s%s, war %s" % (fp["source_commit"] or "?", " (uncommitted changes)" if fp["source_dirty"] else "", fp["war_sha256"] or "-"))
+print("fingerprint: sources %s%s, key %s" % (fp["source_commit"] or "?", " (uncommitted changes)" if fp["source_dirty"] else "", fp["source_key"] or "-"))
 PY
 }
 
@@ -255,7 +256,7 @@ security_overrides() {
 cmd_test() {
   step "tests: screens + scenarios + forms ($E2E_WORKERS workers)"
   fingerprint || true
-  "${COMPOSE[@]}" run --rm dbinit > /dev/null 2>&1 || true
+  "${COMPOSE[@]}" run --rm --no-deps dbinit > /dev/null 2>&1 || true
   rm -rf artifacts/results artifacts/shots artifacts/aria artifacts/state; mkdir -p artifacts/results
   runner tools/metrics.py snapshot before
   local rc=0
@@ -320,11 +321,14 @@ needs_build() {
   # version); the other tools (inventory, review, report) do not, and a toolkit refresh must not rebuild for them.
   # Without them here, editing the conf changes nothing, the old war keeps running and the symptom is a screen
   # answering "this page does not exist" with no explanation.
-  [ -n "$(find e2e.conf harness tools/gen-site.sh tools/liquibase-visibility.sh -type f -newer harness/site/target/lutece.war 2>/dev/null | grep -v '^harness/site/target/' | head -1)" ] && return 0
+  [ -n "$(find e2e.conf harness tools/gen-site.sh tools/liquibase-visibility.sh -type f -newer harness/site/target/lutece.war 2>/dev/null | grep -vE '^harness/(site/target|site7|src7)/' | head -1)" ] && return 0
   # A Lutece artefact rebuilt in the local repository since this war was assembled — a dependency fixed locally,
   # a sibling plugin reinstalled — is not in the war yet. Without this the bench silently keeps testing the old
   # jar and the fix looks like it changed nothing. Scoped to fr/paris/lutece, so it costs milliseconds.
-  [ -n "$(find "${M2_REPO:-$HOME/.m2/repository}/fr/paris/lutece" \( -name '*.jar' -o -name '*-webapp.zip' \) -newer harness/site/target/lutece.war 2>/dev/null | head -1)" ] && return 0
+  # The artefact's own jars are left out: its sources are checked above, and the v7 leg of compare installs its v7
+  # build there, which would otherwise make every run after a compare rebuild for nothing.
+  local own; own=$(grep -oE "<artifactId>[^<]+" "$E2E_SRC/pom.xml" 2>/dev/null | sed -n 2p | sed 's/<artifactId>//')
+  [ -n "$(find "${M2_REPO:-$HOME/.m2/repository}/fr/paris/lutece" \( -name '*.jar' -o -name '*-webapp.zip' \) -newer harness/site/target/lutece.war 2>/dev/null | grep -v "/${own:-none}/" | head -1)" ] && return 0
   return 1
 }
 
@@ -453,6 +457,32 @@ snapshot() {
   for x in artifacts/junit-*.xml; do [ -e "$x" ] && mv "$x" "artifacts/$1/"; done
   mkdir -p artifacts/logs artifacts/logs7; chmod 777 artifacts/logs artifacts/logs7 2>/dev/null || true
 }
+# Key of the v7 leg: the v7 sources and the hand-written bench files that shape it (harness/site, site7 and src7 are
+# generated on every run). Unchanged key, same v7 result.
+v7_key() {
+  python3 - "$E2E_SRC" "${E2E_V7_REF:-HEAD}" <<'PY'
+import hashlib, pathlib, subprocess, sys
+h = hashlib.sha256(subprocess.run(["git", "-C", sys.argv[1], "rev-parse", sys.argv[2]], capture_output=True, text=True).stdout.encode())
+for top in ("e2e.conf", "harness", "scenarios", "tests", "tools", "fixtures", "baselines"):
+    for p in sorted(pathlib.Path(top).rglob("*")) if pathlib.Path(top).is_dir() else [pathlib.Path(top)]:
+        if p.is_file() and "__pycache__" not in p.parts and not str(p).startswith(("harness/site/", "harness/site7/", "harness/src7/")):
+            h.update(str(p).encode()); h.update(p.read_bytes())
+print(h.hexdigest()[:12])
+PY
+}
+# Waits for the database container to report healthy.
+wait_db() {
+  local i; for i in $(seq 1 120); do
+    [ "$(docker inspect -f '{{.State.Health.Status}}' "${E2E_NAME}-db-1" 2>/dev/null)" = healthy ] && return 0; sleep 1
+  done
+  echo "database not healthy after 120s"; exit 1
+}
+# Succeeds when the artefact declares a portlet: the v7 warnings about XSL portlets are about its portlets only, the
+# same errors from another plugin of the v7 site say nothing about it.
+has_portlet() {
+  grep -qs "<portlet>" "$E2E_SRC"/webapp/WEB-INF/plugins/*.xml
+}
+
 cmd_compare() {
   COMPOSE+=(--profile v7)
   # A plugin assembled on the v8 leg but absent from the v7 one arrives on a database where its tables already
@@ -466,16 +496,28 @@ cmd_compare() {
       echo ">> WARNING: $art is assembled on the v8 leg but not listed in E2E_V7_PLUGINS: its v7→v8 upgrades will not run on the taken-over database." ;;
     esac
   done
-  step "compare 1/6: v7 site and image, v8 image"
+  local rc7=0 v7cache
+  v7cache="artifacts/.v7-cache/$(v7_key)"
+  # needs_build also rebuilds when e2e.conf changed, so a war never carries plugins the current conf dropped.
+  needs_build && cmd_build
+  "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+  rm -rf artifacts/logs artifacts/logs7 artifacts/v7 artifacts/v8 artifacts/compare.md artifacts/compare.html artifacts/pass-compare
+  mkdir -p artifacts/logs artifacts/logs7; chmod 777 artifacts/logs artifacts/logs7 2>/dev/null || true
+  if [ -f "$v7cache/rc7" ]; then
+    step "compare 1-3/6: v7 leg unchanged since $(basename "$v7cache"), reused (its warnings are in that run's output)"
+    cp -r "$v7cache/v7" artifacts/
+    cp "$v7cache/v7-seeded.sql" artifacts/
+    if [ -f "$v7cache/v7-render-warning.txt" ]; then cp "$v7cache/v7-render-warning.txt" artifacts/; else rm -f artifacts/v7-render-warning.txt; fi
+    mkdir -p harness/site7/target; cp "$v7cache/versions.properties" harness/site7/target/
+    rc7=$(cat "$v7cache/rc7")
+    cmd_inventory
+    "${COMPOSE[@]}" up -d db mail
+    wait_db
+  else
+  step "compare 1/6: v7 site and image"
   bash tools/gen-site7.sh
   "${COMPOSE[@]}" build lutece7
-  # Always rebuild the v8 site here, never `needs_build`: a war left from an earlier run may carry plugins the
-  # current e2e.conf does not assemble, and their v7→v8 scripts would then run on the v7 database.
-  cmd_build
   step "compare 2/6: v7 on a fresh database, seeded"
-  "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
-  rm -rf artifacts/logs artifacts/logs7 artifacts/v7 artifacts/v8 artifacts/compare.md artifacts/compare.html
-  mkdir -p artifacts/logs artifacts/logs7; chmod 777 artifacts/logs artifacts/logs7 2>/dev/null || true
   # The artefact calls the same outside systems on both legs: the stand-ins and the search engines are part of
   # the comparison, not of `run.sh all` only — without them the v8 leg fails on calls the v7 leg never made.
   "${COMPOSE[@]}" up -d db mail lutece7 ${E2E_FAKES:+fakes oauth2} ${E2E_SEARCH:+solr elastic}
@@ -490,6 +532,15 @@ cmd_compare() {
   rows_owned() { local t q=""; for t in $owned; do q="$q + (SELECT COUNT(*) FROM $t)"; done; [ -n "$q" ] && docker exec "${E2E_NAME}-db-1" mariadb -ulutece -plutece lutece -N -e "SELECT 0 $q" 2>/dev/null || echo 0; }
   before=$(rows_owned)
   E2E_VERSION=v7 "${COMPOSE[@]}" run --rm --no-deps dbinit
+  # A v7 site installs its plugins from the admin, which registers each portlet type of the descriptor; plugins.dat
+  # only runs init( ). The rows registerPortlets( ) writes are added here, as the base of a real v7 site holds them.
+  local site7 ptypes
+  site7=$(find harness/site7/target -maxdepth 1 -type d -name "e2e-site7-*" | head -1)
+  ptypes=$([ -n "$site7" ] && python3 tools/v7-portlet-types.py "$site7" || true)
+  if [ -n "$ptypes" ]; then
+    printf '%s\n' "$ptypes" | docker exec -i "${E2E_NAME}-db-1" mariadb -ulutece -plutece lutece
+    echo ">> v7 base: $(printf '%s\n' "$ptypes" | grep -c '^INSERT') portlet type(s) registered as a v7 plugin installation does"
+  fi
   after=$(rows_owned)
   # A migration is proven on data, not on an empty schema: the v7 base must carry what a site in production holds
   # (the artefact's business rows, in the v7 schema), written by the bench in harness/db/seed-<name>*.sql.
@@ -504,7 +555,7 @@ cmd_compare() {
   # The v7 Ant build continues on SQL errors, so a plugin whose init_core targets tables the chosen v7 core has
   # already dropped installs silently half-way — and the comparison then reads "corrigé" where the bench simply
   # did not prepare v7. Say it here, with the way out.
-  docker logs "$APP7" 2>&1 | grep -q "core_style.*doesn't exist" && cat <<'WARN'
+  has_portlet && docker logs "$APP7" 2>&1 | grep -q "core_style.*doesn't exist" && cat <<'WARN'
 >> WARNING: this plugin's v7 SQL writes core_style* and the core E2E_V7_CORE no longer has those tables.
 >> The v7 portlet will render nothing and every portlet scenario will read as "corrigé" in the comparison.
 >> Set E2E_V7_CORE to a core that still carries them (7.1.8) in e2e.conf, and run compare again.
@@ -515,7 +566,6 @@ WARN
   docker exec "${E2E_NAME}-db-1" mariadb-dump -ulutece -plutece --single-transaction lutece > artifacts/v7-seeded.sql
   step "compare 3/6: suites on v7"
   cmd_inventory
-  local rc7=0
   E2E_APP=lutece7 E2E_APP_PORT=8080 E2E_VERSION=v7 cmd_discover || true
   E2E_APP=lutece7 E2E_APP_PORT=8080 E2E_VERSION=v7 cmd_test || rc7=$?
   E2E_APP=lutece7 E2E_APP_PORT=8080 E2E_VERSION=v7 runner tools/metrics.py perf >/dev/null 2>&1 || true
@@ -524,13 +574,18 @@ WARN
   # An XSL portlet whose stylesheet the v7 core cannot load fails there and renders in v8, where the migration
   # ported it to HTML: the verdict "corrigé" is then about the bench's v7 site, not about the artefact. Said in
   # the run and carried into the comparison, where the reader sees the verdict.
-  if grep -qE "XmlTransformerService|core_style.*doesn't exist" artifacts/logs7/catalina.out; then
+  if has_portlet && grep -qE "XmlTransformerService|core_style.*doesn't exist" artifacts/logs7/catalina.out; then
     printf '%s\n' "La jambe v7 n'a pas pu rendre un portlet XSL (XmlTransformerService en erreur, ou tables core_style absentes de ce core v7). Les verdicts « corrigé » portant sur un rendu de portlet sont à lire comme « non rendu en v7 », pas comme un défaut corrigé par la migration." > artifacts/v7-render-warning.txt
     echo ">> WARNING: the v7 leg could not render an XSL portlet — see artifacts/v7-render-warning.txt"
   else
     rm -f artifacts/v7-render-warning.txt
   fi
   snapshot v7
+  rm -rf artifacts/.v7-cache; mkdir -p "$v7cache"
+  cp -r artifacts/v7 artifacts/v7-seeded.sql harness/site7/target/versions.properties "$v7cache/"
+  [ -f artifacts/v7-render-warning.txt ] && cp artifacts/v7-render-warning.txt "$v7cache/"
+  echo "$rc7" > "$v7cache/rc7"
+  fi
   step "compare 4/6: the v8 site takes over the v7 database"
   "${COMPOSE[@]}" stop lutece7
   docker exec -i "${E2E_NAME}-db-1" mariadb -ulutece -plutece lutece < artifacts/v7-seeded.sql
@@ -574,13 +629,25 @@ WARN
   cmd_perf || true
   cmd_report || true
   snapshot v8
+  python3 tools/review.py todo > /dev/null 2>&1 || true
   step "compare 6/6: before / after"
   local rcc=0; python3 tools/compare.py || rcc=$?
   [ "${KEEP:-}" = 1 ] || cmd_down
   step "compare done in $((SECONDS - START))s — v7 rc=$rc7, v8 rc=$rc8, compare rc=$rcc"
   # The v7 leg is informative (its reds are the plugin's v7 defects); the v8 leg and the comparison decide.
   local rc=$rcc; [ "$rc8" -ne 0 ] && rc=$rc8
+  if [ "$rc" -eq 0 ]; then pass_stamp compare; else rm -f artifacts/pass-compare; fi
   exit $rc
+}
+
+# Records that a run of `$1` (all, compare) passed on these sources, when their key did not change during the run: the
+# final gate then reuses it instead of playing the same sources again. Never after a skipped gate (REVIEW=skip,
+# COVERAGE=skip): an iteration run is not a delivery. Removed by any other outcome.
+pass_stamp() {
+  local now start
+  now=$(python3 tools/source-key.py "$E2E_SRC" 2>/dev/null || true)
+  start=$(python3 -c 'import json; print(json.load(open("artifacts/fingerprint.json")).get("source_key") or "")' 2>/dev/null || true)
+  if [ -n "$now" ] && [ "$now" = "$start" ]; then echo "$now" > "artifacts/pass-$1"; else rm -f "artifacts/pass-$1"; fi
 }
 
 cmd_down() {
@@ -598,7 +665,11 @@ case "${1:-all}" in
   test)      shift; if [ $# -gt 0 ]; then runner -m pytest -q --tb=short "$@"; else cmd_test; fi ;;
   perf)      cmd_perf ;;
   report)    cmd_report ;;
-  review)    python3 tools/review.py "${2:-check}" ;;
+  review)    python3 tools/review.py "${2:-check}"
+             # The run that stopped on rc=7 only lacked the review: once it is done, that run counts as passed.
+             if [ "${2:-check}" = check ] && [ -s artifacts/pass-tests ] && [ "$(cat artifacts/pass-tests)" = "$(python3 tools/source-key.py "$E2E_SRC" 2>/dev/null)" ]; then
+               cp artifacts/pass-tests artifacts/pass-all; echo ">> review done: the last run of these sources counts as passed, no need to run it again"
+             fi ;;
   compare)   cmd_compare ;;
   external)  cmd_external ;;
   deploy)    cmd_deploy ;;
@@ -608,6 +679,7 @@ case "${1:-all}" in
   status)    "${COMPOSE[@]}" ps ;;
   sh)        docker exec -it "$APP" sh ;;
   all)
+    rm -f artifacts/pass-all artifacts/pass-tests
     needs_build && cmd_build
     cmd_up
     cmd_inventory
@@ -630,9 +702,11 @@ case "${1:-all}" in
     if [ "${COVERAGE:-}" != skip ]; then
       python3 tools/coverage.py --gate > /dev/null || { python3 tools/coverage.py --gate | sed -n '/COVERAGE GATE/,$p'; [ "$rc" -ne 0 ] || rc=9; }
     fi
+    [ "$rc" -eq 0 ] && [ "${COVERAGE:-}" != skip ] && pass_stamp tests
     if [ "${REVIEW:-}" != skip ]; then
-      python3 tools/review.py check || { [ "$rc" -ne 0 ] || rc=7; }
+      python3 tools/review.py check || { [ "$rc" -ne 0 ] || { rc=7; echo ">> rc=7: every suite passed, only the visual review is missing: write artifacts/review.md, then ./run.sh review (no need to run the bench again)"; }; }
     fi
+    if [ "$rc" -eq 0 ] && [ "${COVERAGE:-}" != skip ] && [ "${REVIEW:-}" != skip ]; then pass_stamp all; else rm -f artifacts/pass-all; fi
     [ "${KEEP:-}" = 1 ] || cmd_down
     step "done in $((SECONDS - START))s, tests rc=$rc"
     exit $rc ;;

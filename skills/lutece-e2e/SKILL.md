@@ -28,18 +28,9 @@ Prerequisites: Docker + Compose v2, Maven 3.9.x (not 4) with the Lutece reposito
 `jar`), network access to Maven Central once. The artefact resolves a lutece-core at or above the level of
 `tools/v8-floor.conf`; `run.sh build` stops with rc=10 otherwise.
 
-**`run.sh build` installs the artefact under test in `~/.m2`.** That is how the bench proves a fix before it is
-published, but the patched build then shadows the published snapshot for **every other project on the machine**,
-silently and until someone notices. On a plugin it is usually harmless; on `lutece-core` it changes what every
-plugin resolves. After a bench on the core, put the published build back: delete the local snapshot (the jar and
-the `-webapp.zip` are both shadowed), then let the next `mvn -U` build download the published one.
-
-```bash
-rm -rf ~/.m2/repository/fr/paris/lutece/lutece-core/8.0.2-SNAPSHOT
-```
-
-Check with `md5sum` that the local `lutece-core-8.0.2-SNAPSHOT.jar` matches the latest jar of `maven-metadata.xml`
-on the snapshots repository.
+**`run.sh build` installs the artefact under test in `~/.m2`**, where it shadows the published snapshot for every
+other project on the machine. After a bench on `lutece-core`, delete its local snapshot directory (jar and
+`-webapp.zip`) so the next `mvn -U` build takes the published one again.
 
 ## Additional resources
 
@@ -101,8 +92,7 @@ Then edit `e2e/e2e.conf`:
 - Ports when several benches run on the same machine.
 
 **Front-office authentication comes with the bench.** `plugin-mylutece` and `module-mylutece-database` are
-assembled and enabled by default (`E2E_MYLUTECE=1`; 5.0.1-SNAPSHOT / 7.0.1-SNAPSHOT, the latest v8 snapshots;
-the v7 side of `compare` gets the last v7 releases), the plugin's own `mylutece.properties` turns authentication on without making the
+assembled and enabled by default (`E2E_MYLUTECE=1`; the v7 side of `compare` gets the last v7 releases), the plugin's own `mylutece.properties` turns authentication on without making the
 site private, and `harness/db/post-init-mylutece.sql` seeds the account **test / testtest** (role `e2e_user`).
 A scenario signs in with one step, `login_fo: {user: test, password: testtest, provider: mylutece-database}`
 (it fails when the login form is still there afterwards), under `anonymous: true`. A bench that needs another
@@ -132,9 +122,12 @@ cat e2e/artifacts/summary.md
 ./e2e/run.sh deploy                                  # after each fix
 ./e2e/run.sh test tests/test_scenarios.py -k <id>    # replay what the fix touches
 ./e2e/run.sh                                         # once at the end, then the review
+./e2e/run.sh compare                                 # once, last, when every suite is green
 ```
 
-Never a full run per fix. Stacks on one machine share its cores: run one bench at a time.
+Never a full run per fix, never a second compare on the same sources. A green run and a green compare leave the key
+of their sources (`artifacts/pass-all`, `pass-compare`), and `final-gate.sh` reuses them instead of playing them
+again. Stacks on one machine share its cores: run one bench at a time.
 
 Read in this order: the suite table, the failures, the console section, the server errors, the slowest
 paths. **A failing test is a finding, not a harness bug, until proven otherwise**: the core itself shows
@@ -143,7 +136,7 @@ touching the harness, confirm the cause in `artifacts/logs/messages.log` (stack 
 screenshot referenced by the failure (`artifacts/report.html`).
 
 Harness-side causes (fix them in the bench, not in the app):
-- a screen needs a parameter the crawl did not find → add a scenario that reaches it, or a seed row;
+- a screen needs a parameter the crawl did not find → a `params` rule in `scenarios/screens.yaml`, or a seed row;
 - a form needs a value the generic filler cannot guess → `values:` in a `fill_form` step;
 - a scenario logs out or changes the password → `isolated: true`;
 - a session-less public screen → it is already routed to the anonymous context (`SESSIONLESS`).
@@ -170,9 +163,10 @@ form, a page a scenario crossed without asserting). Reached but not proven is li
 Flags: `isolated: true` (own session: logout, own password), `anonymous: true` (public screens, no session),
 `serial: true` (changes settings shared by every session — security parameters, e-mail pattern, feature groups,
 plugin install; run alone after the parallel pass, so it cannot break a user creation running elsewhere).
-Before calling an "Internal error" a defect, drive the flow the way the interface does (`tools/forms.sh`, the
-links of the previous screen): a screen called without a parameter it expects is a robustness finding, not a
-functional one — the two are reported apart.
+A screen no link of the application reaches, opened bare because only the inventory names it, is a robustness
+finding when it fails without its parameters: listed apart, never a red run. Before calling an "Internal error" on
+any other screen a defect, drive the flow the way the interface does (`tools/forms.sh`, the links of the previous
+screen).
 
 **The artefact's own actions are the point of the bench, and a run does not end green without them.** A plugin
 exists for one or two workflows — an import plugin imports files, a form plugin submits a form — and a bench that opens its
@@ -184,22 +178,18 @@ from the artefact's main workflow, played end to end the way a user plays it (up
 
 Work the "à couvrir" list of `summary.md` down to zero: every inventory element ends up covered by a test, or
 listed in `scenarios/coverage-exclusions.yaml` with a written reason (a defect found by the suites, a plugin
-not on the bench, a dead template). Exclusions stay visible in the report as debt; they never lower the totals. **A defect of the artefact itself is never an exclusion**, in `coverage-exclusions.yaml` or under `skip` in `screens.yaml`: a screen that dies on load ("jQuery is not defined") is opened and fails red, and the defect is fixed or reported, not written down as a reason to look away. `python3 tools/coverage.py` prints the to-do list; `python3 tools/causes.py`
+not on the bench, a dead template). Exclusions stay visible in the report as debt; they never lower the totals. **A defect of the artefact itself is never an exclusion**, in `coverage-exclusions.yaml` or under `skip` in `screens.yaml`: a screen that dies on load ("jQuery is not defined") is opened and fails red, and the defect is fixed or reported, not written down as a reason to look away. `bash tools/py.sh tools/coverage.py` prints the to-do list; `bash tools/py.sh tools/causes.py`
 prints the server exception behind each failure; `bash tools/forms.sh <src> <feature>` prints the forms and
 field names of a feature's templates. When a real defect blocks the middle of a lifecycle, split the scenario
 so the actions after the defect stay covered. `sql_exec` arranges data the UI cannot create (a broken create screen), never asserts.
 
 One YAML per feature in `e2e/scenarios/`. Aim for one CRUD lifecycle per admin feature of the artefact
 (create through the real form → read back on the listing → modify → remove), with the database as the
-oracle. The step vocabulary is documented at the top of `tests/test_scenarios.py`. Find field names with:
-
-```bash
-grep -oE "name=['\"][a-z_]+" webapp/WEB-INF/templates/admin/<feature>/*.html | sort -u
-python3 e2e/tools/inventory.py . --markdown | head -60          # features, screens, actions
-```
+oracle. The step vocabulary is documented at the top of `tests/test_scenarios.py`; `artifacts/inventory.md` lists
+the features, screens and actions.
 
 Rules:
-- `req:` = the Lutece right of the feature (`CORE_USERS_MANAGEMENT`…). EARS requirements are generated from it.
+- `req:` = the Lutece right of the feature (`CORE_USERS_MANAGEMENT`…), shown with the scenario in `report.html`.
 - `title:` is what the report shows in place of the id, `description:` (optional) the paragraph under it: why this
   scenario exists, what defect it pins, what a reader should know before the steps. Write it as a `>-` block — a
   bare scalar containing `: ` is not valid YAML and silently invalidates the whole file.
@@ -219,9 +209,13 @@ bench's own** `harness/db/seed-<target>.sql` and prove the refusal with it — t
 account, because who is restricted from what is a property of the target. `templates/scenarios-negative-example.yaml`
 is the model.
 
+**A defect of the core the plugin must not work around** (an `@Action` the core runs on GET without its token) is
+proven by its scenario with `core_defect: "<the defect>"`: the report lists it under the core defects not handled
+and the run stays green; never add a guard in the plugin to turn it green.
+
 **The CSRF one is not waivable, and "the platform does not protect this path" is not a reason to skip it.** It is
 a reason to write it: a legacy path outside the automatic filter is exactly where the hole lives. A portlet
-JspBean is the known case — the plugin closes it itself (`lutece-migration-v8-agent-teams`,
+JspBean is the known case — the plugin closes it itself (`lutece-update`,
 `patterns/mvc-patterns.md` §11). Cover **every** mutation, including the ones reached by a link: a delete behind
 `<a href="…Do…?id=1">` is a GET that writes.
 
@@ -262,9 +256,10 @@ until the agent has looked at every screen.
 only a signed-in user reaches, such as a front-office page behind a login, into the review) — and writes
 `artifacts/review-todo.md`. The gate then calls
 `tools/review.py check` and **fails with rc=7** until `artifacts/review.md` carries a verdict for every group.
-`REVIEW=skip ./run.sh all` bypasses it; use that only to iterate, never to hand over. A full run always ends rc=7 the first time: it renumbers
-the groups and writes the war hash, so the review is written after it, on its captures, and `./run.sh review` then
-gives rc=0. That pair (full run, then `review`) is the hand-over.
+`REVIEW=skip ./run.sh all` bypasses it; use that only to iterate, never to hand over. The first full run ends rc=7:
+the review is written after it, on its captures, and `./run.sh review` then gives rc=0 and marks that run as passed:
+never run the bench again only for the review. The review stays valid for every later run of the same sources, and
+while its captures are unchanged. The failure capture of a `core_defect` scenario is not a group.
 
 How the agent does it:
 
@@ -272,9 +267,9 @@ How the agent does it:
   only: a defect that a mechanical check could see would already have been reported.
 - Judge against the five points printed in `review-todo.md`: charte, mise en page, contenu, cohérence,
   lisibilité.
-- Write `war: <hash>` (the line `review-todo.md` prints) at the top of `artifacts/review.md`, then one line per group:
+- Write the `key:` and `shots:` lines `review-todo.md` prints at the top of `artifacts/review.md`, then one line per group:
   `- [x] G012 ok` or `- [x] G012 defect: …`, then a short synthesis ordering the plugin's own defects by impact. The
-  gate refuses a review written for another war or older than the run's list: groups are renumbered on every run.
+  gate refuses a review written for other sources: once a file changes, the screens must be judged again.
 - **Attribute**, exactly like the server-error gate. A broken footer image or a mislabelled core dialog belongs
   to the site theme or the core, not to the artefact under test. Say so in the verdict and keep it out of the
   synthesis.
@@ -289,9 +284,8 @@ exposes, are in [reference/traps.md](reference/traps.md) § Naming a rendering d
   visual review (`review.py`) judges the artefact's own screen families; a widened run's core screens are the
   environment's and are not listed.
 - `artifacts/fingerprint.json` (also on the first line of `summary.md`) names what was tested: sources commit,
-  war hash, image digests — a green run with no fingerprint is a green run of nothing in particular.
-- CI: `junit 'e2e/artifacts/junit-*.xml'`, publish `report.html`, archive `summary.md`, `compare.md`,
-  `fingerprint.json`; `run.sh` exit codes tell the cause apart (see its header).
+  source key (`tools/source-key.py`, the same for two builds of the same sources), image digests — a green run
+  with no fingerprint is a green run of nothing in particular.
 - **A skip is not a proof.** A suite with something to prove (the fo suite when the inventory has a front
   office, the scenarios, the screens) whose every test is skipped fails the run with code 8. An exclusion the bench
   declared and justified is not that silence: when every skip of the suite comes from a rule written in

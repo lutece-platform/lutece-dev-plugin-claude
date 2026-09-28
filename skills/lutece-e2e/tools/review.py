@@ -20,7 +20,20 @@ import re
 import sys
 
 E2E = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(E2E / "tests"))
+import lutece  # noqa: E402
 A = E2E / "artifacts"
+
+
+def _run_dir():
+    """Directory holding the last run's results and captures: artifacts/, or artifacts/v8/ once `run.sh compare` moved them."""
+    for d in (A, A / "v8"):
+        if (d / "results").is_dir():
+            return d
+    return A
+
+
+RUN = _run_dir()
 
 CHECKLIST = """Pour chaque groupe, ouvrir la capture et répondre :
 1. **Charte** — thème attendu appliqué (en-tête, menu, pied), typographie et composants du design system, aucune
@@ -35,7 +48,7 @@ CHECKLIST = """Pour chaque groupe, ouvrir la capture et répondre :
 
 def rows():
     out = []
-    for f in sorted((A / "results").glob("*.jsonl")):
+    for f in sorted((RUN / "results").glob("*.jsonl")):
         out += [json.loads(l) for l in f.read_text().splitlines() if l.strip()]
     return out
 
@@ -71,7 +84,7 @@ def _findings(r):
 
 def _digest(shot):
     """Content hash of a capture, or None when the file is gone."""
-    f = A / shot
+    f = RUN / shot
     return hashlib.md5(f.read_bytes()).hexdigest() if f.exists() else None
 
 
@@ -84,16 +97,6 @@ def _in_scope():
         return lutece.scope()
     except Exception:  # noqa: BLE001 - no inventory, no scope: judge everything
         return lambda u: True
-
-
-def _screen_key(url):
-    """What makes two captures the same screen: the path plus its routing parameters (page, view, action), so the
-    list, create and modify views of one MVC controller are three groups, not one."""
-    import urllib.parse
-    base, _, query = url.partition("?")
-    q = urllib.parse.parse_qs(query)
-    parts = ["%s=%s" % (k, q[k][0]) for k in ("page", "view", "action") if k in q]
-    return base + ("?" + "&".join(parts) if parts else "")
 
 
 def _with_review_shots(rows_):
@@ -109,18 +112,21 @@ def _with_review_shots(rows_):
 
 def groups():
     """One review group per (url path, kind) of the artefact under test, with a representative screenshot and
-    the urls it stands for. Scenario captures count as the artefact's whatever their url."""
+    the urls it stands for. Scenario captures count as the artefact's whatever their url, except the failure capture of
+    a core defect scenario: a known red of the core, not a rendering of the artefact, and different on every run."""
     g = collections.OrderedDict()
     in_scope = _in_scope()
     for r in _with_review_shots(rows()):
         shot = r.get("screenshot")
         if not shot or r.get("suite") not in ("screens", "fo", "forms", "scenarios"):
             continue
+        if r.get("core_defect"):
+            continue
         if r.get("failed_step_kind") == "http":
             continue
         if r.get("suite") != "scenarios" and not in_scope(r.get("url") or r.get("screen") or ""):
             continue
-        path = _screen_key(r.get("url") or r.get("screen") or r["id"])
+        path = lutece.nav_key(r.get("url") or r.get("screen") or r["id"])
         key = (path, r.get("kind") or "?")
         e = g.setdefault(key, {"path": path, "kind": key[1], "suite": r["suite"], "shot": shot,
                                "urls": set(), "render": [], "status": set()})
@@ -137,12 +143,39 @@ def groups():
     return ordered
 
 
-def war_stamp():
-    """Short hash of the war the run tested (fingerprint.json), or None: a review is valid for that war only."""
+def key_stamp():
+    """Source key of the run (fingerprint.json, tools/source-key.py), or None: a review is valid for that key only."""
     try:
-        return json.loads((A / "fingerprint.json").read_text()).get("war_sha256", "")[:12] or None
-    except Exception:  # noqa: BLE001 - no fingerprint: the date check alone applies
+        return json.loads((A / "fingerprint.json").read_text()).get("source_key") or None
+    except Exception:  # noqa: BLE001 - no fingerprint: nothing to tie the review to
         return None
+
+
+REVIEWED = A / "review-shots.json"
+"""Capture digest of each group (by path and kind) at the last accepted review."""
+
+
+def reviewed_digests():
+    """The capture digests the last accepted review judged, keyed by group path and kind."""
+    try:
+        return json.loads(REVIEWED.read_text())
+    except Exception:  # noqa: BLE001 - no accepted review yet
+        return {}
+
+
+def changed_since_review(gs):
+    """Ids of the groups whose capture differs from the one the last accepted review judged."""
+    before = reviewed_digests()
+    return [e["id"] for e in gs if before and before.get("%s|%s" % (e["path"], e["kind"])) != _digest(e["shot"])]
+
+
+def shots_stamp(gs):
+    """Fingerprint of the captures a review judges (one per group), or None when one is missing: a review stays valid
+    while its captures are byte for byte the same, whatever else changed in the sources."""
+    digests = ["%s:%s" % (e["id"], _digest(e["shot"])) for e in gs]
+    if not digests or any(d.endswith(":None") for d in digests):
+        return None
+    return hashlib.md5("\n".join(sorted(digests)).encode()).hexdigest()[:16]
 
 
 def todo():
@@ -152,10 +185,12 @@ def todo():
          "soient les données. Ouvrir la capture indiquée, répondre à la grille, puis reporter un verdict par",
          "groupe dans `artifacts/review.md` (une ligne `- [x] G012 ok` ou `- [x] G012 defect: …`).", "",
          CHECKLIST, "",
-         "War jugé : `%s` — recopier cette ligne `war: %s` en tête de `artifacts/review.md` : une revue ne vaut "
-         "que pour le war qu'elle a regardé." % (war_stamp() or "?", war_stamp() or "?"), "",
+         "Sources jugées : `%s` — recopier en tête de `artifacts/review.md` les lignes `key: %s` et `shots: %s` : "
+         "une revue vaut pour les sources qu'elle a regardées, ou tant que ses captures restent identiques."
+         % (key_stamp() or "?", key_stamp() or "?", shots_stamp(gs) or "?"), "",
          "| Groupe | Écran | Type | Constat mécanique | Capture |", "|---|---|---|---|---|"]
     seen = {}
+    changed = set(changed_since_review(gs))
     for e in gs:
         d = _digest(e["shot"])
         twin = seen.get(d)
@@ -165,9 +200,11 @@ def todo():
         if twin:
             notes = ("%s — capture identique à %s (probable redirection)"
                      % ("" if notes == "—" else notes, twin)).strip(" —")
+        if e["id"] in changed:
+            notes = ("%s — capture changée depuis la dernière revue" % ("" if notes == "—" else notes)).strip(" —")
         L.append("| %s | `%s`%s | %s | %s | `%s` |" % (
             e["id"], e["path"], (" (+%d variantes)" % (len(e["urls"]) - 1)) if len(e["urls"]) > 1 else "",
-            e["kind"], notes, e["shot"]))
+            e["kind"], notes, (RUN / e["shot"]).relative_to(A)))
     (A / "review-todo.md").write_text("\n".join(L) + "\n")
     flagged = sum(1 for e in gs if e["render"])
     print("review-todo.md : %d groupes (%d avec un constat mécanique), %d captures couvertes"
@@ -188,15 +225,13 @@ def check():
         print("REVUE VISUELLE NON FAITE : %d groupes à examiner, artifacts/review.md absent "
               "(voir artifacts/review-todo.md)" % len(gs))
         return 7
-    listed = A / "review-todo.md"
-    if listed.exists() and f.stat().st_mtime < listed.stat().st_mtime:
-        print("REVUE VISUELLE PÉRIMÉE : artifacts/review.md date d'avant la liste de ce run (review-todo.md) ; "
-              "les groupes sont renumérotés à chaque run, refaire la revue sur les captures actuelles")
-        return 7
-    stamp = war_stamp()
-    if stamp and ("war: %s" % stamp) not in f.read_text():
-        print("REVUE VISUELLE D'UN AUTRE WAR : artifacts/review.md ne porte pas la ligne `war: %s` du war de ce run "
-              "(fingerprint.json) ; refaire la revue sur les captures de ce war" % stamp)
+    stamp, shots = key_stamp(), shots_stamp(gs)
+    text = f.read_text()
+    if not (stamp and ("key: %s" % stamp) in text) and not (shots and ("shots: %s" % shots) in text):
+        changed = changed_since_review(gs)
+        print("REVUE VISUELLE D'AUTRES SOURCES : artifacts/review.md ne porte ni la ligne `key: %s` de ce run "
+              "(fingerprint.json) ni la ligne `shots: %s` de ses captures ; refaire la revue sur les captures qui ont "
+              "changé%s" % (stamp or "?", shots or "?", (" : %s (review-todo.md)" % ", ".join(changed)) if changed else ""))
         return 7
     done = set(re.findall(r"\bG\d{3}\b", f.read_text()))
     missing = [e["id"] for e in gs if e["id"] not in done]
@@ -204,6 +239,7 @@ def check():
         print("REVUE VISUELLE INCOMPLÈTE : %d/%d groupes sans verdict (%s%s)"
               % (len(missing), len(gs), ", ".join(missing[:8]), "…" if len(missing) > 8 else ""))
         return 7
+    REVIEWED.write_text(json.dumps({"%s|%s" % (e["path"], e["kind"]): _digest(e["shot"]) for e in gs}, indent=1))
     print("revue visuelle : %d/%d groupes couverts" % (len(gs), len(gs)))
     return 0
 

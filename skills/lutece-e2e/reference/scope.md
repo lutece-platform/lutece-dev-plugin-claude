@@ -43,7 +43,8 @@ Read when deciding what a plugin's bench must cover, and when interpreting what 
   data the bench itself created, which reads as a defect of the artefact.
 - **Reference rows**: `harness/db/seed-<plugin>.sql` inserts fixed-id rows guarded by `WHERE NOT EXISTS`
   (ids in the 9000s so they never collide with the DAO's max+1), re-applied by every full `run.sh test`. Scenarios read
-  them, create their own `{{rand}}` rows for mutations, and protect them from the fuzzer with `protected`.
+  them and create their own `{{rand}}` rows for mutations. The fuzzer never posts a delete form aimed at an id in the
+  9000s; `protected` shields the other forms of a reference row.
 - **A probe asserts behaviour, never identity.** `CdiHelper.getReference( IService.class, name )` and
   `CDI.current( ).select( IService.class ).get( )` hand back a **Weld client proxy generated on the interface**:
   its class name is `iservice$...$weldclientproxy` and `instanceof TheImplementation` is false, always, migration

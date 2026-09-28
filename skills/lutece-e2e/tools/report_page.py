@@ -204,7 +204,7 @@ def scenario_card(r, sc, causes):
         cause = ""
         if c:
             cause = "<div class=cause>%s%s</div>" % ("Cause côté serveur : " if conf else "Piste côté serveur, non confirmée : ",
-                                                     esc((conf[0] if conf else c[0])[12:].strip()[:300]))
+                                                     esc(re.sub(r"^\[[^]]*\]\s*", "", conf[0] if conf else c[0]).strip()[:300]))
         where = " à l'étape %d" % (failed + 1) if failed is not None else ""
         reason = '<div class=fail><strong>Échec%s</strong> — %s%s</div>' % (where, esc((r.get("reason") or "")[:500]), cause)
     elif st == "skip":
@@ -423,7 +423,9 @@ def hero(name, rows, cov, inv, when):
 
 def defects_section(rows, is_target, causes):
     fails = [r for r in rows if state(r) == "ko"]
-    if not fails:
+    robust = [r for r in rows if r.get("robustness") and is_target(r)]
+    core = [r for r in rows if r.get("core_defect")]
+    if not fails and not robust and not core:
         return ""
     env = [r for r in fails if not is_target(r)]
     own = [r for r in fails if is_target(r)]
@@ -433,7 +435,7 @@ def defects_section(rows, is_target, causes):
         conf = [x for x in c if x.startswith("[confirmed]")]
         cause = ""
         if c:
-            cause = " <span class=dim>⇐ %s%s</span>" % ("" if conf else "piste : ", esc((conf[0] if conf else c[0])[12:].strip()[:160]))
+            cause = " <span class=dim>⇐ %s%s</span>" % ("" if conf else "piste : ", esc(re.sub(r"^\[[^]]*\]\s*", "", conf[0] if conf else c[0]).strip()[:160]))
         label = r.get("title") or (r.get("url") or r.get("screen") or r["id"])
         return '<li><a href="#%s"><span class="dot ko"></span>%s</a> <span class=dim>%s</span> — %s%s</li>' % (
             esc(anchor(r)), esc(label), esc(SUITE_LABEL.get(r["suite"], r["suite"])), esc((r.get("reason") or "")[:220].replace("\n", " ")), cause)
@@ -443,6 +445,12 @@ def defects_section(rows, is_target, causes):
         H.append("<ul class=defects>%s</ul>" % "".join(li(r) for r in sorted(own, key=lambda r: (r["suite"] != "scenarios", r["id"]))))
     if env:
         H.append("<details><summary>Hors périmètre — core et autres plugins du site (%d)</summary><ul class=defects>%s</ul></details>" % (len(env), "".join(li(r) for r in sorted(env, key=lambda r: r["id"])[:30])))
+    if core:
+        H.append("<details open><summary>Défauts du core, non traités dans le plugin — à signaler au core (%d)</summary><ul class=defects>%s</ul></details>" % (
+            len(core), "".join('<li><a href="#%s">%s</a> — %s</li>' % (esc(anchor(r)), esc(r.get("title") or r["id"]), esc(r["core_defect"][:300])) for r in core)))
+    if robust:
+        H.append("<details><summary>Robustesse, non bloquant — écrans qu'aucun lien n'ouvre sans paramètres (%d)</summary><ul class=defects>%s</ul></details>" % (
+            len(robust), "".join('<li><a href="#%s">%s</a> — %s</li>' % (esc(anchor(r)), esc(r.get("url") or r["id"]), esc(r["robustness"][:220])) for r in sorted(robust, key=lambda r: r["id"]))))
     H.append("</section>")
     return "".join(H)
 

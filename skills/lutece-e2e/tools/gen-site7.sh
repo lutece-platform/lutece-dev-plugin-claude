@@ -4,6 +4,7 @@
 # the migration is staged and not committed — checked out in a worktree and
 # built with plain mvn (the site pom declares the Lutece repositories), or with E2E_MVN7 when a developer keeps separate settings.
 set -euo pipefail
+. "$(dirname "$0")/python.sh"
 E2E=$(cd "$(dirname "$0")/.." && pwd)
 # The environment wins over e2e.conf, as in run.sh: a caller that exported E2E_… (E2E_MYLUTECE=0 for one run, for
 # instance) must not have its choice overwritten by the file.

@@ -69,6 +69,10 @@ ARTIFACT=$(grep -oE "<artifactId>[^<]+" "$DIR/pom.xml" | sed -n 2p | sed 's/<art
 [ -n "$ARTIFACT" ] || ARTIFACT=$(basename "$DIR")
 NAME=${NAME:-"lutece-${ARTIFACT#plugin-}-e2e"}
 E2E="$DIR/e2e"
+# A refresh under a running bench rewrites the scripts it is executing: take the bench lock like a run does.
+mkdir -p "$E2E"
+. "$SKILL/tools/lock.sh"
+E2E_LOCK_CMD="init-e2e.sh" e2e_lock "$E2E"
 mkdir -p "$E2E"/{harness,tools,tests,scenarios,baselines/aria,artifacts}
 
 # The harness is refreshed from the skill, except what a bench owns and fills in itself: the application
@@ -80,7 +84,7 @@ rsync -a --exclude app.env --exclude 'db/seed*.sql' --exclude 'db/post-init.sql'
 [ -f "$E2E/harness/app.env" ] || cp "$SKILL/harness/app.env" "$E2E/harness/app.env"
 [ -f "$E2E/harness/db/post-init.sql" ] || cp "$SKILL/harness/db/post-init.sql" "$E2E/harness/db/post-init.sql"
 cp -a "$SKILL/tools/." "$E2E/tools/"
-cp "$SKILL/../lutece-migration-v8-agent-teams/scripts/check-v8-floor.sh" "$SKILL/../lutece-migration-v8-agent-teams/scripts/v8-floor.conf" "$E2E/tools/"
+cp "$SKILL/../../tools/check-v8-floor.sh" "$SKILL/../../tools/v8-floor.conf" "$SKILL/../../tools/python.sh" "$SKILL/../../tools/py.sh" "$E2E/tools/"
 cp -a "$SKILL/tests/." "$E2E/tests/"
 cp "$SKILL/templates/run.sh" "$E2E/run.sh"; chmod +x "$E2E/run.sh" "$E2E/tools/gen-site.sh"
 cp "$SKILL/reference/DESIGN.md" "$E2E/DESIGN.md"

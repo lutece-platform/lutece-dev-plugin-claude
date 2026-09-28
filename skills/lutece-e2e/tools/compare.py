@@ -44,7 +44,8 @@ def function(u):
     folder, _, base = path.rpartition("/")
     base = re.sub(r"\.jsp$", "", base, flags=re.I)
     name = params.get("view") or params.get("action") or base
-    name = re.sub(r"^(do|get|confirm)(?=[A-Z])", "", name)
+    name = re.sub(r"^(view|action)(?=[A-Z])", "", name)
+    name = re.sub(r"^(do|get|confirm)(?=[A-Z])", "", name, flags=re.I)
     ids = tuple(sorted((k, v) for k, v in params.items() if k not in NOISE_PARAMS))
     return folder, name[:1].lower() + name[1:], ids
 
@@ -95,6 +96,28 @@ def blocked(r):
     return kind in INTERACTION if kind else "playwright._impl._errors" in (r.get("reason") or "")
 
 
+_V7_NAMES = None
+
+
+def v7_names():
+    """Every string literal of the artefact's v7 Java sources (harness/src7): the view and action names v7 knew."""
+    global _V7_NAMES
+    if _V7_NAMES is None:
+        _V7_NAMES = set()
+        for f in (E2E / "harness" / "src7").glob("**/src/java/**/*.java"):
+            _V7_NAMES.update(re.findall(r'"([A-Za-z_][A-Za-z0-9_]*)"', f.read_text(errors="replace")))
+    return _V7_NAMES
+
+
+def unknown_to_v7(r):
+    """The MVC view or action a v7 row asked for when the v7 sources never name it: a v8 function, not a v7 defect
+    (an unknown view falls back to the default one in v7, and the bench reads that as a failure)."""
+    q = urllib.parse.parse_qs(urllib.parse.urlparse(r.get("url") or "").query)
+    names = [v for k in ("view", "action") for v in q.get(k, [])]
+    known = v7_names()
+    return bool(names) and bool(known) and not any(n in known for n in names)
+
+
 def verdict(r7, r8):
     if r7 is None:
         return "nouveau"
@@ -110,6 +133,8 @@ def verdict(r7, r8):
             return "rendu différent"
         return "inchangé"
     if s8 == "ok":
+        if unknown_to_v7(r7):
+            return "v8 seulement"
         return "v7 bloqué" if blocked(r7) else "corrigé"
     if s7 == "ok":
         return "régression"

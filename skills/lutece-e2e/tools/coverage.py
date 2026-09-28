@@ -11,9 +11,11 @@ import pathlib
 import re
 import sys
 
-import urllib.parse
 
 import yaml
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "tests"))
+import lutece  # noqa: E402
 
 E2E = pathlib.Path(__file__).resolve().parents[1]
 A = E2E / "artifacts"
@@ -49,11 +51,7 @@ def main():
                     proven_hits.setdefault(path, set()).add(r["id"])
                     hits.setdefault(path, set()).add(r["id"])
 
-    def key(u):
-        base = u.split("?")[0]
-        q = urllib.parse.parse_qs(u.split("?", 1)[1]) if "?" in u else {}
-        parts = ["%s=%s" % (k, q[k][0]) for k in ("page", "view", "action") if k in q]
-        return base + ("?" + "&".join(parts) if parts else "")
+    key = lutece.nav_key
 
     excl = []
     xf = E2E / "scenarios" / "coverage-exclusions.yaml"

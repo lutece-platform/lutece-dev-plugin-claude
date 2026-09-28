@@ -69,7 +69,9 @@ do with the artefact, and each one turns every affected function into a false "c
 from the v7 site or not compiling there (never import a servlet class in it), the bench's configuration not reaching
 the v7 site (a literal of a Spring context, `reference/external-systems.md`), the stand-ins not started on that leg, and a scenario written
 against a v8 form that has no v7 equivalent (`versions: [v8]`, or per-version values). Before writing a
-"corrigé" in a hand-over, open the v7 failure and check it is the plugin's, not the bench's.
+"corrigé" in a hand-over, open the v7 failure and check it is the plugin's, not the bench's. A view or action the v7 sources
+never name (`harness/src7`) is read as "v8 seulement": v7 falls back on its default view, the bench saw a failure, and
+nothing was fixed.
 
 **Name the form you submit.** `submit: 'form'` takes the first form of the page; in the Lutece 7 admin layout
 that is the header's accessibility form (`DoModifyAccessibilityMode.jsp`), and the scenario silently posts
@@ -143,7 +145,8 @@ coverage is measured the same way.
 
 ## compare invalidates the visual review
 
-`run.sh compare` rewrites `artifacts/` with its two legs: the captures of the previous normal run are gone and
-`review-todo.md` no longer lists them. Run `compare` first, then the normal run whose captures the review judges.
+`run.sh compare` rewrites `artifacts/` with its two legs: the captures of the previous normal run move to `v8/` and
+`review-todo.md` no longer points at them. `final-gate.sh` checks the review in the normal run, before `compare`;
+by hand, write a review after a normal run, never after a `compare`.
 A v7-leg failure caused by the v7 bench itself (a table the old dependency lacks, an SQL error of the v7 stack) is not
 a v8 fix: read `compare.md`'s "corrigé" lines against the v7 log before claiming one.

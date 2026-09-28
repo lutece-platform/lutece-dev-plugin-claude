@@ -43,6 +43,23 @@ def _slug(pair):
     return re.sub(r"[^A-Za-z0-9]+", "_", pair[1].replace("jsp/admin/", "").replace(".jsp", ""))[:80]
 
 
+DESTRUCTIVE = re.compile(r"Remove|Delete|Suppr", re.I)
+"""Forms that delete what they target."""
+
+SEED_ID = re.compile(r"^9[0-9]{3}$")
+"""The ids of the seeded rows (9000-9999, reference/scope.md): the reference data the other suites and the
+scenarios read. A destructive form aimed at one of them is never posted; the scenarios delete rows they create."""
+
+
+def deletes_seeded(screen, action, mvc_action, hidden):
+    """Whether a form deletes a seeded row: a delete screen, action or MVC action, and an id of the 9000s among the
+    query values of its screen and action or the values of its hidden fields."""
+    if not DESTRUCTIVE.search(" ".join((screen, action, mvc_action))):
+        return False
+    values = list(hidden) + [v for u in (screen, action) for v in re.findall(r"=([^&#]*)", u.partition("?")[2])]
+    return any(SEED_ID.match(v) for v in values)
+
+
 SESSIONLESS = re.compile(r"AdminLogin|AdminForgot|AdminResetPassword|AdminFormContact", re.I)
 """Public admin screens: their forms run in an anonymous context (they invalidate the shared admin session)."""
 
@@ -90,6 +107,10 @@ def test_form(bo, anon, record, pair):
     if mvc_action and DENY.search(mvc_action):
         record["denied_action"] = mvc_action
         pytest.skip(lutece.DECLARED_SKIP + "action %s is denied by the bench (scenarios/screens.yaml, key deny)" % mvc_action)
+    if deletes_seeded(screen, action, mvc_action, bo.eval_on_selector_all(form + " input[type=hidden]", "is => is.map(i => i.value)")):
+        record["seed_protected"] = True
+        pytest.skip(lutece.DECLARED_SKIP + "form %s deletes a seeded row (id in the 9000s): the reference data other tests read"
+                    % action.split("/")[-1])
     record["filled"] = lutece.fill_form(bo, form)
     lutece.reset_obs(bo)
     navigated = lutece.submit(bo, form)

@@ -100,15 +100,6 @@ def record(request):
     return request.node.record
 
 
-def _mvc_query(u):
-    """Keeps the significant routing parameters of a Lutece url (page= for a front-office XPage, view=/action= for
-    an MVC screen) so coverage can match a visit to an inventory element without collapsing every XPage sub-url."""
-    import urllib.parse
-    q = urllib.parse.parse_qs(urllib.parse.urlsplit(u).query)
-    parts = ["%s=%s" % (k, q[k][0]) for k in ("page", "view", "action") if k in q]
-    return "&".join(parts)
-
-
 def _reason(rep):
     """One line explaining a failure: the assertion message when there is one, else the crash line."""
     if not rep.failed:
@@ -154,7 +145,7 @@ def pytest_runtest_makereport(item, call):
            "console": obs.get("console", [])[:20], "js_errors": obs.get("errors", [])[:20],
            "bad_requests": obs.get("requests", [])[:20], "nav": obs.get("nav", [])[-5:],
            "visited": sorted({lutece.normalize(n["url"]).split("?")[0] + ("?" + q if q else "")
-                              for n in obs.get("nav", []) + obs.get("xhr", []) for q in [_mvc_query(n["url"]) or n.get("mvc", "")] if n["status"] < 400}
+                              for n in obs.get("nav", []) + obs.get("xhr", []) for q in [lutece.nav_key(n["url"]).partition("?")[2] or n.get("mvc", "")] if n["status"] < 400}
                              | {lutece.normalize(u).split("?")[0] for u in obs.get("subs", [])}), **rec}
     with open(RESULTS / ("%s.jsonl" % os.environ.get("PYTEST_XDIST_WORKER", "main")), "a") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")

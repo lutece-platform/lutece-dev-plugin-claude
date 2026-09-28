@@ -17,8 +17,9 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 MUTATING = re.compile(r"/(Do|do)[A-Z]\w*\.jsp|[?&]action=|DoAdminLogout|DoChangeLanguage|DoModifyAccessibilityMode", re.I)
 """Urls that mutate state: never followed by the crawl (the scenarios cover them)."""
 NOISE = re.compile(r"AdminDocumentation|AdminPagePreview\.jsp|Portal\.jsp|jsp/site/|\.pdf$|DoDownload|DoExport", re.I)
-MAX_PER_PATH = 25
-"""Concrete urls kept per screen (JSP path, or MVC view); the seed holds thousands of rows, a screen needs a sample."""
+MAX_PER_PATH = 5
+"""Concrete urls kept per screen (JSP path, or MVC view). Measured on 360 screens of 48 benches: ids past the 5th
+were half the screen tests and showed a defect the first five did not on 3 screens."""
 MAX_SCREENS = 2000
 DEPTH = 8
 
@@ -32,12 +33,14 @@ def crawl(base):
         lutece.observe(page)
         assert lutece.bo_login(page), "login failed"
         seen, queue, out, forms, skipped = {}, [], [], [], []
-        per_path = {}
+        per_path, linked = {}, set()
 
         in_scope = lutece.scope()
 
         def push(u, src, depth):
             n = lutece.normalize(u)
+            if src != "inventory":
+                linked.add(n)
             if not n.startswith("jsp/admin/") or n in seen or not in_scope(n):
                 return
             if MUTATING.search(n) or NOISE.search(n):
@@ -92,6 +95,9 @@ def crawl(base):
                 if depth < DEPTH:
                     push(u, n + " [form GET]", depth + 1)
         b.close()
+    for e in out:
+        if e["from"] == "inventory" and e["url"] not in linked:
+            e["orphan"] = True
     return {"screens": out, "forms": sorted({(f["screen"], f["action"]) for f in forms}), "skipped": sorted(set(skipped)),
             "stats": {"screens": len(out), "forms": len({f["action"] for f in forms}), "skipped": len(set(skipped))}}
 

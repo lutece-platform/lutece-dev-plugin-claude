@@ -9,16 +9,15 @@
 #            fuzzer then deletes the reference row and every later test fails on it.
 # deny:      action urls the forms fuzzer must never post (destructive for the run: install, indexing, exports)
 fragment: []
-#           Portlet screens (Create/ModifyPortlet*.jsp) render without the admin menu bar: list them here.
+#           Portlet screens (Create/ModifyPortlet*.jsp) already are, and portlet creation screens get their query.
 confirm: []
 protected: []
 deny: []
-# params:   screens that cannot be opened bare. `inventory.json` lists what each screen reads in `needs_params`;
-#           declare a query for every one of them, or the suite records an internal error instead of the screen.
-#           Example, for a portlet creation screen:
+# params:   the query a screen needs to be tested for real; the suite opens it with it, adding only the parameters
+#           the url lacks, even when discovery never reached it. A screen opened bare that fails is otherwise only a
+#           robustness finding when no link of the application leads to it.
+#           Example, for a portlet modification screen (creation screens get theirs from plugin.xml):
 #             params:
-#               - match: 'CreatePortlet[A-Za-z]*\.jsp'
-#                 query: 'page_id=1&portlet_type_id=MY_PORTLET'
 #               - match: 'ModifyPortlet[A-Za-z]*\.jsp'
 #                 query: 'portlet_id=9001'
 params: []

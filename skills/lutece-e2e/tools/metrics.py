@@ -77,8 +77,28 @@ def db_digests():
         return {"error": str(e)[:200]}
 
 
-LOG_ENTRY = re.compile(r"^\[\d")
-"""Start of a Liberty log entry: anything else is a continuation line of the entry above (stack frames)."""
+
+
+def scenario_log_allows():
+    """The server_log_allow patterns every scenario of the bench declares: an error a scenario provokes on purpose is
+    expected in the run's log too."""
+    try:
+        import yaml
+    except ImportError:
+        return []
+    out = []
+    for f in sorted((lutece.E2E / "scenarios").glob("*.yaml")):
+        try:
+            doc = yaml.safe_load(f.read_text()) or {}
+        except Exception:  # noqa: BLE001 - a broken scenario file is reported by its own suite
+            continue
+        for sc in doc.get("scenarios") or []:
+            for pat in (sc or {}).get("server_log_allow") or []:
+                try:
+                    out.append(re.compile(pat))
+                except re.error:
+                    pass
+    return out
 
 
 def server_errors():
@@ -90,31 +110,21 @@ def server_errors():
     surf = lutece.load_json("artifacts/inventory.json", {}).get("surface") or {}
     pkg = surf.get("package")
     marks = surf.get("markers") or ([pkg] if pkg else [])
-    lines = log.read_text(errors="replace").splitlines()
-    counts, total, mine = {}, 0, {}
-    for i, line in enumerate(lines):
+    allow = lutece.server_errors_allowed() + list(lutece.CORE_LOG_NOISE) + scenario_log_allows()
+    counts, total, mine, unexpected = {}, 0, {}, {}
+    for level, line, *rest in lutece.log_entries(log.read_text(errors="replace")):
         m = re.match(r"\[[^\]]+\] \w+ (\S+)\s+[EW] (.*)", line)
-        if not (m and " E " in line[:120]):
+        if not (m and level == "E"):
             continue
         key = re.sub(r"\d+", "N", m.group(2))[:160]
         counts[key] = counts.get(key, 0) + 1
         total += 1
-        # The artefact owns the exception only when its own classes appear in the stack that follows; everything
-        # else is the platform it runs inside (a plugin bench must not report the core's exceptions as its defects).
-        # The artefact owns the exception when it is named in the message line or in the stack that belongs to it.
-        # The block is the entry itself: the message plus its continuation lines, stopping at the next timestamped
-        # log entry — a fixed window would attribute an unrelated exception to whatever request logged next.
-        block = [line]
-        for nxt in lines[i + 1:]:
-            if LOG_ENTRY.match(nxt):
-                break
-            block.append(nxt)
-        joined = "\n".join(block)
-        if marks and any(m in joined for m in marks):
+        joined = "\n".join([line] + rest)
+        owned = bool(marks) and any(mk in joined for mk in marks)
+        if owned:
             mine[key] = mine.get(key, 0) + 1
-    allow = lutece.server_errors_allowed() + list(lutece.CORE_LOG_NOISE)
-    scoped = mine if marks else counts
-    unexpected = {k: n for k, n in scoped.items() if not any(p.search(k) for p in allow)}
+        if (owned or not marks) and not any(p.search(joined) or p.search(re.sub(r"\d+", "N", joined)) for p in allow):
+            unexpected[key] = unexpected.get(key, 0) + 1
     top = sorted(counts.items(), key=lambda kv: -kv[1])[:20]
     return {"errors": total, "distinct": len(counts), "package": pkg, "markers": len(marks),
             "from_artefact": sum(mine.values()),

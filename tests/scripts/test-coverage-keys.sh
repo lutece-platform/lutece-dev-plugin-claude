@@ -25,8 +25,9 @@ check "@View name whatever the attribute order" '[ "$(echo "$out" | sed -n 4p)" 
 check "url key kept" 'echo "$out" | sed -n 3p | grep -qF "Manage.jsp?view=manage"'
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
-mkdir -p "$T/tools" "$T/artifacts/results" "$T/scenarios"
+mkdir -p "$T/tools" "$T/tests" "$T/artifacts/results" "$T/scenarios"
 cp "$HERE/../../skills/lutece-e2e/tools/coverage.py" "$T/tools/"
+cp "$HERE/../../skills/lutece-e2e/tests/lutece.py" "$T/tests/"
 printf '{"screens": [{"id": "S1", "url": "jsp/admin/plugins/p/ManageP.jsp?view=manage"}], "actions": []}\n' > "$T/artifacts/inventory.json"
 printf '{"id": "test_scenario[p.red]", "suite": "scenarios", "status": "failed", "visited": ["jsp/admin/plugins/p/ManageP.jsp?view=manage"]}\n' > "$T/artifacts/results/w.jsonl"
 printf 'exclusions: []\n' > "$T/scenarios/coverage-exclusions.yaml"

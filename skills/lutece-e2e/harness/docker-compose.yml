@@ -27,7 +27,9 @@ services:
 
   # Service name matters: `app` is a Chromium HSTS-preloaded TLD, the browser would force https on http://app:9090.
   lutece:
-    build: { context: ., dockerfile: Dockerfile.app }
+    # Built on the host network: the default build network forwards DNS to the host's upstream resolver, which a
+    # VPN or a home router can leave unreachable from containers, and every download then times out.
+    build: { context: ., dockerfile: Dockerfile.app, network: host }
     image: ${E2E_NAME:-lutece-e2e}-server:local
     # Runs as the host user so the logs and access log under artifacts/ are readable on the host.
     user: "${E2E_UID:-1000}:0"
@@ -73,7 +75,7 @@ services:
   # `lutece`, so the v8 site can start on the rows the v7 one created. Its schema is built the v7 way by the Ant
   # build under WEB-INF/sql at the container's first start (harness/tomcat/entrypoint.sh).
   lutece7:
-    build: { context: ., dockerfile: Dockerfile.tomcat }
+    build: { context: ., dockerfile: Dockerfile.tomcat, network: host }
     image: ${E2E_NAME:-lutece-e2e}-server7:local
     profiles: [v7]
     user: "${E2E_UID:-1000}:0"
@@ -119,7 +121,7 @@ services:
   # served by one Python process on port 9030. Every call is logged as
   # JSON lines in artifacts/fakes/<channel>.log, so scenarios assert on them like on mail. See reference/external-systems.md.
   fakes:
-    build: ./fakes
+    build: { context: ./fakes, network: host }
     profiles: [fakes]
     environment:
       PRO_GUID: ${E2E_PRO_GUID:-e2e-pro-guid}

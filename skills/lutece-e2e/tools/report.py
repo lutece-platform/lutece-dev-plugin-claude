@@ -100,8 +100,8 @@ def summary(rows, perf, disc, inv):
     cov = js("coverage.json")
     fp = js("fingerprint.json")
     if fp:
-        L.append("Testé : sources `%s`%s, war `%s`%s." % (fp.get("source_commit") or "?", " (modifications non commitées)" if fp.get("source_dirty") else "",
-                 fp.get("war_sha256") or "-", (", instance `%s`" % fp["base_url"]) if fp.get("base_url") else ""))
+        L.append("Testé : sources `%s`%s, clé `%s`%s." % (fp.get("source_commit") or "?", " (modifications non commitées)" if fp.get("source_dirty") else "",
+                 fp.get("source_key") or "-", (", instance `%s`" % fp["base_url"]) if fp.get("base_url") else ""))
     # The perimeter first, the whole site after: the reader must not carry away the site's count as the plugin's.
     st_t = (cov.get("stats_target") or {}) if cov else {}
     if st_t and any(x.get("origin") == "env" for k in ("screens", "actions") for x in cov.get(k, [])):
@@ -182,7 +182,7 @@ def summary(rows, perf, disc, inv):
     for r in rows:
         # The harness suite visits a 404 and an error page on purpose: its kinds would trip the guard below.
         # A scenario made of http steps only never navigates: its page stays blank by construction.
-        if r["status"] == "passed" and r["suite"] != "harness" and not (r["suite"] == "scenarios" and not r.get("nav")):
+        if r["status"] == "passed" and r["suite"] != "harness" and not r.get("core_defect") and not (r["suite"] == "scenarios" and not r.get("nav")):
             kinds[r.get("kind") or "?"] = kinds.get(r.get("kind") or "?", 0) + 1
     L += ["", "## Ce que montrent les tests réussis (classification DOM de la dernière page, hors auto-tests du harnais)", ""]
     blind = {k: n for k, n in kinds.items() if k in ("auth", "error-page", "blank", "login", "truncated") or k.startswith("http-")}
@@ -209,20 +209,26 @@ def summary(rows, perf, disc, inv):
         # only what the server logged at the same moment, in parallel, and saying so avoids a wrong diagnosis.
         cause = ""
         if c:
-            cause = (" ⇐ " if conf else " ⇐ piste, non confirmée : ") + (conf[0] if conf else c[0])[12:].strip()[:140]
+            cause = (" ⇐ " if conf else " ⇐ piste, non confirmée : ") + re.sub(r"^\[[^]]*\]\s*", "", conf[0] if conf else c[0]).strip()[:140]
         return "- `%s` — %s%s" % (r["id"], r.get("reason", "")[:200].replace("\n", " "), cause)
 
     env_fails = [r for r in fails if not is_target(r)]
     fails = [r for r in fails if is_target(r)]
     front = [r for r in fails if not r.get("bare") and re.search(r"JS errors|console not clean|failed sub-requests|js errors", r.get("reason", ""))]
-    robust = [r for r in fails if r.get("bare")]
+    robust = [r for r in fails if r.get("bare")] + [dict(r, reason=r["robustness"]) for r in rows if r.get("robustness") and is_target(r)]
     functional = [r for r in fails if r not in front and r not in robust]
     L += ["", "## Défauts fonctionnels (%d) — écran ou action avec ses paramètres, scénario, formulaire" % len(functional), ""]
     L += [line(r) for r in sorted(functional, key=lambda r: r["id"])[:60]] or ["Aucun."]
     L += ["", "## Défauts front (%d) — erreurs JavaScript, console, sous-requêtes en échec" % len(front), ""]
     L += [line(r) for r in sorted(front, key=lambda r: r["id"])[:40]] or ["Aucun."]
-    L += ["", "## Robustesse (%d) — écran appelé sans ses paramètres : un message Lutece est attendu, pas une erreur interne" % len(robust), ""]
+    L += ["", "## Robustesse (%d) — écran appelé sans ses paramètres : un message Lutece est attendu, pas une erreur interne ; non bloquant quand aucun lien n'y mène" % len(robust), ""]
     L += [line(r) for r in sorted(robust, key=lambda r: r["id"])[:60]] or ["Aucun."]
+    core = [r for r in rows if r.get("core_defect")]
+    fixed = [r for r in rows if r.get("core_defect_fixed")]
+    if core or fixed:
+        L += ["", "## Défauts du core (%d) — prouvés par un scénario, non traités dans le plugin : à signaler au core" % len(core), ""]
+        L += ["- `%s` — %s" % (r.get("scenario", r["id"]), r["core_defect"].replace("\n", " ")[:300]) for r in core]
+        L += ["- `%s` — le scénario passe : le core a corrigé « %s », retirer `core_defect`" % (r.get("scenario", r["id"]), r["core_defect_fixed"]) for r in fixed]
     if env_fails:
         L += ["", "## Environnement (%d rouges hors périmètre : core et autres plugins du site)" % len(env_fails), "",
               "Ils ne concernent pas l'artefact testé ; à rapprocher du banc du core. Les %d premiers :" % min(len(env_fails), 15)]

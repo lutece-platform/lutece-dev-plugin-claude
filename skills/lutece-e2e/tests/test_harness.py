@@ -51,6 +51,8 @@ def test_scenario_rule_rejects_unproven_mutation():
     assert test_scenarios.validate(hiding), "an oracle on the markup that hides accepted"
     assert not test_scenarios.validate(seen), test_scenarios.validate(seen)
     assert not test_scenarios.validate(good), test_scenarios.validate(good)
+    view = {"steps": [{"submit": {"form": "#f", "button": 'button[name="view_createField"]'}}, {"expect_text": "Field"}]}
+    assert not test_scenarios.validate(view), "a view_ button taken for a mutation"
     assert not test_scenarios.validate(refusal), test_scenarios.validate(refusal)
     js_proof = {"id": "j", "steps": [{"click": "button[type=submit]"}, {"js": {"script": "localStorage.k", "expect": "v"}}]}
     js_arrange = {"id": "k", "steps": [{"click": "button[type=submit]"}, {"js": "localStorage.k = 1"}]}

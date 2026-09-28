@@ -16,37 +16,30 @@ Read at PHASE 2, when a screen fails or a suite is green too easily. Each of the
 
 ## A screen is never opened without what it requires
 
-The inventory lists a back-office JSP as `jsp/admin/plugins/<plugin>/<Screen>.jsp`, with no query string. Many of
-those screens cannot answer without parameters: a portlet creation screen reads `page_id` and `portlet_type_id`, a
-modification screen reads `portlet_id`. Opened bare they return an internal error, and the suite then records a
-broken screen — a false defect that hides the real coverage.
+A screen no link of the application reaches is opened bare, because only the static inventory names it. What it
+answers without its parameters (an internal error on a missing `page_id`) is listed under *Robustesse* in
+`summary.md` and does not turn the run red. A screen the application itself links without parameters, and fails,
+stays a red test.
 
-`inventory.py` therefore reports, for every JSP screen, the request parameters its bean method actually reads, in
-`needs_params`. **Before the first full run, read them and declare a query for each one** in
-`scenarios/screens.yaml`:
+To test such a screen for real, declare its query in `scenarios/screens.yaml`, with ids that exist in the seed
+(page 1 is the root page of any install; the portlet id is the one `harness/db/seed-<plugin>.sql` creates). The
+suite then opens it with those parameters, even when discovery never reached it, and judges it strictly:
 
 ```yaml
 params:
-  - match: 'CreatePortlet[A-Za-z]*\.jsp'
-    query: 'page_id=1&portlet_type_id=<THE PORTLET TYPE OF THE ARTEFACT>'
   - match: 'ModifyPortlet[A-Za-z]*\.jsp'
     query: 'portlet_id=9001'
 ```
 
-The values must exist in the seed: page 1 is the root page of any install, and the portlet id is the one
-`harness/db/seed-<plugin>.sql` creates. Check what is left:
+Portlet screens need nothing: `Create/ModifyPortlet*.jsp` answer without the admin menu bar and are fragments by
+default, and the creation screen of each portlet type of `plugin.xml` is opened with
+`page_id=1&portlet_type_id=<type>`. A modification screen needs a portlet of the seed: declare its `params`.
 
-```bash
-python3 -c "import json;[print(s['id'], s.get('needs_params')) for s in json.load(open('e2e/artifacts/inventory.json'))['screens'] if s.get('needs_params')]"
-```
-
-Portlet screens are a second, related trap: they are included through `PortletAdminHeader.jsp` and therefore render
-without the admin menu bar, so the classifier reads them as fragments, not screens. Declare them under `fragment` in
-the same file:
+Other screens that answer without the layout are declared under `fragment` in the same file:
 
 ```yaml
 fragment:
-  - 'Portlet[A-Za-z]*\.jsp'
+  - 'MyPopup\.jsp'
 ```
 
 The same key covers the **front office**: a page the artefact serves as its own complete document — an
@@ -79,6 +72,12 @@ INSERT INTO core_page (id_page, id_parent, name, description, status, page_order
 SELECT 9003, 1, 'E2E Host', 'Host page rendering the portlet', 1, 9003, 2, 'none', 'default', 0
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM core_page WHERE id_page = 9003);
 ```
+
+**The device flags decide on which screen widths it shows.** `core_portlet.device_display_flags` is a set of hex
+bits (`Portlet.FLAG_DISPLAY_ON_SMALL_DEVICE` = `0x1`, normal `0x10`, large `0x100`, xlarge `0x1000`). All widths is
+`4369` (`0x1111`). The tempting `15` only sets the small bit: the portlet gets `d-md-none` and is hidden in a desktop
+capture, while `expect_dom` still finds it in the HTML. Seed `4369`, and prove it with a check the hidden element
+fails (`visible: true`).
 
 **The oracle must target the portlet's own markup.** `expect_text` on the name of a linked page passes on the site
 menu, which lists every published page, whether or not the portlet rendered. Assert on a selector the portlet alone

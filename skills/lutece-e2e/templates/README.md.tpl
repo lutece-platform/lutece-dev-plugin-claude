@@ -41,7 +41,7 @@ DESIGN.md             tool choices and platform traps
 harness/              docker-compose.yml, Dockerfile.app (Temurin 21 + Open Liberty), Dockerfile.tomcat (v7 leg), liberty/,
                       tomcat/, db/ (my.cnf, post-init, seed.sh, seed-*.sql), site/ and site7/ (generated poms), fakes/,
                       search/, app.env, server-errors-allow.txt
-tools/                inventory.py, discover.py, coverage.py, causes.py, forms.sh, ears.py, metrics.py, report.py,
+tools/                inventory.py, discover.py, coverage.py, causes.py, forms.sh, metrics.py, report.py,
                       report_page.py, review.py, compare.py, patch-war.py, load.js, gen-site.sh, gen-site7.sh,
                       liquibase-visibility.sh, check-v8-floor.sh, v8-floor.conf, requirements.txt
 tests/                lutece.py (library), conftest.py, test_harness.py, test_screens.py, test_fo.py, test_scenarios.py,
@@ -79,7 +79,7 @@ In `scenarios/<feature>.yaml`:
 scenarios:
   - id: workgroup_crud
     title: Workgroups — create, then remove
-    req: CORE_WORKGROUPS_MANAGEMENT        # EARS requirement (Lutece right)
+    req: CORE_WORKGROUPS_MANAGEMENT        # Lutece right of the feature
     steps:
       - goto: jsp/admin/workgroup/CreateWorkgroup.jsp
       - fill: {'input[name="workgroup_key"]': 'E2E_{{rand}}', 'input[name="workgroup_description"]': 'Group {{rand}}'}

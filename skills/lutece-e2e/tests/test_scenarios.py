@@ -11,7 +11,8 @@ Step vocabulary (one key per step):
   fill_form: <form selector>       auto-fill every visible field of a form (values: {name: v} overrides)
   submit: <form selector>          submit a form and wait for the navigation; {form: ..., button: <selector>} names the
                                    submit control when the form has several (reset buttons, per-row actions)
-  submit_novalidate: <form>        same, bypassing the HTML5 client validation (to exercise the server-side checks);
+  submit_novalidate: <form>        same, bypassing the client validation, HTML5 and the core theme's (formnovalidate on
+                                   the submit controls), to exercise the server-side checks;
                                    {form: ..., button: <selector>} as for submit
   expect_url: <substring|[..]>     the current url must contain it (one of the list)
   confirm:                         click the validate button of a Lutece confirmation message
@@ -95,7 +96,7 @@ Step vocabulary (one key per step):
 File keys: scenarios, and fragments (name: [steps]) that a step `use: <name>` inlines, for a parcours several
 scenarios share. Fragments are visible from every file of scenarios/ (the file's own win on a name clash), may use
 fragments, and the mechanical oracle rule applies to the expanded steps.
-Scenario keys: id, title (shown by the report), description (optional, `>-` block), req (Lutece right), anonymous, versions (optional, e.g. [v8]: skipped on the v7 leg of run.sh compare), locale (an Accept-Language such as de-DE, sent on every request of the scenario, http steps included: a locale-dependent defect is proven through the UI), viewport_shots (true: captures of the viewport only, for a scenario driving a responsive widget that a full-page capture resizes), ends_on (blank | error-page | truncated: the last screen is that on purpose, say why in description; otherwise such an ending fails the scenario), server_log_allow (regexes of server log errors the scenario provokes on purpose, reason in a comment: any other error the server logs during the scenario fails it), steps.
+Scenario keys: id, title (shown by the report), description (optional, `>-` block), req (Lutece right), anonymous, versions (optional, e.g. [v8]: skipped on the v7 leg of run.sh compare), locale (an Accept-Language such as de-DE, sent on every request of the scenario, http steps included: a locale-dependent defect is proven through the UI), viewport_shots (true: captures of the viewport only, for a scenario driving a responsive widget that a full-page capture resizes), ends_on (blank | error-page | truncated: the last screen is that on purpose, say why in description; otherwise such an ending fails the scenario), server_log_allow (regexes of server log errors the scenario provokes on purpose, reason in a comment: any other error the server logs during the scenario fails it), core_defect (the defect of the core the scenario proves, which the plugin must not work around: a failure is reported as a core defect not handled and keeps the run green, a pass says the core fixed it), steps.
 Any step value may be a per-version mapping, {v7: ..., v8: ...}: the value for E2E_VERSION is used. Preferred over
 `versions:` when the function exists on both sides and only its url or selector changed (a JSP turned MVC view).
 Variables: {{rand}} (6 lowercase alphanumerics), {{rand_int}} (5-6 digits, for numeric keys), {{base}} and anything set by set/sql_set/dom_set.
@@ -139,6 +140,8 @@ ORACLE = STATE_ORACLE + WEAK_ORACLE
 NEUTRAL = ("goto", "expect_ok", "shot", "expect_url", "sql_set", "set", "wait", "dom_set")
 CLICK_MUTATION = re.compile(r"Do[A-Z]|action|button|submit|Unassign|Remove|Move", re.I)
 URL_LIKE = re.compile(r"\.jsp\b|https?://|[?&][a-z_]+=", re.I)
+VIEW_BUTTON = re.compile(r"""name\s*[\^*$]?=\s*["']?view_""")
+"""A button named view_<x> opens a view of the controller (MVCUtils): it changes nothing, it is no mutation."""
 HIDING_MARKUP = re.compile(r"\[hidden\]|\[style\*?=[^\]]*(display|none|block)", re.I)
 """A selector that reads how the markup hides an element: v7 hides with a style, v8 with the hidden attribute."""
 
@@ -162,6 +165,9 @@ def validate(sc):
         if k == "sql_exec" and unproven:
             errors.append("step %d sql_exec between a mutation and its proof: arrange data before the mutation or after its state oracle, never in between" % i)
         is_mut = k in MUTATION or (k in ("click", "click_if") and isinstance(arg, str) and CLICK_MUTATION.search(arg))
+        target = arg if isinstance(arg, str) else arg.get("button", "") if isinstance(arg, dict) else ""
+        if is_mut and VIEW_BUTTON.search(str(target)):
+            is_mut = False
         if not is_mut:
             continue
         unproven = True
@@ -521,7 +527,9 @@ def run_step(page, step, vars_, record):
             lutece.submit(page, arg)
     elif key == "submit_novalidate":
         form, button = (arg["form"], arg.get("button")) if isinstance(arg, dict) else (arg, None)
-        page.evaluate("(sel) => { const f = document.querySelector(sel); if (f) f.noValidate = true; }", form)
+        page.evaluate("""([sel, btn]) => { const f = document.querySelector(sel); if (!f) return; f.noValidate = true;
+            const own = btn ? [...document.querySelectorAll(btn)] : [];
+            [...f.querySelectorAll('button:not([type]), [type=submit]'), ...own].forEach(b => b.setAttribute('formnovalidate', '')); }""", [form, button])
         lutece.submit(page, form, button)
     elif key == "expect_url":
         wanted = arg if isinstance(arg, list) else [arg]
@@ -542,13 +550,13 @@ def run_step(page, step, vars_, record):
         got = lutece.admin_message(page)
         assert got == arg, "AdminMessage %s expected, got %s (%s)" % (arg, got, lutece.page_text(page)[:200])
     elif key == "expect_kind":
-        got = lutece.classify(page)
+        got = lutece.classify(page, _status(page))
         # `fo` names the front office as a family: a public page that carries a form (search, login) classifies
         # as `public-form` and is the same kind of page — the v7 core's home does, the v8 one does not.
         family = {"fo": ("fo", "public-form")}.get(arg, (arg,))
         assert got in family, "kind %s expected, got %s (%s)" % (arg, got, lutece.page_text(page)[:160])
     elif key == "expect_ok":
-        kind = lutece.classify(page)
+        kind = lutece.classify(page, _status(page))
         # A page the bench declared as answering without the surrounding layout has no stable kind: judge it on
         # the negative, exactly as the screens and fo suites do, instead of forcing the scenario to guess which
         # of 'public-form' or 'unknown' the embedded widget will have produced by the time the step runs.
@@ -742,6 +750,13 @@ def test_scenario(bo, browser, request, record, sc):
     mark = lutece.server_log_mark()
     try:
         _play(bo, sc, vars_, record)
+    except AssertionError as e:
+        # A defect of the core the plugin must not work around (an @Action run on GET without its token): the
+        # scenario proves it, the report lists it as a core defect not handled, and the run stays green.
+        if not sc.get("core_defect"):
+            raise
+        record["core_defect"] = "%s | %s" % (sc["core_defect"], str(e)[:300])
+        return
     finally:
         if sc.get("locale"):
             bo.set_extra_http_headers({})
@@ -750,10 +765,21 @@ def test_scenario(bo, browser, request, record, sc):
     if version == "v8":
         errors = lutece.server_errors(mark, sc.get("server_log_allow") or ())
         if errors:
+            if sc.get("core_defect"):
+                record["core_defect"] = "%s | server log: %s" % (sc["core_defect"], str(errors[0])[:300])
+                return
             record["server_errors"] = errors
             raise AssertionError("the server logged %d error(s) during the scenario, first: %s. Fix the cause, or "
                                  "declare it in `server_log_allow` of the scenario, or in harness/server-errors-allow.txt, with the reason"
                                  % (len(errors), errors[0]))
+    if sc.get("core_defect"):
+        record["core_defect_fixed"] = sc["core_defect"]
+
+
+def _status(page):
+    """HTTP status of the response that produced the current document, None when the page did not navigate: a 404 or
+    500 page carrying the site's layout otherwise reads as a normal page from its DOM alone."""
+    return next((n["status"] for n in reversed(page.obs.get("nav", [])) if n.get("url") == page.url), None)
 
 
 def _play(bo, sc, vars_, record):
