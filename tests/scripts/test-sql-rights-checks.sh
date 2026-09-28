@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Checks SQ07, WB09, PM13 and XT03 both ways, then the inventory resolving a constant defined as another constant and
+# Checks SQ01, SQ04, SQ07, WB09, PM13, XT03 and PT01 both ways, then the inventory resolving a constant defined as another constant and
 # the error markers of an artefact living in the core namespace.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-V="${VERIFY:-$HERE/../../skills/lutece-migration-v8-agent-teams/scripts/verify-migration.sh}"
+V="${VERIFY:-$HERE/../../tools/verify-migration.sh}"
 INV="$HERE/../../skills/lutece-e2e/tools/inventory.py"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
@@ -25,6 +25,21 @@ printf -- '-- liquibase formatted sql\n-- changeset myplugin:prerun_db_myplugin.
 printf -- '-- liquibase formatted sql\n-- changeset myplugin:update_db_myplugin-1.0.0-1.0.1.sql\n-- validCheckSum: 9:abc\nSELECT 1;\n' > "$T/sq-upgrade/src/sql/plugins/myplugin/plugin/update_db_myplugin-1.0.0-1.0.1.sql"
 expect sq-prerun SQ07 PASS
 expect sq-upgrade SQ07 WARN
+for k in released fresh; do mkdir -p "$T/sq4-$k/src/sql/plugins/myplugin/upgrade"; printf "INSERT INTO core_admin_right VALUES ('X','x',1,'jsp/x.jsp','x',0,'myplugin',NULL,NULL,NULL,1);\n" > "$T/sq4-$k/src/sql/plugins/myplugin/upgrade/update_db_myplugin-1.0.0-1.0.1.sql"; done
+(cd "$T/sq4-released" && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm init)
+expect sq4-released SQ04 PASS
+expect sq4-fresh SQ04 FAIL
+
+for k in missing present; do mkdir -p "$T/pt-$k/webapp/WEB-INF/plugins" "$T/pt-$k/src/sql/plugins/myplugin/core"; printf '<plug-in><portlets><portlet><portlet-type-id>MY_PORTLET</portlet-type-id></portlet></portlets></plug-in>\n' > "$T/pt-$k/webapp/WEB-INF/plugins/myplugin.xml"; done
+printf "INSERT INTO core_admin_right VALUES ('MY_PORTLET');\n" > "$T/pt-missing/src/sql/plugins/myplugin/core/init_core_myplugin.sql"
+printf "INSERT INTO core_portlet_type (id_portlet_type) VALUES\n('MY_PORTLET');\n" > "$T/pt-present/src/sql/plugins/myplugin/core/init_core_myplugin.sql"
+expect pt-missing PT01 FAIL
+expect pt-present PT01 PASS
+
+for k in archive install; do mkdir -p "$T/sq1-$k/src/sql/plugins/myplugin/plugin" "$T/sq1-$k/src/sql/old-upgrade"; printf -- '-- liquibase formatted sql\n-- changeset myplugin:create_db_myplugin.sql\nCREATE TABLE a ( b int );\n' > "$T/sq1-$k/src/sql/plugins/myplugin/plugin/create_db_myplugin.sql"; printf 'DROP TABLE old;\n' > "$T/sq1-$k/src/sql/old-upgrade/update_db_myplugin-1.0-1.1.sql"; done
+printf 'INSERT INTO a VALUES ( 1 );\n' > "$T/sq1-install/src/sql/plugins/myplugin/plugin/init_db_myplugin.sql"
+expect sq1-archive SQ01 PASS
+expect sq1-install SQ01 FAIL
 
 for k in own core; do mkdir -p "$T/wb-$k/webapp/WEB-INF/plugins"; done
 printf '<plug-in><admin-features><admin-feature><feature-id>MYPLUGIN_MANAGEMENT</feature-id></admin-feature></admin-features></plug-in>\n' > "$T/wb-own/webapp/WEB-INF/plugins/myplugin.xml"
@@ -74,5 +89,5 @@ import json,sys
 m=json.load(sys.stdin)['surface']['markers']
 sys.exit(0 if 'fr.paris.lutece.portal.web.thing.ThingJspBean' in m and 'fr.paris.lutece.portal' not in m else 1)" || { echo "FAIL: an artefact in the core namespace is not marked by its own classes"; fails=$((fails + 1)); }
 
-[ "$fails" -eq 0 ] && echo "PASS: SQ07, WB09, PM13, XT03 both ways, constant aliases resolved, core-namespace artefact marked by its classes"
+[ "$fails" -eq 0 ] && echo "PASS: SQ01, SQ04 (a committed upgrade script left alone), SQ07, WB09, PM13, XT03, PT01 both ways, constant aliases resolved, core-namespace artefact marked by its classes"
 exit "$fails"

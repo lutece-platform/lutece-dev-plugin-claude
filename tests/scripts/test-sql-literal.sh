@@ -2,7 +2,7 @@
 # Checks that SQ05 fails a value glued into a SQL literal and lets a constant of the class glued the same way through.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-V="$HERE/../../skills/lutece-migration-v8-agent-teams/scripts/verify-migration.sh"
+V="$HERE/../../tools/verify-migration.sh"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 

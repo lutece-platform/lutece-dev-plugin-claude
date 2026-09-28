@@ -3,7 +3,7 @@
 # on a project that resolves the core through Maven (offline, from the local repository).
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-C="$HERE/../../skills/lutece-migration-v8-agent-teams/scripts/check-v8-floor.sh"
+C="$HERE/../../tools/check-v8-floor.sh"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 export MAVEN_ARGS="-Daether.enhancedLocalRepository.trackingFilename=none"
@@ -39,7 +39,10 @@ dep_pom dep-801 8.0.1;                   expect dep-801 1
 dep_pom dep-floor '[8.0.0,)';            expect dep-floor 0
 V8_FLOOR_CORE_BUILD=2099-01-01 expect dep-floor 1
 mkdir -p "$T/nopom";                     expect nopom 2
+mkdir -p "$T/core-803/target"; printf '1\t\tV8FLOOR CACHED\n' > "$T/core-803/target/.v8-floor"
+bash "$C" "$T/core-803" --offline 2> "$T/cached.err"
+[ $? = 1 ] && grep -q "V8FLOOR CACHED" "$T/cached.err" || { echo "FAIL: a cache with no jar field is not read"; fails=$((fails + 1)); }
 grep -q "lutecepowers supports" "$T/dep-801.err" || { echo "FAIL: the refusal does not name the floor"; fails=$((fails + 1)); }
 
-[ "$fails" -eq 0 ] && { echo "PASS: v8 floor refuses 8.0.1, a beta and an old snapshot build, accepts the floor snapshot and later"; exit 0; }
+[ "$fails" -eq 0 ] && { echo "PASS: v8 floor refuses 8.0.1, a beta and an old snapshot build, accepts the floor snapshot and later, reads a cache with no jar"; exit 0; }
 exit 1

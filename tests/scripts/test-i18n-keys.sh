@@ -3,7 +3,7 @@
 # bundle lacks it, skips a key read from a configuration properties file, and still reports a missing literal key.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-C="$HERE/../../skills/lutece-migration-v8-agent-teams/scripts/check-i18n-keys.sh"
+C="$HERE/../../tools/check-i18n-keys.sh"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/p/src/java/fr/paris/lutece/plugins/myplugin/resources" "$T/p/src/java/fr/paris/lutece/plugins/myplugin/web" \
@@ -25,6 +25,9 @@ public class MyJspBean
     }
 }
 EOF
+mkdir -p "$T/p/src/java/fr/paris/lutece/plugins/myplugin/modules/sub/resources" "$T/p/webapp/WEB-INF/templates/admin/plugins/myplugin"
+printf 'labelHelp=Help\n' > "$T/p/src/java/fr/paris/lutece/plugins/myplugin/modules/sub/resources/sub_messages.properties"
+printf '<p>#i18n{sub.labelHelp}</p>\n' > "$T/p/webapp/WEB-INF/templates/admin/plugins/myplugin/page.html"
 OUT=$(LUTECE_CORE_TEMPLATES="$T/core" bash "$C" "$T/p" 2>&1)
 fails=0
 echo "$OUT" | grep -q "myplugin.menu.gone" || { echo "FAIL: a missing key glued with + is not reported"; fails=1; }
@@ -32,5 +35,6 @@ echo "$OUT" | grep -q "myplugin.menu.home" && { echo "FAIL: an existing key glue
 echo "$OUT" | grep -q "myplugin.menu\. " && { echo "FAIL: the bare prefix of a glued key is reported as a key"; fails=1; }
 echo "$OUT" | grep -q "MES01" && { echo "FAIL: a key of a configuration properties file is reported"; fails=1; }
 echo "$OUT" | grep -q "myplugin.label.missing" || { echo "FAIL: a missing literal key is not reported"; fails=1; }
-[ "$fails" -eq 0 ] && { echo "PASS: i18n keys glued with + are rebuilt, configuration keys are skipped, missing keys still reported"; exit 0; }
+echo "$OUT" | grep -q "sub.labelHelp -- .*write module.myplugin.sub.labelHelp" || { echo "FAIL: a key whose bundle prefix is cut is not reported"; fails=1; }
+[ "$fails" -eq 0 ] && { echo "PASS: i18n keys glued with + are rebuilt, configuration keys are skipped, missing keys and cut prefixes still reported"; exit 0; }
 echo "$OUT"; exit 1

@@ -3,7 +3,7 @@
 # small synthetic inputs: each rule must flag its bad case and leave its good case alone.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-S="$HERE/../../skills/lutece-migration-v8-agent-teams/scripts"
+S="$HERE/../../tools"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 fail=0
@@ -94,6 +94,26 @@ printf '%s\n' "<@cInput type='hidden' name='to_date' value='' />" "<@cInput name
 expect "TD67: looked-up id also defaulted by a hidden @cInput" 1 "$(td TD67)"
 printf '%s\n' "<#if a><@cInput type='hidden' name='c' id='c' value='' /><#else><@cInput name='c' id='c' value='' /></#if>" "<@noScriptMessage id='f' />" "<form id='f'></form>" "<script>document.getElementById( 'c' ); document.querySelector( '#f' );</script>" > "$X/a.html"
 expect "TD67: exclusive branches and a referencing macro" 0 "$(td TD67)"
+printf '%s\n' "<#list clouds as c>" "<@chList id='tagcloud'><#list c as t><li>\${t}</li></#list></@chList>" "</#list>" > "$X/a.html"
+expect "TD69: literal id inside a list" 1 "$(td TD69)"
+printf '%s\n' "<ul id=\"cloud\"><#list tags as t><li id=\"tag-\${t?index}\">\${t}</li><#else><li id=\"empty\">none</li></#list></ul>" > "$X/a.html"
+expect "TD69: id outside the list, derived id, else branch" 0 "$(td TD69)"
+printf '%s\n' "<#list rows as r><#if r.a>a<#else>b</#if><#if r.b>c<#else>d</#if><span id=\"x\">\${r}</span></#list>" > "$X/a.html"
+expect "TD69: #if/#else pairs inside the list body" 1 "$(td TD69)"
+printf '%s\n' "<@tform action='a.jsp'>" "<#list rows as r><@tform type='inline' action='b.jsp'><@button type='submit' /></@tform></#list>" "</@tform>" > "$X/a.html"
+expect "TD70: form inside a form" 1 "$(td TD70)"
+printf '%s\n' "<@tform action='a.jsp'></@tform>" "<#list rows as r><form action='b.jsp'></form></#list>" "<#-- <@tform> -->" > "$X/a.html"
+expect "TD70: sibling forms" 0 "$(td TD70)"
+mkdir -p "$W/webapp/js/lib"
+printf '!function(){"undefined"!=typeof jQuery&&void 0!==jQuery.fn&&(jQuery.fn.flatpickr=function(e){return e})}();\n' > "$W/webapp/js/lib/bootstrap-flatpickr.min.js"
+expect "TD46: a jQuery integration offered only when jQuery is there" 0 "$(td TD46)"
+printf 'if (typeof jQuery === "undefined") { throw new Error("needs jQuery") }\n+function ($) { $.fn.tooltip = function () {} }(jQuery);\n' > "$W/webapp/js/lib/bootstrap.js"
+expect "TD46: a jQuery plugin that needs jQuery" 1 "$(td TD46)"
+rm -rf "$W/webapp/js"
+printf '%s\n' "<a href='jsp/admin/plugins/x/ManageX.jsp?action=doRemove&id=\${x.id}'>x</a>" > "$X/a.html"
+expect "TD71: admin link to an action" 1 "$(td TD71)"
+printf '%s\n' "<a href='jsp/admin/plugins/x/ManageX.jsp?view=confirmRemove&id=\${x.id}'>x</a>" > "$X/a.html"
+expect "TD71: admin link to a confirmation view" 0 "$(td TD71)"
 printf '%s\n' "<@input type='textarea' name='a' maxlength='\${f.value}' />" > "$X/a.html"
 expect "TD68: quoted argument to a parameter the macro compares to a number" 1 "$(td TD68)"
 printf '%s\n' "<@input type='textarea' name='a' maxlength=f.value?number />" "<@cInput name='b' maxlength=255 value='\${v}' />" > "$X/a.html"
@@ -111,6 +131,12 @@ mkdir -p "$V/webapp/WEB-INF/templates/admin/plugins/x" "$L/WEB-INF/templates/adm
 mkdir -p "$L/WEB-INF/templates/admin/themes/tabler/forms/checkbox"
 touch "$L/WEB-INF/plugins/x.xml" "$L/themes/shared/plugins/x/js/x.js" "$L/WEB-INF/templates/admin/themes/tabler/forms/checkbox/checkBox.ftl"
 tda() { (cd "$V" && python3 "$S/scan-template-design.py" . --flat 2>/dev/null | grep -c " $1 "); }
+O="$T/own"; mkdir -p "$O/webapp/WEB-INF/templates/admin/themes/tabler" "$O/webapp/WEB-INF/templates/skin/themes/macros" "$O/webapp/WEB-INF/templates/admin/plugins/x"
+vmo() { (cd "$O" && bash "$S/verify-migration.sh" . 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -c "$2 \[$1\]"); }
+printf '<div class="panel panel-default">x</div>\n' > "$O/webapp/WEB-INF/templates/admin/plugins/x/a.html"
+expect "TM01: an old Bootstrap panel" 1 "$(vmo TM01 FAIL)"
+printf '<@box><@boxBody>x</@boxBody></@box>\n<#-- class="panel" -->\n' > "$O/webapp/WEB-INF/templates/admin/plugins/x/a.html"
+expect "TM01: the box macro and a comment" 1 "$(vmo TM01 PASS)"
 printf "<script src=\"js/admin/plugins/x/x.js\"></script>\n" > "$V/webapp/WEB-INF/templates/admin/plugins/x/a.html"
 expect "TD61: script path the assembled webapp does not carry" 1 "$(tda TD61)"
 printf "<script src=\"themes/shared/plugins/x/js/x.js\"></script>\n<#if hasMap><script src=\"js/plugins/leaflet/leaflet.js\"></script></#if>\n" > "$V/webapp/WEB-INF/templates/admin/plugins/x/a.html"
@@ -130,6 +156,10 @@ expect "TD51 secondary and cancel=true made light" 2 "$(grep -cE "color='seconda
 expect "TD56 after fix-button-colours" 0 "$(td TD56)"
 expect "submit button left as it is" 1 "$(grep -c "type='submit' title='#i18n{portal.util.labelValidate}' />" "$W/webapp/WEB-INF/templates/admin/plugins/x/a.html")"
 expect "fix-button-colours is idempotent" 0 "$(python3 "$S/fix-button-colours.py" "$W" | wc -l)"
+printf "<#-- <@aButton href='x' title='#i18n{portal.util.labelCancel}' /> -->\n<@aButton href='x' title='#i18n{portal.util.labelBack}' />\n" > "$W/webapp/WEB-INF/templates/admin/plugins/x/c.ftl"
+python3 "$S/fix-button-colours.py" "$W" > /dev/null
+expect "fix-button-colours reads .ftl and leaves a commented button alone" "<#-- <@aButton href='x' title='#i18n{portal.util.labelCancel}' /> -->|<@aButton href='x' title='#i18n{portal.util.labelBack}' color='light' />" "$(paste -sd'|' "$W/webapp/WEB-INF/templates/admin/plugins/x/c.ftl")"
+rm "$W/webapp/WEB-INF/templates/admin/plugins/x/c.ftl"
 
 vm() { (cd "$J" && bash "$S/verify-migration.sh" . 2>/dev/null | grep "\[$1\]" | grep -c "$2"); }
 printf 'class XDAO {\n    public void f( Plugin plugin )\n    {\n        DAOUtil daoUtil = new DAOUtil( SQL, plugin );\n        daoUtil.executeUpdate( );\n    }\n}\n' > "$J/src/java/x/business/XDAO.java"
@@ -165,6 +195,17 @@ printf "INSERT INTO core_admin_right (id_right,name,description) VALUES ('X_RIGH
 expect "I18N02: descriptor and right keys declared nowhere" 1 "$(cd "$J" && bash "$S/verify-migration.sh" . 2>/dev/null | grep -c 'x.missing.portlet\|x.missing.right' | grep -qx 2 && echo 1)"
 printf 'name=X\nlabel=Second\nmissing.portlet=P\nmissing.right=R\n' > "$J/src/java/x/resources/x_messages.properties"
 expect "I18N02: descriptor and right keys declared" 1 "$(vm I18N02 PASS)"
+printf 'package x;\n@Controller( xpageName = "x", pageTitleI18nKey = "x.missing.title", pagePathI18nKey = "x.label" )\npublic class XApp extends MVCApplication\n{\n}\n' > "$J/src/java/x/XApp.java"
+expect "I18N02: an XPage @Controller page key declared nowhere" 1 "$(cd "$J" && bash "$S/verify-migration.sh" . 2>/dev/null | grep -c '^ *x.missing.title:')"
+rm -f "$J/src/java/x/XApp.java"
+mkdir -p "$J/webapp/WEB-INF/conf/plugins"
+printf 'package x;\nclass K\n{\n    static final String DS_KEY_FORM_TITLE_COLUMN = "x.display.columnTitle";\n    static final String PROPERTY_ERROR_PAGE = "x.error.page";\n    static final String MESSAGE_ERROR_ASKED = "x.error.asked";\n}\n' > "$J/src/java/x/K.java"
+printf 'x.error.page=jsp/site/Portal.jsp\n' > "$J/webapp/WEB-INF/conf/plugins/x.properties"
+printf "INSERT INTO core_datastore ( entity_key, entity_value ) VALUES ( 'x.display.columnTitle', 'true' );\n" > "$J/src/sql/plugins/x/core/init_core_x_ds.sql"
+k=$(cd "$J" && bash "$S/verify-migration.sh" . 2>/dev/null | grep -A5 '\[I18N02\]')
+expect "I18N02: a message constant declared nowhere" 1 "$(echo "$k" | grep -c '^ *x.error.asked:')"
+expect "I18N02: a property key and a datastore key are not i18n keys" 0 "$(echo "$k" | grep -c 'x.error.page\|x.display.columnTitle')"
+rm -f "$J/src/java/x/K.java" "$J/webapp/WEB-INF/conf/plugins/x.properties" "$J/src/sql/plugins/x/core/init_core_x_ds.sql"
 rm -rf "$J/webapp/WEB-INF/plugins" "$J/src/sql"
 printf 'class R {\n    String f( ) { return String.valueOf( ThreadLocalRandom.current( ).nextLong( ) ); }\n}\n' > "$J/src/java/x/business/R.java"
 expect "TL01: ThreadLocalRandom is no ThreadLocal" 1 "$(vm TL01 PASS)"
@@ -223,5 +264,5 @@ printf 'class C {\n    private static final String MESSAGE_A = "module.wf.x.task
 expect "I18N02: a module checks its module.<plugin>.<module> keys only" 1 "$(cd "$M" && bash "$S/verify-migration.sh" . 2>/dev/null | grep -A3 '\[I18N02\]' | grep -c '^ *module.wf.x.task.missing:')"
 expect "I18N02: the plugin's own keys are left to it" 0 "$(cd "$M" && bash "$S/verify-migration.sh" . 2>/dev/null | grep -c 'x.owned.by.plugin.x')"
 
-[ "$fail" -eq 0 ] && echo "PASS: template rules, TD55, TD56, TD57, TD58, TD59, TD60, TD61, TD62, TD63, TD64, TD65, TD66, TD67, TD68, DA02, I18N02, I18N07, I18N10, TL01, MV05, MV06, MV07, WB08, JX10, CD06, CD07, JS04, JS07, fix-button-colours"
+[ "$fail" -eq 0 ] && echo "PASS: template rules, TD55, TD56, TD57, TD58, TD59, TD60, TD61, TD62, TD63, TD64, TD65, TD66, TD67, TD68, TD69, TD70, TD71, TD46, TM01, DA02, I18N02, I18N07, I18N10, TL01, MV05, MV06, MV07, WB08, JX10, CD06, CD07, JS04, JS07, fix-button-colours"
 exit $fail

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Checks i18n_unused.py on a synthetic plugin: every way a Lutece key is used keeps it, only the dead key is reported.
+# Checks i18n_unused.py on a synthetic plugin: every way a Lutece key is used keeps it, only the dead key is reported,
+# even when a reference copy of the same artifact names it.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-SCRIPT="$HERE/../../skills/lutece-migration-v8-agent-teams/scripts/i18n_unused.py"
+SCRIPT="$HERE/../../tools/i18n_unused.py"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 P="$T/plugin-demo"
@@ -42,6 +43,9 @@ echo "INSERT INTO demo_type (label) VALUES ('demo.sql.label');" > "$P/src/sql/pl
 echo "<plugin><admin-feature><feature-title>demo.adminFeature.used.name</feature-title><feature-description>demo.xml.label</feature-description></admin-feature></plugin>" > "$P/webapp/WEB-INF/plugins/demo.xml"
 echo "const k = 'demo.js.label';" > "$P/webapp/js/plugins/demo/demo.js"
 echo "#i18n{demo.parent.label}" > "$R/plugin-parent/webapp/WEB-INF/templates/view.html"
+printf '<project><parent><artifactId>lutece-global-pom</artifactId></parent><artifactId>plugin-demo</artifactId></project>\n' > "$P/pom.xml"
+mkdir -p "$R/lutece-copy-of-demo/webapp/WEB-INF/templates"; cp "$P/pom.xml" "$R/lutece-copy-of-demo/pom.xml"
+echo "#i18n{demo.dead.label}" > "$R/lutece-copy-of-demo/webapp/WEB-INF/templates/view.html"
 OUT=$(python3 "$SCRIPT" "$P" --refs "$R")
 RC=$?
 fail=0

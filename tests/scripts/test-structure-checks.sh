@@ -2,7 +2,7 @@
 # Checks TS06, ST01, WB04, WB07, ST03, JS04, SQ06, SQ08, SQ09, SQ10 and MV03 both ways, each on a passing and a failing fixture.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-V="${VERIFY:-$HERE/../../skills/lutece-migration-v8-agent-teams/scripts/verify-migration.sh}"
+V="${VERIFY:-$HERE/../../tools/verify-migration.sh}"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 fails=0
@@ -49,8 +49,61 @@ for k in comment real; do
 done
 printf '/**\n * Base of the beans; the converted ones carry @Controller.\n */\npublic abstract class MyBaseJspBean\n{\n}\n' > "$T/js-comment/src/java/MyBaseJspBean.java"
 printf '@Controller( controllerJsp = "ManageMyEntities.jsp", controllerPath = "jsp/admin/plugins/myplugin/", right = "MY_RIGHT" )\npublic abstract class MyBaseJspBean\n{\n}\n' > "$T/js-real/src/java/MyBaseJspBean.java"
+mkdir -p "$T/js-direct/src/java" "$T/js-direct/webapp/jsp/admin/plugins/myplugin"
+cp -r "$T/js-real/src" "$T/js-real/webapp" "$T/js-direct/"
+printf '<%%@ page errorPage="../../ErrorPage.jsp" %%>\n${ myEntityJspBean.processController( pageContext.request, pageContext.response ) }\n' > "$T/js-real/webapp/jsp/admin/plugins/myplugin/DoRemove.jsp"
 expect js-comment JS04 FAIL
 expect js-real JS04 PASS
+expect js-direct JS04 FAIL
+for k in jdbc jpa; do mkdir -p "$T/jp-$k/src/java"; done
+printf 'class ADAO { static final String Q = "SELECT a FROM t WHERE id IN (?"; }\n' > "$T/jp-jdbc/src/java/ADAO.java"
+printf 'import jakarta.persistence.Query;\nclass ADAO { static final String Q = "SELECT a FROM T a WHERE a.id IN (:ids)"; }\n' > "$T/jp-jpa/src/java/ADAO.java"
+expect jp-jdbc JP04 PASS
+expect jp-jpa JP04 FAIL
+for k in jcap cap; do mkdir -p "$T/cd9-$k/src/java"; done
+printf 'class A { static final String JCAPTCHA_PLUGIN = "jcaptcha"; boolean on( ) { return PluginService.isPluginEnable( JCAPTCHA_PLUGIN ); } }\n' > "$T/cd9-jcap/src/java/A.java"
+printf 'class A { boolean on( ) { return _captchaService.isResolvable( ); } }\n' > "$T/cd9-cap/src/java/A.java"
+expect cd9-jcap CD09 FAIL
+expect cd9-cap CD09 PASS
+for k in jxdoc jxcode wbcomment dtomodel; do mkdir -p "$T/g-$k/src/java" "$T/g-$k/webapp/WEB-INF/plugins"; done
+printf '/**\n * Reads the {@link javax.servlet.http.HttpServletRequest} of v7.\n */\nclass A { }\n' > "$T/g-jxdoc/src/java/A.java"
+printf 'import javax.servlet.http.HttpServletRequest;\nclass A { }\n' > "$T/g-jxcode/src/java/A.java"
+printf '<plug-in><applications><application><!--<application-class>x.App</application-class>--></application></applications></plug-in>\n' > "$T/g-wbcomment/webapp/WEB-INF/plugins/x.xml"
+printf 'class Dto\n{\n    public String getModel( )\n    {\n        return "";\n    }\n}\n' > "$T/g-dtomodel/src/java/Dto.java"
+expect g-jxdoc JX01 PASS
+expect g-jxcode JX01 FAIL
+expect g-wbcomment WB02 PASS
+expect g-dtomodel DP03 PASS
+mkdir -p "$T/ts-sql/src/test/java" "$T/ts-sql/src/java" "$T/ts-sql/target/surefire-reports"
+printf 'Tests run: 3, Failures: 1, Errors: 0, Skipped: 0 FAILURE\n' > "$T/ts-sql/target/surefire-reports/x.XTest.txt"
+printf '<failure>Failed to execute:  INSERT INTO genatt_entry_type (id_type) VALUES (1)</failure>' > "$T/ts-sql/target/surefire-reports/antrun_report.xml"
+( cd "$T/ts-sql" && bash "$V" . 2>/dev/null ) | sed 's/\x1b\[[0-9;]*m//g' | grep -A2 "\[TS09\]" | grep -q "test database was built with SQL errors" || { echo "FAIL: TS09 does not name the SQL errors of the test database"; fails=$((fails + 1)); }
+mkdir -p "$T/js-usebean/src/java" "$T/js-usebean/webapp/jsp/admin/plugins/myplugin"
+printf '<jsp:useBean id="tag" scope="session" class="fr.paris.lutece.plugins.myplugin.web.MyEntityJspBean" />\n<%%\n    response.sendRedirect( tag.doRemove( request ) );\n%%>\n' > "$T/js-usebean/webapp/jsp/admin/plugins/myplugin/DoRemove.jsp"
+printf 'public class MyEntityJspBean extends PluginAdminPageJspBean\n{\n}\n' > "$T/js-usebean/src/java/MyEntityJspBean.java"
+expect js-usebean JS04 FAIL
+mkdir -p "$T/wb-query/webapp/WEB-INF/plugins" "$T/wb-query/src/sql/plugins/demo/plugin" "$T/wb-bare/webapp/WEB-INF/plugins"
+printf '<plug-in><name>demo</name><admin-features><admin-feature><feature-id>DEMO_MANAGEMENT</feature-id><feature-url>jsp/admin/plugins/demo/ManageDemo.jsp</feature-url></admin-feature></admin-features></plug-in>\n' > "$T/wb-query/webapp/WEB-INF/plugins/demo.xml"
+cp "$T/wb-query/webapp/WEB-INF/plugins/demo.xml" "$T/wb-bare/webapp/WEB-INF/plugins/demo.xml"
+printf "INSERT INTO core_admin_right (id_right,name,level_right,admin_url,description) VALUES ('DEMO_MANAGEMENT','demo.adminFeature.name',3,'jsp/admin/plugins/demo/ManageDemo.jsp?view=home','demo.adminFeature.description');\n" > "$T/wb-query/src/sql/plugins/demo/plugin/init_core_demo.sql"
+expect wb-query WB12 FAIL
+expect wb-bare WB12 PASS
+mkdir -p "$T/wb-diff/webapp/WEB-INF/plugins" "$T/wb-diff/src/sql/plugins/demo/plugin" "$T/wb-same/webapp/WEB-INF/plugins" "$T/wb-same/src/sql/plugins/demo/plugin"
+printf '<plug-in><name>demo</name><admin-features><admin-feature><feature-id>DEMO_MANAGEMENT</feature-id><feature-url>jsp/admin/plugins/demo/ManageDemoHome.jsp</feature-url><icon-url>ti ti-no-such-glyph</icon-url></admin-feature></admin-features></plug-in>\n' > "$T/wb-diff/webapp/WEB-INF/plugins/demo.xml"
+printf "INSERT INTO core_admin_right (id_right,name,level_right,admin_url,description,icon_url) VALUES ('DEMO_MANAGEMENT','demo.adminFeature.name',3,'jsp/admin/plugins/demo/ManageDemo.jsp','demo.adminFeature.description','ti ti-no-such-glyph');\n" > "$T/wb-diff/src/sql/plugins/demo/plugin/init_core_demo.sql"
+printf '<plug-in><name>demo</name><admin-features><admin-feature><feature-id>DEMO_MANAGEMENT</feature-id><feature-url>jsp/admin/plugins/demo/ManageDemo.jsp</feature-url><icon-url>ti ti-address-book</icon-url></admin-feature></admin-features></plug-in>\n' > "$T/wb-same/webapp/WEB-INF/plugins/demo.xml"
+printf "INSERT INTO core_admin_right (id_right,name,level_right,admin_url,description,icon_url) VALUES ('DEMO_MANAGEMENT','demo.adminFeature.name',3,'jsp/admin/plugins/demo/ManageDemo.jsp','demo.adminFeature.description','ti ti-address-book');\n" > "$T/wb-same/src/sql/plugins/demo/plugin/init_core_demo.sql"
+expect wb-diff WB13 FAIL
+expect wb-diff WB14 FAIL
+expect wb-same WB13 PASS
+expect wb-same WB14 PASS
+for k in sub bad dead; do mkdir -p "$T/i18n-$k/src/java/x/resources"; printf 'x.actionDelete=Delete\n' > "$T/i18n-$k/src/java/x/resources/x_messages.properties"; done
+printf 'class A { static final String MESSAGE_DELETE = "x.x.actionDelete"; }\n' > "$T/i18n-sub/src/java/x/A.java"
+printf 'class A { static final String MESSAGE_DELETE = "x.actionDelete"; }\n' > "$T/i18n-bad/src/java/x/A.java"
+expect i18n-sub I18N01 PASS
+expect i18n-bad I18N01 FAIL
+printf 'class A { static final String MESSAGE_DELETE = "y.actionDelete"; }\n' > "$T/i18n-dead/src/java/x/A.java"
+expect i18n-dead I18N01 PASS
 
 for k in seen unseen; do
     mkdir -p "$T/sq-$k/src/sql/plugins/myplugin/plugin" "$T/sq-$k/target/lutece/WEB-INF/templates" "$T/sq-$k/target/lutece/WEB-INF/classes/sql/plugins/myplugin/plugin"
@@ -67,6 +120,18 @@ printf 'import fr.paris.lutece.portal.util.mvc.xpage.annotations.Controller;\n@C
 printf 'import fr.paris.lutece.portal.util.mvc.xpage.annotations.Controller;\n@Controller( xpageName = "tasks" )\npublic class TasksXPage extends MVCApplication\n{\n}\n' > "$T/mv-unset/src/java/TasksXPage.java"
 expect mv-on MV03 PASS
 expect mv-unset MV03 WARN
+for k in get view; do
+    mkdir -p "$T/mv-$k/src/java" "$T/mv-$k/webapp/WEB-INF/templates/admin/themes/tabler" "$T/mv-$k/webapp/WEB-INF/templates/skin/themes/macros" "$T/mv-$k/webapp/WEB-INF/templates/admin/plugins/x"
+    printf '@Controller( controllerJsp = "ManageX.jsp", controllerPath = "jsp/admin/plugins/x/", right = "X", securityTokenEnabled = true )\npublic class XJspBean extends MVCAdminJspBean\n{\n    public String getManage( HttpServletRequest request )\n    {\n        model.put( SecurityTokenService.MARK_TOKEN, _securityTokenService.getToken( request, "x" ) );\n        return "";\n    }\n}\n' > "$T/mv-$k/src/java/XJspBean.java"
+done
+printf '%s\n' "<@aButton href='jsp/admin/plugins/x/ManageX.jsp?action=doRemove&id=1&token=\${token}' />" "<script>const t = '\${token}';</script>" > "$T/mv-get/webapp/WEB-INF/templates/admin/plugins/x/manage.html"
+printf '%s\n' "<@link href='jsp/admin/plugins/x/ManageX.jsp?view=modify&id=1&token=\${token}' />" "<@input type='hidden' name='token' value='\${token}' />" "<#-- <a href='x?action=doRemove&token=\${token}'> -->" > "$T/mv-view/webapp/WEB-INF/templates/admin/plugins/x/manage.html"
+expect mv-get MV03 WARN
+expect mv-view MV03 WARN
+mvget=$( ( cd "$T/mv-get" && bash "$V" . 2>/dev/null ) | grep -c 'rides a GET link to an action or a script' )
+[ "$mvget" = 2 ] || { echo "FAIL: MV03 names the action link and the script carrying the token (got $mvget)"; fails=$((fails + 1)); }
+mvview=$( ( cd "$T/mv-view" && bash "$V" . 2>/dev/null ) | grep -c 'rides a GET link' )
+[ "$mvview" = 0 ] || { echo "FAIL: MV03 leaves a view link, a hidden field and a comment alone (got $mvview)"; fails=$((fails + 1)); }
 
 for k in v800 v700; do
     mkdir -p "$T/wb4-$k/webapp/WEB-INF/plugins"
@@ -98,5 +163,5 @@ printf -- '-- liquibase formatted sql\n-- changeset myplugin:a\nSELECT 1;\n-- ch
 expect sq10-ok SQ10 PASS
 expect sq10-bad SQ10 FAIL
 
-[ "$fails" -eq 0 ] && { echo "PASS: TS06 reads the annotation block, ST01 needs CDI beans, WB07 ignores an empty feature-icon-url, ST03 skips abstract DAO bases, JS04 ignores @Controller in comments, SQ06 finds SQL Liquibase never sees, MV03 flags a @Controller without securityTokenEnabled, WB04 accepts min-core-version 8.0.0, SQ08 finds an untagged install script in the war, SQ09 a SQL directory no plugin owns, SQ10 an empty changeset"; exit 0; }
+[ "$fails" -eq 0 ] && { echo "PASS: TS06 reads the annotation block, ST01 needs CDI beans, WB07 ignores an empty feature-icon-url, ST03 skips abstract DAO bases, JS04 ignores @Controller in comments, reads jsp:useBean and flags a @Controller called outside processController, WB12 reads admin_url, WB13 compares the install SQL with the descriptor, WB14 knows the Tabler icons, I18N01 accepts a sub-namespace named like the plugin and leaves a dead key to I18N08, SQ06 finds SQL Liquibase never sees, MV03 flags a @Controller without securityTokenEnabled and names a token riding a GET action link or a script, not a view link, WB04 accepts min-core-version 8.0.0, SQ08 finds an untagged install script in the war, SQ09 a SQL directory no plugin owns, SQ10 an empty changeset, JP04 JPA only, TS09 names a broken test database, CD09 the dead jcaptcha test, grep checks skip comments and declarations"; exit 0; }
 exit 1

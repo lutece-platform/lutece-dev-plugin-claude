@@ -2,7 +2,7 @@
 # Checks bundles.py against the java.util.Properties rules: continuation lines, comments, the three separators.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-SCRIPTS="$HERE/../../skills/lutece-migration-v8-agent-teams/scripts"
+SCRIPTS="$HERE/../../tools"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 printf '%s\n' \

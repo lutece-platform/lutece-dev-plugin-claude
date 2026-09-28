@@ -3,7 +3,7 @@
 # that is not above the last release.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-V="$HERE/../../skills/lutece-migration-v8-agent-teams/scripts/verify-migration.sh"
+V="$HERE/../../tools/verify-migration.sh"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
