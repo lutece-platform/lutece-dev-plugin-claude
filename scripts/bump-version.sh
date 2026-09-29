@@ -4,39 +4,46 @@
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CONFIG="$ROOT/.version-bump.json"
-command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
+. "$ROOT/tools/python.sh"
 
-# Lists declared manifests as "path<TAB>jq field" lines.
-entries() { jq -r '.files[] | "\(.path)\t\(.field)"' "$CONFIG"; }
-
-# Prints every declared version and fails when they differ.
-check() {
-  local drift=0 first=""
-  while IFS=$'\t' read -r path field; do
-    local v; v="$(jq -r "$field" "$ROOT/$path")"
-    printf '  %-40s %s\n' "$path" "$v"
-    [ -z "$first" ] && first="$v"
-    [ "$v" = "$first" ] || drift=1
-  done < <(entries)
-  [ "$drift" -eq 0 ] && echo "All manifests at $first" || { echo "DRIFT: versions differ"; return 1; }
-}
-
-# Writes the given version into every declared manifest.
-bump() {
-  local new="$1"
-  [[ "$new" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.]+)?$ ]] || { echo "expected X.Y.Z, got '$new'" >&2; exit 1; }
-  while IFS=$'\t' read -r path field; do
-    local f="$ROOT/$path" tmp
-    tmp="$(mktemp)"
-    jq --indent 2 --arg v "$new" "$field = \$v" "$f" > "$tmp" || { rm -f "$tmp"; exit 1; }
-    mv "$tmp" "$f"
-    echo "  $path -> $new"
-  done < <(entries)
+# Writes the given version, if any, into every declared manifest, then prints every declared version; fails on drift.
+versions() {
+  python3 - "$ROOT" "$1" <<'PY'
+import json, os, re, sys
+root, new = sys.argv[1], sys.argv[2]
+files = json.load(open(os.path.join(root, ".version-bump.json"), encoding="utf-8"))["files"]
+keys = lambda field: [k for k in field.split(".") if k]
+if new:
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.]+)?", new):
+        sys.exit("expected X.Y.Z, got '%s'" % new)
+    for entry in files:
+        path = os.path.join(root, entry["path"])
+        data = json.load(open(path, encoding="utf-8"))
+        *parents, last = keys(entry["field"])
+        node = data
+        for k in parents:
+            node = node[k]
+        node[last] = new
+        with open(path, "w", encoding="utf-8", newline="\n") as out:
+            out.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        print("  %s -> %s" % (entry["path"], new))
+found = []
+for entry in files:
+    node = json.load(open(os.path.join(root, entry["path"]), encoding="utf-8"))
+    for k in keys(entry["field"]):
+        node = node[k]
+    print("  %-40s %s" % (entry["path"], node))
+    found.append(node)
+if len(set(found)) == 1:
+    print("All manifests at %s" % found[0])
+else:
+    print("DRIFT: versions differ")
+    sys.exit(1)
+PY
 }
 
 case "${1:-}" in
-  --check) check ;;
+  --check) versions "" ;;
   ""|-h|--help) echo "Usage: bump-version.sh <X.Y.Z> | --check" ;;
-  *) bump "$1" && check ;;
+  *) versions "$1" ;;
 esac

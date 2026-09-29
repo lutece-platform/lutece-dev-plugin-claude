@@ -24,7 +24,10 @@ case "$E2E_TARGET" in
   core)
     CORE_VERSION=$(eval_pom "$SRC/pom.xml" project.version) ;;
   plugin)
-    CORE_VERSION=${E2E_CORE_VERSION:-$($MVN -q -B -f "$SRC/pom.xml" dependency:list -DincludeArtifactIds=lutece-core -DoutputFile=/dev/stdout 2>/dev/null | grep -oE 'lutece-core:[^:]+:[^:]+:' | head -1 | awk -F: '{print $3}')}
+    DL=$(mktemp)
+    [ -n "${E2E_CORE_VERSION:-}" ] || $MVN -q -B -f "$SRC/pom.xml" dependency:list -DincludeArtifactIds=lutece-core -DoutputFile="$DL" >/dev/null 2>&1 || true
+    CORE_VERSION=${E2E_CORE_VERSION:-$(grep -oE 'lutece-core:[^:]+:[^:]+:' "$DL" | head -1 | awk -F: '{print $3}')}
+    rm -f "$DL"
     [ -n "$CORE_VERSION" ] || { echo "cannot resolve the lutece-core version the plugin depends on; set E2E_CORE_VERSION in e2e.conf" >&2; exit 2; }
     G=$(eval_pom "$SRC/pom.xml" project.groupId); A=$(eval_pom "$SRC/pom.xml" project.artifactId)
     V=$(eval_pom "$SRC/pom.xml" project.version); T=$(eval_pom "$SRC/pom.xml" project.packaging)
