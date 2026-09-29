@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks bundles.py against the java.util.Properties rules: continuation lines, comments, the three separators.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
 SCRIPTS="$HERE/../../tools"
 T=$(mktemp -d)

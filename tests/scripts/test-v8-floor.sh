@@ -18,7 +18,7 @@ core_pom() {
 # Writes a pom that depends on lutece-core at the given version or range.
 dep_pom() {
     mkdir -p "$T/$1"
-    printf '<project><modelVersion>4.0.0</modelVersion><groupId>x</groupId><artifactId>%s</artifactId><version>1.0.0</version><packaging>pom</packaging><dependencies><dependency><groupId>fr.paris.lutece</groupId><artifactId>lutece-core</artifactId><version>%s</version><exclusions><exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion></exclusions></dependency></dependencies></project>\n' "$1" "$2" > "$T/$1/pom.xml"
+    printf '<project><modelVersion>4.0.0</modelVersion><groupId>x</groupId><artifactId>%s</artifactId><version>1.0.0</version><packaging>pom</packaging><repositories><repository><id>lutece</id><url>https://dev.lutece.paris.fr/maven_repository</url></repository><repository><id>luteceSnapshot</id><url>https://dev.lutece.paris.fr/snapshot_repository</url></repository></repositories><dependencies><dependency><groupId>fr.paris.lutece</groupId><artifactId>lutece-core</artifactId><version>%s</version><exclusions><exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion></exclusions></dependency></dependencies></project>\n' "$1" "$2" > "$T/$1/pom.xml"
 }
 
 # Runs the check on a fixture and compares the exit code with the expected one.
@@ -35,14 +35,21 @@ core_pom core-801 8.0.1;                 expect core-801 1
 core_pom core-beta 8.0.2-beta-03;        expect core-beta 1
 core_pom core-snap 8.0.2-SNAPSHOT;       expect core-snap 0
 core_pom core-803 8.0.3;                 expect core-803 0
-dep_pom dep-801 8.0.1;                   expect dep-801 1
-dep_pom dep-floor '[8.0.0,)';            expect dep-floor 0
-V8_FLOOR_CORE_BUILD=2099-01-01 expect dep-floor 1
+. "$HERE/../../tools/v8-floor.conf"
+M2="$HOME/.m2/repository/fr/paris/lutece/lutece-core"
+if ls "$M2/8.0.1/"*.jar "$M2/$V8_FLOOR_CORE/"*.jar >/dev/null 2>&1; then
+    dep_pom dep-801 8.0.1;                   expect dep-801 1
+    dep_pom dep-floor '[8.0.0,)';            expect dep-floor 0
+    dep_pom dep-snap "$V8_FLOOR_CORE";       expect dep-snap 0
+    V8_FLOOR_CORE_BUILD=2099-01-01 expect dep-snap 1
+    grep -q "lutecepowers supports" "$T/dep-801.err" || { echo "FAIL: the refusal does not name the floor"; fails=$((fails + 1)); }
+else
+    echo "SKIP: no lutece-core 8.0.1 and $V8_FLOOR_CORE jars in ~/.m2, the offline Maven cases are not run (mvn dependency:get fetches them)"
+fi
 mkdir -p "$T/nopom";                     expect nopom 2
 mkdir -p "$T/core-803/target"; printf '1\t\tV8FLOOR CACHED\n' > "$T/core-803/target/.v8-floor"
 bash "$C" "$T/core-803" --offline 2> "$T/cached.err"
 [ $? = 1 ] && grep -q "V8FLOOR CACHED" "$T/cached.err" || { echo "FAIL: a cache with no jar field is not read"; fails=$((fails + 1)); }
-grep -q "lutecepowers supports" "$T/dep-801.err" || { echo "FAIL: the refusal does not name the floor"; fails=$((fails + 1)); }
 
 [ "$fails" -eq 0 ] && { echo "PASS: v8 floor refuses 8.0.1, a beta and an old snapshot build, accepts the floor snapshot and later, reads a cache with no jar"; exit 0; }
 exit 1

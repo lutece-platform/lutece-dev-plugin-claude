@@ -2,6 +2,7 @@
 # Checks i18n_unused.py on a synthetic plugin: every way a Lutece key is used keeps it, only the dead key is reported,
 # even when a reference copy of the same artifact names it.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
 SCRIPT="$HERE/../../tools/i18n_unused.py"
 T=$(mktemp -d)

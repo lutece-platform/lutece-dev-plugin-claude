@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks ST04, MV01, HM01, DP01 (java_checks.py, verify-file.sh) and SP03: each fires on its defect and stays silent on sound code.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
 S="$HERE/../../tools"
 T=$(mktemp -d)

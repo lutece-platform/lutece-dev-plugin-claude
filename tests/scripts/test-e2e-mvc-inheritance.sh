@@ -4,6 +4,7 @@
 # so a long query still names its view or action (lutece.observe), and the DOM classification survives a page that
 # navigates by itself while it is read (lutece.classify).
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
 E2E="$HERE/../../skills/lutece-e2e"
 T=$(mktemp -d)

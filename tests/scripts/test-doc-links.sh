@@ -2,6 +2,7 @@
 # Checks the cross-references of the prose: every `file.md` §N points at a file of the plugin holding a "## N." section,
 # and no text points at a numbered section of a skill.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 R="$(cd "$(dirname "$0")/../.." && pwd)"
 bad=$(cd "$R" && python3 - <<'EOF2'
 import glob, os, re

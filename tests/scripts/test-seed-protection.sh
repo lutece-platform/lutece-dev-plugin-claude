@@ -2,6 +2,7 @@
 # Checks the fuzzer's shield on seeded rows: a delete form aimed at an id of the 9000s is recognised, by the screen, the
 # action or a hidden field; a modify form, another id, or a token that happens to hold those digits is not.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 E="$(cd "$(dirname "$0")" && pwd)/../../skills/lutece-e2e"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT

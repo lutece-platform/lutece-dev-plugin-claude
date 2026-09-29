@@ -2,6 +2,7 @@
 # Checks the portlet types the v7 leg registers: those of an installed plugin's descriptor, as Plugin.install( ) does;
 # none for a plugin plugins.dat leaves off, none for a portlet without a home class.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 E="$(cd "$(dirname "$0")" && pwd)/../../skills/lutece-e2e"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT

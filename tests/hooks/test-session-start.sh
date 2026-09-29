@@ -5,6 +5,7 @@
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+. "$ROOT/tools/python.sh"; export -n LP_PYTHON; export -fn python3 lp_find_python
 HOOK="$ROOT/hooks/session-start"
 FAIL=0
 # Prints a passing check.
@@ -111,6 +112,9 @@ python3 -c 'import json,sys; assert "version" not in json.load(open(sys.argv[1])
 bash "$ROOT/scripts/bump-version.sh" --check >/dev/null && pass "versions in sync" || fail "version drift"
 
 echo "opencode plugin"
+if ! command -v node >/dev/null 2>&1; then
+  echo "  [SKIP] node is not installed: the OpenCode plugin is not checked"
+else
 node --check "$ROOT/.opencode/plugins/lutecepowers.js" 2>/dev/null && pass "OpenCode plugin parses" || fail "OpenCode plugin syntax"
 if (cd "$TMP" && env -u CLAUDE_PLUGIN_ROOT -u CLAUDE_ENV_FILE node --input-type=module -e '
 const { LutecepowersPlugin } = await import(process.argv[1]);
@@ -124,6 +128,7 @@ if (msgs[0].parts.length !== 2) throw new Error("expected exactly one injected p
 const b = msgs[0].parts[0];
 if (b.id === "p1" || !b.text.includes("LUTECEPOWERS_ROOT=") || !b.text.includes("# Using Lutecepowers")) throw new Error("bad bootstrap part");
 ' "$ROOT/.opencode/plugins/lutecepowers.js" 2>/dev/null); then pass "OpenCode plugin injects the hook bootstrap once with its own part id"; else fail "OpenCode plugin injection"; fi
+fi
 
 echo "skills"
 for d in "$ROOT"/skills/*/; do
@@ -144,7 +149,7 @@ for f in "$ROOT"/rules/*.md; do
   n="$(basename "$f" .md)"
   grep -q "^| \`$n\` |" "$ROOT/skills/using-lutecepowers/SKILL.md" && pass "rule listed in bootstrap: $n" || fail "rule missing from bootstrap: $n"
 done
-GEN="$TMP/gen"; mkdir -p "$GEN/rules" "$GEN/scripts"; cp "$ROOT"/rules/*.md "$GEN/rules/"; cp "$ROOT/scripts/build-cursor-rules.sh" "$GEN/scripts/"
+GEN="$TMP/gen"; mkdir -p "$GEN/rules" "$GEN/scripts" "$GEN/tools"; cp "$ROOT/tools/python.sh" "$GEN/tools/"; cp "$ROOT"/rules/*.md "$GEN/rules/"; cp "$ROOT/scripts/build-cursor-rules.sh" "$GEN/scripts/"
 bash "$GEN/scripts/build-cursor-rules.sh" >/dev/null 2>&1
 diff -rq "$GEN/rules-cursor" "$ROOT/rules-cursor" >/dev/null 2>&1 && pass "rules-cursor/ matches rules/ (regenerated)" || fail "rules-cursor/ out of date: run scripts/build-cursor-rules.sh"
 mkdir -p "$GEN/skills/using-lutecepowers"; cp -r "$ROOT"/skills/* "$GEN/skills/"; cp "$ROOT/README.md" "$GEN/"; cp "$ROOT/scripts/build-tables.sh" "$GEN/scripts/"

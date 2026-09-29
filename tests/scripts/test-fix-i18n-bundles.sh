@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks fix-i18n-bundles.py on a synthetic plugin: each of the five repairs, and what it must leave alone.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
 SCRIPT="$HERE/../../tools/fix-i18n-bundles.py"
 T=$(mktemp -d)
@@ -33,7 +34,7 @@ check "doubled key asked for is kept" 'grep -q "^demo.asked=" "$R/demo_messages.
 check "duplicate keeps the last value" '[ "$(grep -c "^name=" "$R/demo_messages_fr.properties")" = 1 ] && grep -q "^name=D.*mo final" "$R/demo_messages_fr.properties"'
 check "continuation kept" 'grep -q "(0: seconde)" "$R/demo_messages_fr.properties"'
 check "utf-8 bytes kept" 'grep -q "$(printf "D\xc3\xa9mo")" "$R/demo_messages_fr.properties"'
-check "CRLF kept" '[ "$(grep -c $'"'"'\r$'"'"' "$R/demo_messages.properties")" = "$(wc -l < "$R/demo_messages.properties")" ]'
+check "CRLF kept" '[ "$(tr -dc '"'"'\r'"'"' < "$R/demo_messages.properties" | wc -c)" = "$(wc -l < "$R/demo_messages.properties")" ]'
 check "second run changes nothing" '[ -z "$(python3 "$SCRIPT" "$T/plugin-demo")" ]'
 echo "dup" > "$T/dead.txt"
 python3 "$SCRIPT" --drop "$T/dead.txt" "$T/plugin-demo" >> "$T/out.txt"
@@ -41,6 +42,6 @@ check "dropped key gone in every language" '! grep -q "^dup[=>]" "$R/demo_messag
 check "other keys kept by drop" 'grep -q "^name=" "$R/demo_messages.properties" "$R/demo_messages_da.properties"'
 printf 'demo:added.title=Élément\ndemo_fr:name=Démo ajoutée\ndemo:name=Demo\n' > "$T/add.txt"
 python3 "$SCRIPT" --add "$T/add.txt" "$T/plugin-demo" >> "$T/out.txt"
-check "added key escaped, with the file's line ending" 'grep -q "^added.title=\\\\u00c9l\\\\u00e9ment"$'"'"'\r$'"'"' "$R/demo_messages.properties"'
+check "added key escaped, with the file's line ending" 'grep -q "^added.title=\\\\u00c9l\\\\u00e9ment" "$R/demo_messages.properties" && [ "$(tr -dc '"'"'\r'"'"' < "$R/demo_messages.properties" | wc -c)" = "$(wc -l < "$R/demo_messages.properties")" ]'
 check "set key replaced in its language only" '[ "$(grep -c "^name=" "$R/demo_messages_fr.properties")" = 1 ] && grep -q "^name=D\\\\u00e9mo ajout\\\\u00e9e" "$R/demo_messages_fr.properties" && grep -q "^name=Demo" "$R/demo_messages.properties"'
 if [ $fail = 0 ]; then echo "PASS: fix-i18n-bundles repairs I18N05, I18N06, I18N01, I18N10, I18N09, keeps the rest and sets keys with --add"; else cat "$T/out.txt"; exit 1; fi

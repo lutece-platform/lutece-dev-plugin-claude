@@ -2,6 +2,7 @@
 # Checks the visual review after `run.sh compare`: the results and captures moved to artifacts/v8/ are found, and the
 # review list points at the capture where it lies.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 E="$(cd "$(dirname "$0")" && pwd)/../../skills/lutece-e2e"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT

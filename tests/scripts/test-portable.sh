@@ -4,6 +4,7 @@ set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 S="$HERE/../../tools"
 . "$S/portable.sh"
+. "$S/python.sh"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 fail=0
@@ -25,7 +26,7 @@ check "GNU sed: the guard lets it run" '(cd "$T/p" && bash "$S/scan-project.sh" 
 P="$T/plugin"; mkdir -p "$P/src/java/x"
 printf '<project>\n    <parent>\n        <artifactId>lutece-global-pom</artifactId>\n        <version>8.0.2</version>\n    </parent>\n    <artifactId>plugin-demo</artifactId>\n    <version>1.0.0</version>\n</project>\n' > "$P/pom.xml"
 printf 'class A { void f( ) { em.createNativeQuery( "select 1" ); } }\n' > "$P/src/java/x/A.java"
-check "scan survives a native query without named parameters" '[ "$(cd "$P" && bash "$S/scan-project.sh" . 2>/dev/null | jq ".summary.persistence.namedNativeParams")" = 0 ]'
+check "scan survives a native query without named parameters" '[ "$(cd "$P" && bash "$S/scan-project.sh" . 2>/dev/null | python3 -c "import json, sys; print(json.load(sys.stdin)[\"summary\"][\"persistence\"][\"namedNativeParams\"])")" = 0 ]'
 printf 'class B { void g( ) { em.createNativeQuery( "select * from t where id = :id" ); } }\n' > "$P/src/java/x/B.java"
-check "scan still counts a named parameter" '[ "$(cd "$P" && bash "$S/scan-project.sh" . 2>/dev/null | jq ".summary.persistence.namedNativeParams")" = 1 ]'
+check "scan still counts a named parameter" '[ "$(cd "$P" && bash "$S/scan-project.sh" . 2>/dev/null | python3 -c "import json, sys; print(json.load(sys.stdin)[\"summary\"][\"persistence\"][\"namedNativeParams\"])")" = 1 ]'
 if [ $fail = 0 ]; then echo "PASS: portable.sh sorts versions and reverses like GNU, stops on BSD sed, scan survives native queries"; else exit 1; fi

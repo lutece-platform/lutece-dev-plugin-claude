@@ -2,6 +2,7 @@
 # Checks SQ01, SQ04, SQ07, WB09, PM13, XT03 and PT01 both ways, then the inventory resolving a constant defined as another constant and
 # the error markers of an artefact living in the core namespace.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
 V="${VERIFY:-$HERE/../../tools/verify-migration.sh}"
 INV="$HERE/../../skills/lutece-e2e/tools/inventory.py"

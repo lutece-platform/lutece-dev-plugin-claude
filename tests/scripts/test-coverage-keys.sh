@@ -3,6 +3,7 @@
 # urlencoded or multipart, the body name winning over the routing of the form's action url, and the @View name read
 # whatever the order of its attributes (tools/inventory.py).
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
 out=$(python3 - "$HERE/../../skills/lutece-e2e/tests" <<'PY'
 import sys

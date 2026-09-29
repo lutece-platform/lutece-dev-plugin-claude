@@ -2,6 +2,7 @@
 # Checks that a scenario result carrying core_defect is reported apart, as a core defect not handled, in summary.md
 # and report.html, and that a scenario whose core defect is gone asks to drop the key.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 E="$(cd "$(dirname "$0")" && pwd)/../../skills/lutece-e2e"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT

@@ -2,6 +2,7 @@
 # Checks the comparison verdicts: a v7 failure on a view the v7 sources never name is "v8 seulement", not "corrigé";
 # a v7 failure on a view v7 knew stays "corrigé"; the v7 and v8 names of one view (viewConfirmX, confirmX, DoX.jsp) pair.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 E="$(cd "$(dirname "$0")" && pwd)/../../skills/lutece-e2e"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT

@@ -2,6 +2,7 @@
 # Checks the run's server-error gate (metrics.py): an allowlist pattern matched on the stack of an entry, not only its
 # first line, and a scenario's server_log_allow, both clear the entry; an error nothing allows stays unexpected.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 E="$(cd "$(dirname "$0")" && pwd)/../../skills/lutece-e2e"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT

@@ -3,6 +3,7 @@
 # source edit, a bench scenario edit and another Lutece artefact reinstalled; once a site is assembled, only by the
 # Lutece artefacts that site carries.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 K="$(cd "$(dirname "$0")" && pwd)/../../skills/lutece-e2e/tools/source-key.py"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT

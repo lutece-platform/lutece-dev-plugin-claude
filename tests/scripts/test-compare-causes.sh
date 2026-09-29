@@ -2,6 +2,7 @@
 # Checks the v7 leg of a comparison: causes.py reads the Tomcat log and its root cause, compare.py does not count as
 # fixed a scenario whose v7 page failed on a request parameter it did not get.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
 TOOLS="$HERE/../../skills/lutece-e2e/tools"
 T=$(mktemp -d)

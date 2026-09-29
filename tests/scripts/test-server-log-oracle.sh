@@ -3,6 +3,7 @@
 # after the mark is reported with its cause, the core noise and the declared patterns are not, a rotated log is read
 # from its start.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
 TESTS="$HERE/../../skills/lutece-e2e/tests"
 T=$(mktemp -d)
