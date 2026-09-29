@@ -58,3 +58,11 @@ jobs:
       - name: Plugin manifests
         if: matrix.shard == 0
         run: claude plugin validate .
+
+  passed:
+    name: tests
+    needs: tests
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: '[ "${{ needs.tests.result }}" = success ]'
