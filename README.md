@@ -4,6 +4,24 @@
 
 One content tree, several coding agents. Skills follow the open [Agent Skills](https://agentskills.io) format. Supported coding agents are the ones verified with a live session: Claude Code, Codex, Cursor, Grok Build and OpenCode.
 
+## Prerequisites
+
+Linux, or Windows through WSL 2: native Windows is not supported. On Windows, from an administrator PowerShell, run `wsl --install -d Ubuntu-24.04`, then work inside the distribution.
+
+On Ubuntu 24.04:
+
+```bash
+sudo apt install git python3-yaml openjdk-21-jdk-headless nodejs curl zip unzip
+curl -s "https://get.sdkman.io" | bash
+source "$HOME/.sdkman/bin/sdkman-init.sh"
+sdk install maven
+```
+
+- The Maven of apt is 3.8 on Ubuntu 24.04; SDKMAN installs 3.9 (not 4). The Lutece POMs declare their Maven repository: no `settings.xml` is needed.
+- node checks the plugin's scripts (JS07); without it, JS07 reports NOT EVALUATED. PyYAML is read by the e2e bench.
+- WSL puts the Windows PATH after the Linux one: `command -v mvn` must print a Linux path, not one under `/mnt/c`.
+- In WSL, the e2e bench needs Docker Desktop (WSL 2 backend) with the distribution ticked in Settings > Resources > WSL integration.
+
 ## Installation
 
 Install once per coding agent you use.

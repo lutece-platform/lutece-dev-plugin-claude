@@ -52,6 +52,6 @@ Jakarta namespace of `web.xml` (WB01).
 
 ## i18n bundles
 
-- `tools/fix-i18n-bundles.py` repairs the I18N findings it names, `--drop <file>` removes dead keys in every language,
+- `tools/fix-i18n-bundles.py` (run through `tools/py.sh`, like every toolkit Python script) repairs the I18N findings it names, `--drop <file>` removes dead keys in every language,
   and `--add <file>` sets keys (`<bundle>[_<lang>]:<key>=<value>`, UTF-8): it writes `\uXXXX` escapes and keeps each
   file's line endings. Add or change bundle keys through it, not by hand or with an ad hoc script.
