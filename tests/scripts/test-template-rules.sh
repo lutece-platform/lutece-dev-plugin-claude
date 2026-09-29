@@ -2,6 +2,7 @@
 # Checks the house template rules (template_rules.py, scanner TD55/TD56) and verify-migration's DA02 and I18N07 on
 # small synthetic inputs: each rule must flag its bad case and leave its good case alone.
 set -u
+. "$(dirname "$0")/../../tools/python.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
 S="$HERE/../../tools"
 T=$(mktemp -d)
@@ -181,9 +182,13 @@ expect "JS04: legacy bean through a local base class" 1 "$(vm JS04 FAIL)"
 
 mkdir -p "$J/webapp/js/plugins/x"
 printf 'function a(v) {\n\tif (v) {\n\t\treturn 1;\n\t} else {\t{\n\t\treturn 2;\n\t}\n}\n' > "$J/webapp/js/plugins/x/x.js"
-expect "JS07: script with an extra brace" 1 "$(vm JS07 FAIL)"
-printf 'function a(v) {\n\treturn v ? 1 : 2;\n}\n' > "$J/webapp/js/plugins/x/x.js"
-expect "JS07: script that parses" 1 "$(vm JS07 PASS)"
+if command -v node >/dev/null 2>&1; then
+    expect "JS07: script with an extra brace" 1 "$(vm JS07 FAIL)"
+    printf 'function a(v) {\n\treturn v ? 1 : 2;\n}\n' > "$J/webapp/js/plugins/x/x.js"
+    expect "JS07: script that parses" 1 "$(vm JS07 PASS)"
+else
+    expect "JS07: not evaluated without node" 1 "$(vm JS07 'WARN.*NOT EVALUATED')"
+fi
 
 printf 'name=X\nlabel=First\nlabel=Second\n' > "$J/src/java/x/resources/x_messages.properties"
 expect "I18N10: key declared twice" 1 "$(vm I18N10 WARN)"

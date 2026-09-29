@@ -897,7 +897,8 @@ else emit "ST05" "FAIL" "Files created by the migration are excluded by .gitigno
 
 
 # LE01: a converted line ending rewrites every line of the file and hides the migration in the diff. A file counts
-# as converted when HEAD and the work tree disagree on carriage returns, whatever else changed in it: the files
+# as converted when the work tree disagrees on carriage returns with HEAD and with what a checkout of HEAD writes
+# (core.autocrlf=true turns LF into CRLF), whatever else changed in it: the files
 # that also carry real changes are the ones where the review matters most. A file left with no line break at all
 # (a one-line JSP that streams a download, whose trailing newline would be written after the file) is not converted.
 # Line-ending style of stdin: CRLF, LF, CR (old Mac, a file most tools read as one line) or mixed -- leaving either is a repair --,
@@ -914,8 +915,9 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     LE01_MATCHES=$(git diff HEAD --name-only --diff-filter=M 2>/dev/null | while read -r f; do
         [ -f "$f" ] || continue
         head_le=$(git show "HEAD:$f" 2>/dev/null | head -c 20000 | line_endings)
+        out_le=$(git cat-file --filters "HEAD:$f" 2>/dev/null | head -c 20000 | line_endings)
         work_le=$(head -c 20000 "$f" | line_endings)
-        [ "$head_le" = "$work_le" ] || [ "$head_le" = "CR" ] || [ "$head_le" = "mixed" ] || [ "$head_le" = "none" ] || [ "$work_le" = "none" ] || echo "$f: $head_le in HEAD, $work_le now"
+        [ "$head_le" = "$work_le" ] || [ "$out_le" = "$work_le" ] || [ "$head_le" = "CR" ] || [ "$head_le" = "mixed" ] || [ "$head_le" = "none" ] || [ "$work_le" = "none" ] || echo "$f: $head_le in HEAD, $work_le now"
     done)
 fi
 COUNT=0; [ -n "$LE01_MATCHES" ] && COUNT=$(echo "$LE01_MATCHES" | wc -l)
@@ -1814,16 +1816,18 @@ echo ""
 
 # JS07: a static script of the plugin that does not parse. The browser drops the whole file on the first syntax error
 # (an extra brace, a truncated line), so every function it declares is missing on the page and nothing fails in the
-# build. Checked with node --check when node is installed; FreeMarker templates under WEB-INF and minified vendor files
-# are left out.
-JS07_MATCHES=""
-if [ -d "webapp" ] && command -v node >/dev/null 2>&1; then
-    JS07_MATCHES=$(find webapp -path webapp/WEB-INF -prune -o -name "*.js" ! -name "*.min.js" ! -path "*/lib/*" ! -path "*/vendor/*" -print 2>/dev/null | while read -r js; do
+# build. Checked with node --check, NOT EVALUATED without node; FreeMarker templates under WEB-INF and minified vendor
+# files are left out.
+JS07_MATCHES=""; JS07_FILES=""
+[ -d "webapp" ] && JS07_FILES=$(find webapp -path webapp/WEB-INF -prune -o -name "*.js" ! -name "*.min.js" ! -path "*/lib/*" ! -path "*/vendor/*" -print 2>/dev/null)
+if [ -n "$JS07_FILES" ] && command -v node >/dev/null 2>&1; then
+    JS07_MATCHES=$(printf '%s\n' "$JS07_FILES" | while read -r js; do
         out=$(node --check "$js" 2>&1) || echo "$js: $(printf '%s\n' "$out" | grep -m1 -E 'SyntaxError')"
     done)
 fi
 COUNT=0; [ -n "$JS07_MATCHES" ] && COUNT=$(echo "$JS07_MATCHES" | wc -l)
-if [ "$COUNT" -eq 0 ]; then emit "JS07" "PASS" "Static scripts parse" 0
+if [ -n "$JS07_FILES" ] && ! command -v node >/dev/null 2>&1; then emit "JS07" "WARN" "Static scripts NOT EVALUATED: node is not installed" 0
+elif [ "$COUNT" -eq 0 ]; then emit "JS07" "PASS" "Static scripts parse" 0
 else emit "JS07" "FAIL" "Script that does not parse: the browser drops the whole file" "$COUNT" "$JS07_MATCHES"; fi
 echo ""
 

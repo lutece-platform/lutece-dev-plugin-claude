@@ -95,7 +95,8 @@ rm -f "$OUT"
 [ -n "$LINE" ] || verdict 0 "V8FLOOR ok: no lutece-core dependency"
 
 CORE_V="$(echo "$LINE" | awk -F: '{print $4}')"
-JAR="$(echo "$LINE" | grep -oE '/[^ ]+\.jar' | head -1)"
+JAR="$(echo "$LINE" | sed -E 's/^ *([^:]*:){5}//; s/ -- .*$//; s/ *$//')"
+case "$JAR" in *.jar) ;; *) JAR="" ;; esac
 
 [ "$(vcmp "$CORE_V" "$V8_FLOOR_CORE")" -ge 0 ] \
     || verdict 1 "V8FLOOR refused: the project resolves lutece-core $CORE_V; lutecepowers supports $FLOOR. Keep lutece-core on the open range [${V8_DECLARED_CORE},) so it resolves the latest core, refresh with mvn -U, and raise the parent to $V8_FLOOR_PARENT." "$JAR"

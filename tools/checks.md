@@ -323,7 +323,7 @@ in an interactive shell is not. When the answer "nothing left" is the point of t
 | JS02 | FAIL | JSP scriptlets | `<%[^@-]` | *.jsp |
 | JS03 | FAIL | EL call written with the class name (`${MyJspBean.method( … )}`): EL resolves only static methods that way, an instance method fails at runtime with `MethodNotFoundException`; call the `@Named` bean by its name | `\$\{…[A-Z]…(JspBean\|Bean)\.[a-z]…\(` | *.jsp |
 | JS06 | FAIL | JSP streaming a file (download, export) that leaves template text, a newline between its directives included (`trimDirectiveWhitespaces` does not remove it on Liberty): "OutputStream already obtained" on every download | (cross-file check) | *.jsp |
-| JS07 | FAIL | static script of the plugin that does not parse (`node --check`): the browser drops the whole file | node --check | webapp/**/*.js (outside WEB-INF, not *.min.js) |
+| JS07 | FAIL / WARN | static script of the plugin that does not parse (`node --check`): the browser drops the whole file; WARN NOT EVALUATED when node is not installed | node --check | webapp/**/*.js (outside WEB-INF, not *.min.js) |
 | JS05 | FAIL | admin JSP writing its own HTML (`<form>`, `<table>`, `<div>`…): the screen belongs in a template rendered by a `@View` | markup tags in webapp/jsp/admin | *.jsp |
 | JS04 | FAIL | admin JSP driving a bean that is not a `@Controller` (legacy `DoXxx.jsp`, portlets excepted), or calling a `@Controller` outside `processController` (a method that is no `@View`): no v8 dispatch, no automatic CSRF; the method becomes a `@View` (the `defaultView` of the menu entry) | (cross-file check) | *.jsp, *.java |
 

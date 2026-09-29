@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks LE01 (verify-migration.sh) and restore-line-endings.sh together: a CRLF file saved as LF or left mixed, and an
-# LF file saved as CRLF, fail LE01; the restore puts back HEAD's endings and LE01 passes; content changes survive.
+# LF file saved as CRLF, fail LE01; the restore puts back HEAD's endings and LE01 passes; content changes survive; the
+# CRLF checkout core.autocrlf writes of an LF file passes, and so does that file saved as LF.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 V="${VERIFY:-$HERE/../../tools/verify-migration.sh}"
@@ -9,9 +10,9 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 fails=0
 
-# Prints the LE01 status of the fixture project.
+# Prints the LE01 status of a fixture project, $T/p by default.
 le01() {
-    (cd "$T/p" && bash "$V" . 2>/dev/null) | sed 's/\x1b\[[0-9;]*m//g' | grep -oE '(PASS|FAIL|WARN) \[LE01\]' | cut -d' ' -f1
+    (cd "${1:-$T/p}" && bash "$V" . 2>/dev/null) | sed 's/\x1b\[[0-9;]*m//g' | grep -oE '(PASS|FAIL|WARN) \[LE01\]' | cut -d' ' -f1
 }
 
 # Records a failure when a condition does not hold.
@@ -25,7 +26,7 @@ printf 'class A\r\n{\r\n}\r\n' > src/java/A.java
 printf 'class B\n{\n}\n' > src/java/B.java
 printf 'class C\r\n{\r\n}\r\n' > src/java/C.java
 printf 'class D\r\n{\r\n}\r\n' > src/java/D.java
-git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm init
+git init -q && git config core.autocrlf false && git add -A && git -c user.email=t@t -c user.name=t commit -qm init
 check "LE01 passes on an untouched tree" '[ "$(le01)" = PASS ]'
 
 printf 'class A\n{\n    int x;\n}\n' > src/java/A.java
@@ -36,10 +37,20 @@ check "LE01 fails on CRLF saved as LF, LF saved as CRLF, CRLF left mixed" '[ "$(
 
 bash "$R" . >/dev/null
 check "A is CRLF again with its new line kept" '[ "$(od -An -c src/java/A.java | tr -d " \n")" = "classA\r\n{\r\nintx;\r\n}\r\n" ]'
-check "B is LF again" '! grep -q $'"'"'\r'"'"' src/java/B.java'
+check "B is LF again" '[ "$(tr -dc '"'"'\r'"'"' < src/java/B.java | wc -c)" = 0 ]'
 check "C is CRLF on every line" '[ "$(tr -cd "\r" < src/java/C.java | wc -c)" -eq 3 ]'
 check "D, a content change only, is left alone" '[ "$(tr -cd "\r" < src/java/D.java | wc -c)" -eq 4 ]'
 check "LE01 passes after the restore" '[ "$(le01)" = PASS ]'
+
+mkdir -p "$T/w/src/java"
+cd "$T/w" || exit 1
+printf 'class W\n{\n}\n' > src/java/W.java
+git init -q && git config core.autocrlf true && git add -A 2>/dev/null && git -c user.email=t@t -c user.name=t commit -qm init
+rm src/java/W.java && git checkout -q src/java/W.java
+printf 'class W\r\n{\r\n    int w;\r\n}\r\n' > src/java/W.java
+check "LE01 passes on the CRLF checkout core.autocrlf writes of an LF file" '[ "$(le01 "$T/w")" = PASS ]'
+printf 'class W\n{\n    int w;\n}\n' > src/java/W.java
+check "LE01 passes on that file saved as LF, which git stores unchanged" '[ "$(le01 "$T/w")" = PASS ]'
 
 [ "$fails" -eq 0 ] && { echo "PASS: LE01 fails on converted endings, a mixed file included, and restore-line-endings.sh brings back HEAD's"; exit 0; }
 exit 1

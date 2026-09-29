@@ -7,11 +7,13 @@
 # on every changed file whose endings moved (verify-migration.sh, check LE01), and leaves the content alone.
 
 set -uo pipefail
+. "$(cd "$(dirname "$0")" && pwd)/python.sh"
 cd "${1:-.}" || exit 1
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "not a git work tree"; exit 2; }
 
-# Same rule as LE01: the file counts as converted when the style of HEAD (CRLF or LF) differs from the work tree's,
-# a mixed work tree included, whatever else changed in it. The content is left alone, only the endings move.
+# Same rule as LE01: the file counts as converted when the work tree's style differs from HEAD's (CRLF or LF) and
+# from the style a checkout of HEAD writes (core.autocrlf), a mixed work tree included, whatever else changed in it.
+# It gets the checkout style back. The content is left alone, only the endings move.
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 git diff HEAD --name-only --diff-filter=M > "$TMP/files"
 
@@ -28,11 +30,12 @@ N=0
 while read -r f; do
     [ -f "$f" ] || continue
     head_le=$(git show "HEAD:$f" 2>/dev/null | head -c 20000 | line_endings)
+    out_le=$(git cat-file --filters "HEAD:$f" 2>/dev/null | head -c 20000 | line_endings)
     work_le=$(head -c 20000 "$f" | line_endings)
-    { [ "$head_le" = "$work_le" ] || [ "$work_le" = "none" ]; } && continue
-    if [ "$head_le" = "CRLF" ]; then
+    { [ "$head_le" = "$work_le" ] || [ "$out_le" = "$work_le" ] || [ "$work_le" = "none" ]; } && continue
+    if [ "$out_le" = "CRLF" ]; then
         perl -pi -e 's/\r?\n/\r\n/' "$f"; N=$((N+1)); echo "  $work_le -> CRLF  $f"
-    elif [ "$head_le" = "LF" ]; then
+    elif [ "$out_le" = "LF" ]; then
         perl -pi -e 's/\r\n/\n/' "$f"; N=$((N+1)); echo "  $work_le -> LF  $f"
     fi
 done < "$TMP/files"
