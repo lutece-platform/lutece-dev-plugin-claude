@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 
 import bundles
 
@@ -69,18 +70,28 @@ def artifact_id(root):
     return ids[0].strip() if ids else None
 
 
-def used_elsewhere(refs, full, own):
-    """True when a reference repository other than the project, or a copy of it (same artifactId), names the key."""
-    if not refs or not os.path.isdir(refs):
-        return False
-    out = subprocess.run(["grep", "-rlF", "--exclude=*_messages*.properties", "--exclude-dir=target", full, refs],
-                         capture_output=True, text=True).stdout.split()
+def used_elsewhere(refs, fulls, own):
+    """The keys of fulls that a reference repository other than the project, or a copy of it (same artifactId), names."""
+    if not refs or not os.path.isdir(refs) or not fulls:
+        return set()
+    with tempfile.NamedTemporaryFile("w", suffix=".keys", delete=False, encoding="utf-8") as patterns:
+        patterns.write("\n".join(sorted(fulls)) + "\n")
+    try:
+        out = subprocess.run(["grep", "-rlF", "-f", patterns.name, "--exclude=*_messages*.properties", "--exclude-dir=target", refs],
+                             capture_output=True, text=True).stdout.splitlines()
+    finally:
+        os.unlink(patterns.name)
     mine = artifact_id(own)
+    found = set()
     for o in out:
+        o = os.path.normpath(o)
         repo = os.path.join(refs, os.path.relpath(o, refs).split(os.sep)[0])
-        if os.path.basename(own) not in o.split(os.sep) and not (mine and artifact_id(repo) == mine):
-            return True
-    return False
+        if os.path.basename(own) in o.split(os.sep) or (mine and artifact_id(repo) == mine):
+            continue
+        with open(o, "rb") as handle:
+            data = handle.read()
+        found.update(k for k in fulls if k.encode("utf-8") in data)
+    return found
 
 
 def keys_of(bundle):
@@ -93,6 +104,7 @@ def unused(root, refs):
     """(bundle, line, key) of every unused key of the project's default bundles."""
     text = read_all(root, project_files(root))
     stems = stems_of(text)
+    candidates = []
     for bundle in sorted(glob.glob(os.path.join(root, "src/java/**/resources/*_messages.properties"), recursive=True)):
         prefix = os.path.basename(bundle)[:-len("_messages.properties")]
         for n, key in keys_of(bundle):
@@ -102,8 +114,10 @@ def unused(root, refs):
             if any(full.startswith(s) or key.startswith(s) or (prefix + "." in s and key.startswith(s.split(prefix + ".", 1)[1]))
                    for s in stems):
                 continue
-            if used_elsewhere(refs, full, os.path.abspath(root)):
-                continue
+            candidates.append((bundle, n, key, full))
+    elsewhere = used_elsewhere(refs, {full for _, _, _, full in candidates}, os.path.abspath(root))
+    for bundle, n, key, full in candidates:
+        if full not in elsewhere:
             yield os.path.relpath(bundle, root), n, key
 
 
