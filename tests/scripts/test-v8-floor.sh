@@ -37,14 +37,14 @@ core_pom core-snap 8.0.2-SNAPSHOT;       expect core-snap 0
 core_pom core-803 8.0.3;                 expect core-803 0
 . "$HERE/../../tools/v8-floor.conf"
 M2="$HOME/.m2/repository/fr/paris/lutece/lutece-core"
-if ls "$M2/8.0.1/"*.jar "$M2/$V8_FLOOR_CORE/"*.jar >/dev/null 2>&1; then
+if ls "$M2/8.0.1/"*.jar "$M2/$V8_FLOOR_CORE/"*.jar "$M2/maven-metadata-lutece.xml" >/dev/null 2>&1; then
     dep_pom dep-801 8.0.1;                   expect dep-801 1
     dep_pom dep-floor '[8.0.0,)';            expect dep-floor 0
     dep_pom dep-snap "$V8_FLOOR_CORE";       expect dep-snap 0
     V8_FLOOR_CORE_BUILD=2099-01-01 expect dep-snap 1
     grep -q "lutecepowers supports" "$T/dep-801.err" || { echo "FAIL: the refusal does not name the floor"; fails=$((fails + 1)); }
 else
-    echo "SKIP: no lutece-core 8.0.1 and $V8_FLOOR_CORE jars in ~/.m2, the offline Maven cases are not run (mvn dependency:get fetches them)"
+    echo "SKIP: ~/.m2 lacks the lutece-core 8.0.1 and $V8_FLOOR_CORE jars or its version list, the offline Maven cases are not run (mvn dependency:get fetches them, RELEASE the list)"
 fi
 mkdir -p "$T/nopom";                     expect nopom 2
 mkdir -p "$T/core-803/target"; printf '1\t\tV8FLOOR CACHED\n' > "$T/core-803/target/.v8-floor"
