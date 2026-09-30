@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Assembles harness/site7/target/lutece.war: the artefact BEFORE its migration, on a Lutece 7 site, for the
-# before/after comparison (run.sh compare). The v7 sources are the git ref the clone still carries — HEAD while
+# before/after comparison (run.sh compare). A site target (E2E_TARGET=site) brings its own v7 war (E2E_V7_WAR). The v7 sources are the git ref the clone still carries — HEAD while
 # the migration is staged and not committed — checked out in a worktree and
 # built with plain mvn (the site pom declares the Lutece repositories), or with E2E_MVN7 when a developer keeps separate settings.
 set -euo pipefail
@@ -23,7 +23,13 @@ CORE="${E2E_V7_CORE:-7.1.9}"
 
 eval_pom() { $MVN7 -q -f "$1" help:evaluate -Dexpression="$2" -DforceStdout 2>/dev/null; }
 
-[ "$E2E_TARGET" = plugin ] || { echo "gen-site7.sh: only a plugin target has a v7 before; E2E_TARGET=$E2E_TARGET" >&2; exit 2; }
+case "$E2E_TARGET" in
+  plugin) ;;
+  site) [ -d "${E2E_V7_WAR:-}/WEB-INF" ] || { echo "gen-site7.sh: a site target takes its v7 before from E2E_V7_WAR, the v7 site assembled by tools/site-assemble.sh without an environment profile" >&2; exit 2; } ;;
+  *) echo "gen-site7.sh: only a plugin or a site target has a v7 before; E2E_TARGET=$E2E_TARGET" >&2; exit 2 ;;
+esac
+
+if [ "$E2E_TARGET" = plugin ]; then
 
 # -- the v7 sources, in a worktree that never touches the migrated tree ---------------------------------------------
 # A worktree left by a bench copied from another clone points at that clone's .git: reusing it fails with "not a git
@@ -142,6 +148,23 @@ echo ">> assemble v7 war"
 ( cd "$SITE" && $MVN7 -B -q clean package lutece:site-assembly )
 FINAL=$(find "$SITE/target" -maxdepth 1 -type d -name "e2e-site7-*" | head -1)
 [ -n "$FINAL" ] || { echo "site-assembly produced no exploded directory under $SITE/target" >&2; exit 1; }
+else
+  # A site is its own v7 before: the war tools/site-assemble.sh exploded, without an environment profile so that no
+  # value of a real environment (its database, its identity provider, its search cluster) comes into the bench. The
+  # bench's database settings, property overrides and probe pages are laid over it, as on the plugin leg.
+  rm -rf "$SITE/target"; mkdir -p "$SITE/target"
+  FINAL="$SITE/target/e2e-site7-site"
+  cp -a "$E2E_V7_WAR" "$FINAL"
+  cp "$SITE/webapp/WEB-INF/conf/db.properties" "$FINAL/WEB-INF/conf/db.properties"
+  if [ -d "$E2E/harness/site/webapp/WEB-INF/conf/override" ]; then
+    mkdir -p "$FINAL/WEB-INF/conf/override" && cp -a "$E2E/harness/site/webapp/WEB-INF/conf/override/." "$FINAL/WEB-INF/conf/override/"
+  fi
+  if [ -d "$E2E/harness/site/webapp/jsp/e2e" ]; then
+    mkdir -p "$FINAL/jsp/e2e" && cp -a "$E2E/harness/site/webapp/jsp/e2e/." "$FINAL/jsp/e2e/"
+  fi
+  CORE=$(find "$FINAL/WEB-INF/lib" -maxdepth 1 -name "lutece-core-*.jar" | head -1 | sed -E 's#.*/lutece-core-(.*)\.jar#\1#')
+  echo ">> v7 site: $E2E_V7_WAR, core $CORE, database settings of the bench"
+fi
 # The v7 core reads its .properties through MicroProfile Config, so the environment reaches them; a literal in a
 # Spring context XML reads nothing. The v7 leg then calls the real outside system while the v8 leg calls the
 # stand-in, and the comparison reads the difference as "corrigé". `harness/v7-overlay` is laid over the assembled
@@ -167,7 +190,8 @@ for jar in sorted(glob.glob(os.path.join(sys.argv[1], "*.jar"))):
     try:
         with zipfile.ZipFile(jar) as z:
             names = [n for n in z.namelist() if n.endswith(".class") and not n.startswith("META-INF/") and not n.endswith("module-info.class")]
-            major = max((struct.unpack(">H", z.read(n)[6:8])[0] for n in names[:20]), default=0)
+            heads = [z.read(n)[:8] for n in names[:20]]
+            major = max((struct.unpack(">H", h[6:8])[0] for h in heads if len(h) == 8 and h[:4] == b"\xca\xfe\xba\xbe"), default=0)
     except (zipfile.BadZipFile, OSError):
         continue
     if major > 55:

@@ -52,6 +52,14 @@ E2E_RESTART_AFTER_SEED=
 # on the same database. E2E_V7_REF is the git ref of the v7 sources (HEAD while the migration is only staged);
 # E2E_V7_PLUGINS lists extra artefacts at their v7 versions (the v8 E2E_PLUGINS list does not apply).
 E2E_V7_REF=HEAD
+# A site target (E2E_TARGET=site) brings its own v7 before: E2E_V7_WAR, the v7 site exploded by
+# tools/site-assemble.sh without an environment profile. E2E_V7_DUMP, a dump (.sql or .sql.gz) of a copy of a real
+# v7 database (recette), is loaded instead of the Ant install: the upgrade is then proven on real data. Keep the dump
+# outside every repository and delete it after the run. E2E_TAKEOVER, the directory site_check.py takeover writes
+# from the two wars: the scripts of the two starts that take the v7 database over (core first, then the components).
+#E2E_V7_WAR=
+#E2E_V7_DUMP=
+#E2E_TAKEOVER=
 E2E_V7_SITE_POM=7.0.8
 E2E_V7_CORE=7.1.9
 E2E_V7_PLUGINS=

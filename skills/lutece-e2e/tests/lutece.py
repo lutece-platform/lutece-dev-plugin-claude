@@ -168,7 +168,7 @@ def classify(page, status=None):
     if status and status >= 400:
         return "http-%d" % status
     probe = """() => ({
-        menu: !!document.querySelector('#main-menu, #main-nav'),
+        menu: !!document.querySelector('#main-menu, #main-nav, #lutece-layout-wrapper #navbar-menu'),
         footer: !!document.querySelector('footer, .footer, #footer'),
         login: !!document.querySelector('form input[name="access_code"]') && !!document.querySelector('form input[name="password"]'),
         danger: !!document.querySelector('.card-status-start.bg-danger, .card-stamp-icon.bg-danger'),
@@ -187,6 +187,8 @@ def classify(page, status=None):
             raise
         page.wait_for_load_state("domcontentloaded")
         info = page.evaluate(probe)
+    # The admin menu of a core before 7.1.8 is #navbar-menu inside #lutece-layout-wrapper, with no #main-menu: without
+    # it every back-office screen of such a v7 site reads as a bare form, and its v7 leg fails the harness check.
     # header[role=banner] is the front-office page of a v7 site, where none of the v8 markers exist: without it
     # every front-office page of the older leg reads as a bare form and the comparison shows a rendering change
     # on pages nothing touched.

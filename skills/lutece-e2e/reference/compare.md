@@ -150,3 +150,35 @@ coverage is measured the same way.
 by hand, write a review after a normal run, never after a `compare`.
 A v7-leg failure caused by the v7 bench itself (a table the old dependency lacks, an SQL error of the v7 stack) is not
 a v8 fix: read `compare.md`'s "corrigé" lines against the v7 log before claiming one.
+
+## A site
+
+`E2E_TARGET=site` compares a real site: `E2E_V7_WAR` is its v7 war (`tools/site-assemble.sh --ref <v7 ref> --out <dir>`,
+without `--profile`: no value of a real environment enters the bench), the v8 war is the one `run.sh build` finds in
+`harness/site/target/lutece.war` (`tools/site-bench-war.sh`). With `E2E_V7_DUMP`, the v7 leg starts on a copy of a real
+database instead of the Ant install, the admin account of that copy gets the bench's password, and phase 4 hands it
+to the v8 site. Phase 4 also saves the settings the core upgrade to 8.0.0 deletes and lists, in
+`artifacts/datastore-lost.txt`, those the v8 site no longer has: set them again after the upgrade.
+
+The start in migration mode (phase 4) is played only when the v7 database has no `DATABASECHANGELOG`: a v7 site that
+already ran plugin-liquibase has its versions recorded, and that start would overwrite them with the v8 ones. It runs no script: the v8 code meets the v7 schema of the core, and on a v7 core
+older than the v8 tables it needs (security headers, the theme key of the datastore) its pages fail. That start
+only has to record the versions, during the early initialisation: `run.sh` waits for Liberty to declare the
+application deployed (`CWWKZ0001I`, printed whatever logging the site sets, where a site logging at WARN never writes
+`LiquibaseRunner ended`), not for a healthy page. A site then takes the database over in two normal starts, from
+the scripts `site_check.py takeover` wrote into `E2E_TAKEOVER`: `takeover-1-core.sql` lets only the core upgrades
+run (plugin-liquibase would run `sql/plugins/` and `sql/themes/` first), `takeover-2-components.sql` sets each
+component back to what the v7 site had installed, moves the keys of a renamed one and removes the version of a new
+one; the second start runs the component upgrades and installs. A plugin target keeps one start: the versions reset
+to the v7 ones (`versions.properties`), then the upgrades.
+
+## An update of a Lutece 8 site or artefact (`upgrade`)
+
+`compare` proves a v7 → v8 migration. An update between two Lutece 8 versions is proven by `run.sh upgrade`:
+`E2E_BEFORE_WAR` is the war of the version the environments run, built the way `harness/site/target/lutece.war` is
+(a site: `tools/site-bench-war.sh`). It starts on a fresh database, where its own Liquibase creates the schema;
+the war under test then takes that database over in a normal start, as a deployment does. The run writes what
+Liquibase ran (`artifacts/upgrade-changesets.txt`), the plugins of the new war the database leaves disabled
+(`upgrade-disabled.txt`: a renamed plugin that `plugins.dat` still lists under its former name is one), the status
+keys of names no descriptor declares any more (`upgrade-orphans.txt`: the keys of a renamed plugin nobody moved) and
+the settings the update changed (`upgrade-settings-lost.txt`), then plays the suites on the updated site.

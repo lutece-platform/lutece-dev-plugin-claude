@@ -63,6 +63,8 @@ bash tests/scripts/test-portable.sh
 bash tests/scripts/test-e2e-lock.sh
 bash tests/scripts/test-core-defect.sh
 bash tests/scripts/test-source-key.sh
+bash tests/scripts/test-site-checks.sh
+bash tests/scripts/test-site-v7-leg.sh
 claude plugin validate .
 ```
 

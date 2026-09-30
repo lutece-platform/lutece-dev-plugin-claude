@@ -70,8 +70,10 @@ full run.
 | `report` | rebuilds `summary.md` and `report.html` from the artefacts already there | free, anytime |
 | `review` | the screen-by-screen visual gate | before handing over |
 | `logs`, `status`, `sh` | the application log, the containers, a shell inside the application | while diagnosing |
-| `down` | stops the stack and drops its volumes | when done |
+| `down` | stops the stack, drops its volumes and the images earlier builds left untagged | when done |
+| `clean` | `down`, then removes the images of this bench (about 2 GB each; the next run builds them again) | the bench is no longer needed |
 | `compare` | the artefact **before** its migration on a v7 site, then the v8 one on that same database | migration only |
+| `upgrade` | `E2E_BEFORE_WAR` (the previous Lutece 8 version) on a fresh database, then the war under test on that database: changesets run, plugins left disabled, orphan status keys, settings lost, then the suites | update of a v8 artefact or site |
 | `external` | the suites against a site deployed elsewhere, from `E2E_BASE_URL` | recette, preprod |
 
 The last two are conditional and documented apart: [reference/compare.md](reference/compare.md). Everything
@@ -84,8 +86,10 @@ bash ${LUTECEPOWERS_ROOT}/skills/lutece-e2e/scripts/init-e2e.sh <project-dir>   
 ```
 
 Then edit `e2e/e2e.conf`:
-- `E2E_TARGET` core | plugin. A **site** builds with its own pom: set `E2E_TARGET=site`, replace
-  `harness/site` by a symlink to the site and keep `tools/gen-site.sh` out of the flow (run `mvn ... lutece:site-assembly` yourself, then `jar -cf harness/site/target/lutece.war`).
+- `E2E_TARGET` core | plugin. A **site** builds with its own pom: set `E2E_TARGET=site` and keep `tools/gen-site.sh`
+  out of the flow: `${LUTECEPOWERS_ROOT}/tools/site-assemble.sh <site> --out <dir>`, then
+  `${LUTECEPOWERS_ROOT}/tools/site-bench-war.sh <dir> e2e/harness/site/target/lutece.war`, which adds the configuration
+  probe `lutece-update-site` reads (it prints the token).
 - `E2E_PLUGINS` extra artefacts to assemble (`groupId:artifactId:version:type`, comma-separated) — the
   plugin's runtime dependencies that are not pulled transitively (mylutece, workflow, genericattributes…).
 - `E2E_ENABLE` plugin names to mark installed in `plugins.dat` (v8 default is *not installed*).

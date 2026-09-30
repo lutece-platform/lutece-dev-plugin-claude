@@ -9,11 +9,13 @@
 #   ./run.sh test         every suite (screens, fo, scenarios, forms) against the running stack
 #   ./run.sh test <args>  one pytest call, e.g. `test tests/test_scenarios.py -k my_scenario` (seconds)
 #   ./run.sh compare      the artefact in v7 (Tomcat) then in v8 on the same database, the suites both times, before/after report
+#   ./run.sh upgrade      E2E_BEFORE_WAR on a fresh database, then the war under test takes it over; what changed, then the suites
 #   ./run.sh external     the suites against an instance already deployed (E2E_BASE_URL, optional E2E_DB_*): no build, no seed, no fuzzer
 #   ./run.sh perf         server timings, DB digests (artifacts/perf.json); E2E_PERF=1 adds the k6 load, E2E_JFR=1 the JFR hot methods
 #   ./run.sh report       artifacts/summary.md + report.html from the run artifacts
 #   ./run.sh deploy       hot copy into the running app (KEEP=1): webapp/ at once, the jar + a restart when Java changed
-#   ./run.sh down         stop everything and drop the database volume
+#   ./run.sh down         stop everything, drop the database volume and the untagged images of earlier builds
+#   ./run.sh clean        down, then remove the images of this bench (rebuilt by the next run)
 #   ./run.sh logs|status|sh   compose shortcuts
 #   ./run.sh py <script> [args]  a Python script in the test runner, with the bench's own environment (a hand-made
 #                        `docker compose run` with another environment recreates the running app and db)
@@ -147,11 +149,10 @@ cmd_up() {
   fi
   # The stand-ins' image follows harness/fakes: rebuilt when it changed (a cached no-op otherwise).
   [ -n "${E2E_FAKES:-}" ] && { "${COMPOSE[@]}" build -q fakes || exit 1; }
+  if war_newer_than_image; then step "the war is newer than the image: image rebuilt"; "${COMPOSE[@]}" build lutece || exit 1; fi
   "${COMPOSE[@]}" up -d db lutece ${E2E_FAKES:+fakes oauth2} ${E2E_SEARCH:+solr elastic}
   step "waiting for the application"
-  until [ "$(health)" != starting ]; do sleep 1; done
-  if [ "$(health)" != healthy ]; then
-    echo "application unhealthy, last log lines:"; docker logs --tail 40 "$APP"
+  if ! wait_healthy "$APP"; then
     # Never leave a dead stack holding the ports: the next bench on this slot would fail to bind for no reason of its own.
     [ "${KEEP:-}" = 1 ] || cmd_down
     exit 1
@@ -165,8 +166,7 @@ cmd_up() {
   if [ -n "${E2E_RESTART_AFTER_SEED:-}" ]; then
     step "restart the application on the seeded database"
     "${COMPOSE[@]}" restart lutece >/dev/null
-    until [ "$(health)" != starting ]; do sleep 1; done
-    [ "$(health)" = healthy ] || { echo "application unhealthy after the post-seed restart:"; docker logs --tail 40 "$APP"; exit 1; }
+    wait_healthy "$APP" || { echo "application unhealthy after the post-seed restart"; exit 1; }
   fi
 }
 
@@ -313,9 +313,16 @@ invariants() {
 
 # True when the war/image are missing OR a source file changed since the war was built: prevents testing a
 # stale build (a green run on code that is not in the image).
+# The image carries a copy of the war: a war written since (a site target's war replaced by hand) would otherwise
+# never reach the container, and the bench would test the previous one without a word.
+war_newer_than_image() {
+  local built; built=$(date -d "$(docker image inspect -f '{{.Created}}' "${E2E_NAME}-server:local" 2>/dev/null)" +%s 2>/dev/null || echo 0)
+  [ -f harness/site/target/lutece.war ] && [ "$(stat -c %Y harness/site/target/lutece.war)" -gt "$built" ]
+}
 needs_build() {
   [ -f harness/site/target/lutece.war ] || return 0
   [ -n "$(docker images -q "${E2E_NAME}-server:local")" ] || return 0
+  war_newer_than_image && return 0
   [ -n "$(find "$E2E_SRC/src" "$E2E_SRC/webapp" -type f -newer harness/site/target/lutece.war 2>/dev/null | head -1)" ] && return 0
   # e2e.conf, the harness and gen-site.sh decide what goes INTO the war (plugins assembled, plugins enabled, liquibase
   # version); the other tools (inventory, review, report) do not, and a toolkit refresh must not rebuild for them.
@@ -403,21 +410,27 @@ cmd_report() {
 # normal start: that is a site already followed by plugin-liquibase in v7, the case where Liquibase does the
 # upgrade itself and where a migration that changed a schema without shipping its update_db_* script fails.
 APP7="${E2E_NAME}-lutece7-1"
+# The console of the container, then the Liquibase and error logs of Lutece: a site whose log4j configuration keeps
+# the lutece and liquibase loggers off the console writes "Migration failed for changeset" only in those files.
+app_logs() {
+  docker logs "$1" 2>&1
+  docker exec "$1" sh -c 'd="${LUTECE_LOG_DIRECTORY:-${WLP_OUTPUT_DIR:-/opt/wlp/output}/defaultServer/logs/lutece}"; cat "$d/liquibase.log" "$d/error.log" 2>/dev/null' 2>/dev/null || true
+}
 wait_healthy() {
   local c=$1
   # Docker only declares the container unhealthy after start_period + retries × interval, about eight minutes. A
   # site whose Liquibase run stopped, or whose application never deployed, is known lost from the first line that
   # says so: stop waiting right there instead of letting the health check run out.
-  local fatal='LiquibaseRunner failed|Migration failed for changeset|CWWKZ0002E|startup failed due to previous errors'
+  local fatal='LiquibaseRunner failed|Migration failed for changeset|CWWKZ0002E|startup failed due to previous errors|DSRA4000E'
   until [ "$(docker inspect -f '{{.State.Health.Status}}' "$c" 2>/dev/null || echo missing)" != starting ]; do
     [ "$(docker inspect -f '{{.State.Running}}' "$c" 2>/dev/null)" = true ] || break
-    docker logs "$c" 2>&1 | grep -qE "$fatal" && break
+    app_logs "$c" | grep -qE "$fatal" && break
     sleep 1
   done
   # The whole log is kept beside the last lines: when the site does not come up, the cause (a Liquibase
   # changeset that stopped, a bean that failed to start) is hundreds of lines above the tail and would otherwise
   # be gone with the container.
-  [ "$(docker inspect -f '{{.State.Health.Status}}' "$c" 2>/dev/null)" = healthy ] || { mkdir -p artifacts/logs; docker logs "$c" > "artifacts/logs/unhealthy-$c.log" 2>&1; echo "$c unhealthy (full log: artifacts/logs/unhealthy-$c.log)"; grep -m1 -oE "Migration failed for changeset [^ ]+" "artifacts/logs/unhealthy-$c.log" | sed 's/^/>> LIQUIBASE STOPPED: /'; grep -m1 -oE "Reason: .{0,200}" "artifacts/logs/unhealthy-$c.log" | sed 's/^/>>   /'; echo "last log lines:"; docker logs --tail 60 "$c"; return 1; }
+  [ "$(docker inspect -f '{{.State.Health.Status}}' "$c" 2>/dev/null)" = healthy ] || { mkdir -p artifacts/logs; app_logs "$c" > "artifacts/logs/unhealthy-$c.log"; echo "$c unhealthy (full log: artifacts/logs/unhealthy-$c.log)"; grep -m1 -oE "Migration failed for changeset [^ ]+" "artifacts/logs/unhealthy-$c.log" | sed 's/^/>> LIQUIBASE STOPPED: /'; grep -m1 -oE "Reason: .{0,200}" "artifacts/logs/unhealthy-$c.log" | sed 's/^/>>   /'; echo "last log lines:"; docker logs --tail 60 "$c"; return 1; }
 }
 # Hot deploy into the running application, the loop to iterate on a fix in seconds: the artefact's webapp/
 # (templates, CSS, JS, JSP) is copied into the expanded war and served at once; when its Java or its resources
@@ -467,6 +480,15 @@ for top in ("e2e.conf", "harness", "scenarios", "tests", "tools", "fixtures", "b
     for p in sorted(pathlib.Path(top).rglob("*")) if pathlib.Path(top).is_dir() else [pathlib.Path(top)]:
         if p.is_file() and "__pycache__" not in p.parts and not str(p).startswith(("harness/site/", "harness/site7/", "harness/src7/")):
             h.update(str(p).encode()); h.update(p.read_bytes())
+import os
+for extra in (os.environ.get("E2E_V7_DUMP", ""),):
+    if extra and pathlib.Path(extra).is_file():
+        h.update(extra.encode()); h.update(str(pathlib.Path(extra).stat().st_size).encode()); h.update(str(pathlib.Path(extra).stat().st_mtime_ns).encode())
+war = os.environ.get("E2E_V7_WAR", "")
+if war and pathlib.Path(war).is_dir():
+    for p in sorted(pathlib.Path(war).rglob("*")):
+        if p.is_file():
+            h.update(str(p.relative_to(war)).encode()); h.update(str(p.stat().st_size).encode())
 print(h.hexdigest()[:12])
 PY
 }
@@ -485,6 +507,13 @@ has_portlet() {
 
 cmd_compare() {
   COMPOSE+=(--profile v7)
+  # A site takes the v7 database over in two normal starts, the scripts of which site_check.py writes from its v7
+  # and v8 wars: the core first, then each component from what the v7 site had installed.
+  if [ "$E2E_TARGET" = site ]; then
+    local pass; for pass in takeover-1-core.sql takeover-2-components.sql; do
+      [ -f "${E2E_TAKEOVER:-}/$pass" ] || { echo "E2E_TAKEOVER: the directory written by site_check.py takeover <v7 war> <v8 war> --out <dir> (lutece-update-site, phase F); no $pass there"; exit 2; }
+    done
+  fi
   # A plugin assembled on the v8 leg but absent from the v7 one arrives on a database where its tables already
   # exist (the v7 core created them) with no version recorded for it: plugin-liquibase installs it as new, marks
   # its creation script as already applied and never runs its upgrades, so the schema stays at the v7 shape and
@@ -517,10 +546,24 @@ cmd_compare() {
   step "compare 1/6: v7 site and image"
   bash tools/gen-site7.sh
   "${COMPOSE[@]}" build lutece7
-  step "compare 2/6: v7 on a fresh database, seeded"
   # The artefact calls the same outside systems on both legs: the stand-ins and the search engines are part of
   # the comparison, not of `run.sh all` only — without them the v8 leg fails on calls the v7 leg never made.
-  "${COMPOSE[@]}" up -d db mail lutece7 ${E2E_FAKES:+fakes oauth2} ${E2E_SEARCH:+solr elastic}
+  if [ -n "${E2E_V7_DUMP:-}" ]; then
+    # A dump of a real v7 database (a recette copy): the upgrade is proven on the data the environments hold, not on
+    # an install. The v7 site starts on it without its Ant build; only the admin account gets the bench's password,
+    # the one both cores install ('PLAINTEXT:adminadmin'), on this copy.
+    step "compare 2/6: v7 on the database dump $(basename "$E2E_V7_DUMP")"
+    [ -f "$E2E_V7_DUMP" ] || { echo "E2E_V7_DUMP: no such file: $E2E_V7_DUMP"; exit 2; }
+    "${COMPOSE[@]}" up -d db mail
+    wait_db
+    case "$E2E_V7_DUMP" in *.gz) gzip -dc "$E2E_V7_DUMP" ;; *) cat "$E2E_V7_DUMP" ;; esac | docker exec -i "${E2E_NAME}-db-1" mariadb -ulutece -plutece lutece
+    docker exec "${E2E_NAME}-db-1" mariadb -ulutece -plutece lutece -e "UPDATE core_admin_user SET password='PLAINTEXT:adminadmin', reset_password=0, password_max_valid_date='2099-01-01 00:00:00', status=0 WHERE access_code='admin'"
+    echo ">> v7 base: dump loaded, admin account set to the bench's password on this copy"
+    E2E_V7_INIT_DB=0 "${COMPOSE[@]}" up -d lutece7 ${E2E_FAKES:+fakes oauth2} ${E2E_SEARCH:+solr elastic}
+  else
+    step "compare 2/6: v7 on a fresh database, seeded"
+    "${COMPOSE[@]}" up -d db mail lutece7 ${E2E_FAKES:+fakes oauth2} ${E2E_SEARCH:+solr elastic}
+  fi
   wait_healthy "$APP7" || exit 1
   # --no-deps: dbinit normally waits for the v8 container to be healthy (Liquibase creates the schema there);
   # here the schema comes from the v7 Ant build and the v8 container must stay down until phase 4.
@@ -590,15 +633,63 @@ WARN
   "${COMPOSE[@]}" stop lutece7
   docker exec -i "${E2E_NAME}-db-1" mariadb -ulutece -plutece lutece < artifacts/v7-seeded.sql
   echo ">> database restored to its seeded v7 state (what the suites consumed is not handed over)"
+  # The settings the core upgrade to 8.0.0 deletes (site properties, theme, advanced parameters of the back-office
+  # accounts, cache statuses): saved here, compared once the v8 site has taken the base over.
+  local ds_query="SELECT CONCAT(entity_key,' = ',entity_value) FROM core_datastore WHERE entity_key LIKE 'core.advanced_parameters.%' OR entity_key LIKE 'portal.%site_property%' OR entity_key LIKE 'core.cache.status.%' OR entity_key LIKE 'theme%' ORDER BY 1"
+  docker exec "${E2E_NAME}-db-1" mariadb -ulutece -plutece lutece -N -e "$ds_query" > artifacts/datastore-v7.txt 2>/dev/null || true
+  # In migration mode plugin-liquibase runs no script: the v8 code then meets the v7 schema of the core (a v7 core
+  # older than the security headers, a datastore without the v8 theme key) and its pages may well fail. What this start
+  # must do is record the versions; waiting for a healthy page would wait for what this start cannot give.
+  # plugin-liquibase records them during the early initialisation, before Liberty declares the application started
+  # (CWWKZ0001I) or failed (CWWKZ0002E): those two lines are printed whatever logging the site configures, where
+  # "LiquibaseRunner ended" is an INFO line a site logging at WARN never writes.
+  # A v7 site that already ran plugin-liquibase (the documented way to bring it under Liquibase) has its
+  # DATABASECHANGELOG and its recorded versions: that start is for a database that never had them, and on one that
+  # has them it records the versions of the v8 war over those of the v7 site.
+  local since i
+  if [ -n "$(docker exec "${E2E_NAME}-db-1" mariadb -ulutece -plutece lutece -N -e "SHOW TABLES LIKE 'DATABASECHANGELOG'" 2>/dev/null)" ]; then
+    echo ">> the v7 database is already followed by plugin-liquibase (DATABASECHANGELOG): no start in migration mode"
+  else
+  since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   LIQUIBASE_MIGRATION_MODE=true "${COMPOSE[@]}" up -d lutece
-  wait_healthy "$APP" || exit 1
+  for i in $(seq 1 600); do
+    docker logs --since "$since" "$APP" 2>&1 | grep -qE "LiquibaseRunner ended|CWWKZ0001I|CWWKZ0002E" && break
+    [ "$i" -eq 600 ] && { echo "the migration-mode start never deployed the application, last lines:"; docker logs --tail 40 "$APP"; exit 1; }
+    sleep 1
+  done
+  docker logs --since "$since" "$APP" 2>&1 | grep -q CWWKZ0002E && { echo "the migration-mode start failed to deploy the application, last lines:"; docker logs --tail 60 "$APP"; exit 1; }
+  echo ">> migration mode: application deployed, versions recorded"
   "${COMPOSE[@]}" stop lutece
+  fi
   local db="${E2E_NAME}-db-1" k v
+  if [ "$E2E_TARGET" = site ]; then
+    # plugin-liquibase runs sql/plugins/ and sql/themes/ before sql/upgrade/: a theme or a plugin needing a table of
+    # the v8 core would run on the v7 schema. The first start runs the core upgrades alone, the second the components.
+    docker exec -i "$db" mariadb -ulutece -plutece lutece < "$E2E_TAKEOVER/takeover-1-core.sql"
+    since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    "${COMPOSE[@]}" up -d lutece
+    for i in $(seq 1 600); do
+      docker logs --since "$since" "$APP" 2>&1 | grep -qE "CWWKZ0001I|CWWKZ0002E" && break
+      [ "$i" -eq 600 ] && { echo "the core pass never deployed the application, last lines:"; docker logs --tail 40 "$APP"; exit 1; }
+      sleep 1
+    done
+    if app_logs "$APP" | grep -qE 'LiquibaseRunner failed|Migration failed for changeset'; then
+      mkdir -p artifacts/logs; app_logs "$APP" > "artifacts/logs/core-pass-$APP.log"
+      grep -m1 -oE "Migration failed for changeset [^ ]+" "artifacts/logs/core-pass-$APP.log" | sed 's/^/>> CORE UPGRADE STOPPED: /'
+      grep -m1 -oE "Reason: .{0,200}" "artifacts/logs/core-pass-$APP.log" | sed 's/^/>>   /'
+      exit 1
+    fi
+    echo ">> core pass: $(docker exec "$db" mariadb -ulutece -plutece lutece -N -e "SELECT COUNT(*) FROM DATABASECHANGELOG WHERE FILENAME LIKE 'sql/upgrade/%'") core upgrade(s) ran"
+    "${COMPOSE[@]}" stop lutece
+    docker exec -i "$db" mariadb -ulutece -plutece lutece < "$E2E_TAKEOVER/takeover-2-components.sql"
+    echo ">> components set back to what the v7 site had installed ($E2E_TAKEOVER/takeover-2-components.sql)"
+  else
   while IFS='=' read -r k v; do
     [ -n "$k" ] || continue
     docker exec "$db" mariadb -ulutece -plutece lutece -e "UPDATE core_datastore SET entity_value='$v' WHERE entity_key='core.plugins.status.$k.version'"
     echo ">> recorded version of $k reset to $v (as a v7 site followed by plugin-liquibase would carry it)"
   done < harness/site7/target/versions.properties
+  fi
   # An upgrade script whose name SqlPathInfo cannot parse is not even copied to the classpath: Liquibase will
   # never run it, on this bench or on a site. Applying it by hand here is what a site would have to do too —
   # and it is written down as a finding, because the bench must show the v8 artefact on a migrated base, not
@@ -615,6 +706,9 @@ WARN
   docker exec "$db" mariadb -ulutece -plutece lutece -N -e "SELECT CONCAT(entity_key,' = ',entity_value) FROM core_datastore WHERE entity_key LIKE 'core.plugins.status.%.version' ORDER BY 1" > artifacts/liquibase-versions-after.txt
   docker exec "$db" mariadb -ulutece -plutece lutece -N -e "SELECT CONCAT(EXECTYPE,' ',FILENAME) FROM DATABASECHANGELOG ORDER BY ORDEREXECUTED" > artifacts/liquibase-changesets.txt 2>/dev/null || true
   echo ">> Liquibase ran $(wc -l < artifacts/liquibase-changesets.txt) changeset(s) on the v7 database (artifacts/liquibase-changesets.txt)"
+  docker exec "$db" mariadb -ulutece -plutece lutece -N -e "$ds_query" > artifacts/datastore-v8.txt 2>/dev/null || true
+  local ds_lost; ds_lost=$(comm -23 <(sort artifacts/datastore-v7.txt) <(sort artifacts/datastore-v8.txt) | tee artifacts/datastore-lost.txt | wc -l)
+  echo ">> datastore settings of the v7 base changed or lost by the upgrade: $ds_lost (artifacts/datastore-lost.txt: set them again after the upgrade)"
   "${COMPOSE[@]}" run --rm --no-deps dbinit >/dev/null 2>&1 || true
   # The seed also sets what only exists once the v8 core has migrated the base (its security headers, the CSP a
   # map needs): replayed here, it only reaches the application after the same restart a fresh bench gets.
@@ -650,16 +744,74 @@ pass_stamp() {
   if [ -n "$now" ] && [ "$now" = "$start" ]; then echo "$now" > "artifacts/pass-$1"; else rm -f "artifacts/pass-$1"; fi
 }
 
+# The state an update is judged on: the component versions and installed flags, the settings the core upgrades
+# rewrite, the number of changesets Liquibase recorded.
+upgrade_state() {
+  local db="${E2E_NAME}-db-1" q
+  q="SELECT CONCAT(entity_key,' = ',entity_value) FROM core_datastore WHERE entity_key LIKE 'core.plugins.status.%' OR entity_key LIKE 'core.theme.status.%' ORDER BY 1"
+  docker exec "$db" mariadb -ulutece -plutece lutece -N -e "$q" > "$1-status.txt" 2>/dev/null || true
+  q="SELECT CONCAT(entity_key,' = ',entity_value) FROM core_datastore WHERE entity_key LIKE 'core.advanced_parameters.%' OR entity_key LIKE 'portal.%site_property%' OR entity_key LIKE 'core.cache.status.%' OR entity_key LIKE 'theme%' ORDER BY 1"
+  docker exec "$db" mariadb -ulutece -plutece lutece -N -e "$q" > "$1-settings.txt" 2>/dev/null || true
+  docker exec "$db" mariadb -ulutece -plutece lutece -N -e "SELECT COUNT(*) FROM DATABASECHANGELOG" 2>/dev/null || echo 0
+}
+# An update of a Lutece 8 artefact or site, on the database its previous version created: E2E_BEFORE_WAR (the war the
+# environments run, built the way harness/site/target/lutece.war is) starts on a fresh database, then the war under test
+# takes that database over in a normal start, as a deployment does. Reports what Liquibase ran, the plugins of the new
+# war the database leaves disabled, the status keys of names no descriptor declares any more (a renamed plugin whose
+# keys were not moved), and the settings the upgrade changed; then plays the suites on the updated site.
+cmd_upgrade() {
+  [ -f "${E2E_BEFORE_WAR:-}" ] || { echo "E2E_BEFORE_WAR: the war of the version before the update (a site: tools/site-bench-war.sh <before> <file>)"; exit 2; }
+  [ -f harness/site/target/lutece.war ] || { echo "no harness/site/target/lutece.war: the war after the update (./run.sh build)"; exit 2; }
+  local war=harness/site/target/lutece.war n0 n1 names
+  step "upgrade 1/3: the version before the update, on a fresh database"
+  cp "$E2E_BEFORE_WAR" harness/site/target/before.war
+  E2E_WAR=site/target/before.war "${COMPOSE[@]}" build lutece || exit 1
+  cmd_up
+  mkdir -p artifacts; n0=$(upgrade_state artifacts/upgrade-before)
+  step "upgrade 2/3: the update takes that database over"
+  "${COMPOSE[@]}" build lutece || exit 1
+  "${COMPOSE[@]}" up -d --no-deps --force-recreate lutece
+  wait_healthy "$APP" || exit 1
+  n1=$(upgrade_state artifacts/upgrade-after)
+  docker exec "${E2E_NAME}-db-1" mariadb -ulutece -plutece lutece -N -e "SELECT CONCAT(EXECTYPE,' ',FILENAME,' ',ID) FROM DATABASECHANGELOG WHERE ORDEREXECUTED > $n0 ORDER BY ORDEREXECUTED" > artifacts/upgrade-changesets.txt 2>/dev/null || true
+  echo ">> Liquibase ran $((n1 - n0)) changeset(s) during the update (artifacts/upgrade-changesets.txt)"
+  names=$(for f in $(unzip -Z1 "$war" 'WEB-INF/plugins/*.xml' 2>/dev/null); do unzip -p "$war" "$f" | grep -m1 -oE '<name>[^<]+' | sed 's/<name>//'; done | sort -u)
+  for p in $names; do grep -qxE "core.plugins.status.$p.installed = (true|1)" artifacts/upgrade-after-status.txt || echo "$p"; done > artifacts/upgrade-disabled.txt
+  echo ">> plugins of the new war left disabled by the database: $(wc -l < artifacts/upgrade-disabled.txt) (artifacts/upgrade-disabled.txt; a renamed one that plugins.dat still lists under its former name is among them)"
+  sed -n 's/^core\.plugins\.status\.\([^ ]*\)\.[a-zA-Z]* = .*/\1/p' artifacts/upgrade-after-status.txt | sort -u | grep -vxF -f <(echo "$names"; echo core; echo core_extensions) > artifacts/upgrade-orphans.txt || true
+  echo ">> status keys of names no descriptor declares any more: $(wc -l < artifacts/upgrade-orphans.txt) (artifacts/upgrade-orphans.txt)"
+  comm -23 <(sort artifacts/upgrade-before-settings.txt) <(sort artifacts/upgrade-after-settings.txt) > artifacts/upgrade-settings-lost.txt
+  echo ">> settings changed or lost by the update: $(wc -l < artifacts/upgrade-settings-lost.txt) (artifacts/upgrade-settings-lost.txt)"
+  step "upgrade 3/3: the suites on the updated site"
+  cmd_inventory
+  cmd_discover
+  local rc=0; cmd_test || rc=$?
+  cmd_report
+  return $rc
+}
+
 cmd_down() {
   step "down"
   docker rm -f "$RUNNER_C" >/dev/null 2>&1 || true
   rm -f artifacts/.runner-key
   "${COMPOSE[@]}" down -v --remove-orphans
+  # Every rebuild leaves the previous image of this bench untagged: about 2 GB each, never used again.
+  docker image prune -f --filter "label=com.docker.compose.project=$E2E_NAME" >/dev/null 2>&1 || true
+}
+# The bench is done: its stack, volumes and images go (about 2 GB per image). The next run builds them again. The
+# Docker build cache is shared by every project of the machine and is left alone: `docker builder prune` clears it.
+cmd_clean() {
+  cmd_down
+  step "clean: the images of this bench"
+  local ids; ids=$(docker images -q --filter "label=com.docker.compose.project=$E2E_NAME" | sort -u)
+  [ -n "$ids" ] && docker image rm -f $ids >/dev/null 2>&1
+  docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' 2>/dev/null
 }
 
 case "${1:-all}" in
   build)     cmd_build ;;
   up)        cmd_up ;;
+  clean)     cmd_clean ;;
   inventory) cmd_inventory ;;
   discover)  cmd_discover ;;
   test)      shift; if [ $# -gt 0 ]; then runner -m pytest -q --tb=short "$@"; else cmd_test; fi ;;
@@ -671,6 +823,7 @@ case "${1:-all}" in
                cp artifacts/pass-tests artifacts/pass-all; echo ">> review done: the last run of these sources counts as passed, no need to run it again"
              fi ;;
   compare)   cmd_compare ;;
+  upgrade)   cmd_upgrade ;;
   external)  cmd_external ;;
   deploy)    cmd_deploy ;;
   down)      cmd_down ;;
