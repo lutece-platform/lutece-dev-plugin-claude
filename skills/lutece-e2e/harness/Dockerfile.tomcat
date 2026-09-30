@@ -3,12 +3,13 @@
 # build the lutece-maven-plugin ships under WEB-INF/sql — then the v8 site starts on the same database.
 FROM tomcat:9.0-jdk11-temurin
 RUN apt-get update && apt-get install -y --no-install-recommends ant unzip && rm -rf /var/lib/apt/lists/* \
- && rm -rf /usr/local/tomcat/webapps/*
-COPY site7/target/lutece.war /tmp/lutece.war
-# Exploded, not dropped as a war: the Ant build reads WEB-INF/sql and WEB-INF/conf before Tomcat starts.
-RUN mkdir -p /usr/local/tomcat/webapps/lutece && cd /usr/local/tomcat/webapps/lutece && unzip -q /tmp/lutece.war && rm /tmp/lutece.war
-COPY tomcat/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && mkdir -p /logs && chmod -R a+rwX /usr/local/tomcat /logs
+ && rm -rf /usr/local/tomcat/webapps/* && mkdir -p /logs && chmod -R a+rwX /usr/local/tomcat /logs
+COPY --chmod=755 tomcat/entrypoint.sh /entrypoint.sh
+# Exploded, not dropped as a war: the Ant build reads WEB-INF/sql and WEB-INF/conf before Tomcat starts. The war is
+# mounted for the unzip and made writable in the same step: one layer holds the site, not three (copy, unzip, chmod).
+RUN --mount=type=bind,source=site7/target/lutece.war,target=/tmp/lutece.war \
+    mkdir -p /usr/local/tomcat/webapps/lutece && cd /usr/local/tomcat/webapps/lutece && unzip -q /tmp/lutece.war \
+ && chmod -R a+rwX /usr/local/tomcat/webapps/lutece
 ENV CATALINA_OUT=/logs/catalina.out
 EXPOSE 8080
 ENTRYPOINT ["/entrypoint.sh"]

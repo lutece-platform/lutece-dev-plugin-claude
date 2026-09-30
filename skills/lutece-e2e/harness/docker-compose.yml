@@ -29,7 +29,8 @@ services:
   lutece:
     # Built on the host network: the default build network forwards DNS to the host's upstream resolver, which a
     # VPN or a home router can leave unreachable from containers, and every download then times out.
-    build: { context: ., dockerfile: Dockerfile.app, network: host }
+    # WAR: the war the image carries, relative to harness/ (run.sh upgrade builds the version before the update first).
+    build: { context: ., dockerfile: Dockerfile.app, network: host, args: { WAR: "${E2E_WAR:-site/target/lutece.war}" } }
     image: ${E2E_NAME:-lutece-e2e}-server:local
     # Runs as the host user so the logs and access log under artifacts/ are readable on the host.
     user: "${E2E_UID:-1000}:0"

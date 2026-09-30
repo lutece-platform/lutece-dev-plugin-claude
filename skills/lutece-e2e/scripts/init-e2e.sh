@@ -39,6 +39,11 @@ port_free( ) { ! (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 # the slot it was given.
 SLOTS="${E2E_SLOTS_FILE:-$HOME/.lutece-e2e-slots}"
 touch "$SLOTS" 2>/dev/null || SLOTS=/dev/null
+# A bench whose directory is gone (a clone deleted, a temporary test bench) no longer holds its slot.
+if [ "$SLOTS" != /dev/null ]; then
+    while read -r d s; do if [ -d "$d" ]; then printf '%s %s\n' "$d" "$s"; fi; done < "$SLOTS" > "$SLOTS.tmp" 2>/dev/null
+    mv "$SLOTS.tmp" "$SLOTS" 2>/dev/null || true
+fi
 KEY=$(cd "$DIR" && pwd)
 SLOT=$(awk -v k="$KEY" '$1 == k {print $2}' "$SLOTS" | tail -1)
 if [ -n "$PORT" ]; then
@@ -46,12 +51,19 @@ if [ -n "$PORT" ]; then
     [ "$SLOT" -ge 0 ] || SLOT=0
 elif [ -z "$SLOT" ]; then
     SLOT=0
-    while [ "$SLOT" -lt 40 ]; do
+    while [ "$SLOT" -lt 90 ]; do
         S=$(( SLOT * 100 ))
         if ! awk -v s="$SLOT" '$2 == s {found=1} END {exit !found}' "$SLOTS" \
            && port_free $(( 18080 + S )) && port_free $(( 13306 + S )) && port_free $(( 18025 + S )); then break; fi
         SLOT=$(( SLOT + 1 ))
     done
+    # Every slot recorded: the first one whose ports are free now, rather than a slot another bench may be running on.
+    if [ "$SLOT" -ge 90 ]; then
+        SLOT=0
+        while [ "$SLOT" -lt 90 ] && ! { S=$(( SLOT * 100 )); port_free $(( 18080 + S )) && port_free $(( 13306 + S )) && port_free $(( 18025 + S )); }; do
+            SLOT=$(( SLOT + 1 ))
+        done
+    fi
 fi
 if [ "$SLOTS" != /dev/null ]; then
     grep -v "^$KEY " "$SLOTS" > "$SLOTS.tmp" 2>/dev/null || true
