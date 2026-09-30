@@ -11,9 +11,12 @@ only from the classpath (`WEB-INF/classes/sql`). On a database with no `DATABASE
 it runs nothing and records the versions the war declares (`TestIncludeAllFilter`, `LiquibaseRunnerContext`): every
 v7 → v8 upgrade script is then skipped for good. Three more facts decide the procedure:
 
-- It runs the files in path order, and the core cannot take part in `runAfter`: `sql/plugins/` and `sql/themes/` run
-  before `sql/upgrade/`, the core's. A theme or a plugin script that needs a table of the v8 core (`core_theme`), or
-  writes a datastore key the core upgrade deletes, fails or is undone in a single start (SI13).
+- Up to its fix (LUT-33644, `LuteceRunAfterComparator.isCoreScript`), it runs the files in path order and the core
+  cannot take part in `runAfter`: `sql/plugins/` and `sql/themes/` run before `sql/upgrade/`, the core's. A theme or a
+  plugin script that needs a table of the v8 core (`core_theme`), or writes a datastore key the core upgrade deletes,
+  fails or is undone in a single start (SI13, which reads the war's plugin-liquibase to tell). With the fix, the core
+  runs first: a component script that inserts a key the core upgrade inserts too, without deleting it first, then
+  hits a duplicate key (SI13).
 - The migration mode records a version for every plugin descriptor, a new plugin included: its create and init
   scripts would then never run. It records none for a theme.
 - A component renamed in v8 (its SQL directory and descriptor name changed) is a new component to Liquibase: its

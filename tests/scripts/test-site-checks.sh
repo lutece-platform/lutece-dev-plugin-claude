@@ -299,6 +299,14 @@ expect("SI13 does not flag a script naming an altered table without the added co
 expect("SI13 names a key a component inserts without a delete while the core upgrade inserts it, the plan deletes it first",
        "WARN [SI13] sql/themes/mytheme/init_db_theme_mytheme.sql: inserts theme.fav without deleting it first" in out
        and "DELETE FROM core_datastore WHERE entity_key = 'theme.fav';" in comp_sql, out + comp_sql)
+import shutil
+tf = ROOT / "tk-after-fixed"
+shutil.copytree(ta, tf)
+jar(tf / "WEB-INF/lib/plugin-liquibase-2.0.2.jar", {"fr/paris/lutece/plugins/liquibase/filters/LuteceRunAfterComparator.class": "\xca\xfe isCoreScript"})
+rc2, out2 = run("takeover", tb, tf, "--out", ROOT / "tk-fixed")
+expect("SI13 knows a plugin-liquibase that runs the core first and drops the order warning, not the duplicate key",
+       "INFO [SI13] the plugin-liquibase of the war runs the core scripts first" in out2
+       and "uses core_theme" not in out2 and "inserts theme.fav without deleting it first" in out2, out2)
 expect("SI14 names a renamed component whose create script re-creates the former tables",
        "WARN [SI14] workflow-newpdf: renamed from workflow-oldpdf" in out, out)
 expect("SI15 names a prerun script outside the classpath",

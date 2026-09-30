@@ -672,6 +672,20 @@ def duplicate_keys(before, after):
     return res
 
 
+def liquibase_runs_core_first(war):
+    """Tells whether the plugin-liquibase the war ships sorts the core scripts before every other one (LUT-33644):
+    its LuteceRunAfterComparator then declares isCoreScript. Read in the class, not guessed from a version number."""
+    for jar in war.lib.glob("plugin-liquibase-*.jar"):
+        try:
+            with zipfile.ZipFile(jar) as z:
+                name = "fr/paris/lutece/plugins/liquibase/filters/LuteceRunAfterComparator.class"
+                if name in z.namelist() and b"isCoreScript" in z.read(name):
+                    return True
+        except zipfile.BadZipFile:
+            continue
+    return False
+
+
 def check_takeover(before, after, out):
     """SI13: on the database of the before war, plugin-liquibase runs sql/plugins/ and sql/themes/ before
     sql/upgrade/ (alphabetical order, core excluded from runAfter): a component script that needs a table the core
@@ -690,6 +704,9 @@ def check_takeover(before, after, out):
     gone = dropped - created
     deleted = [(op, k, like(k)) for op, k in deleted]
     first, broken = 0, 0
+    core_first = liquibase_runs_core_first(after)
+    if core_first:
+        out.add("INFO", "SI13", "the plugin-liquibase of the war runs the core scripts first (LUT-33644): the takeover needs no core pass for the order")
     for rel, keys in sorted(duplicate_keys(before, after).items()):
         first += 1
         out.add("WARN", "SI13", f"{rel}: inserts {', '.join(keys)} without deleting it first, a key the core upgrade inserts: a duplicate key once the core is upgraded; the takeover deletes it before the components (the script needs the DELETE)")
@@ -700,7 +717,7 @@ def check_takeover(before, after, out):
         keys = DS_INSERT.findall(text)
         need = sorted((tables & created) | {f"{t}.{c}" for t, c in added if t in tables and c in words})
         undone = sorted({k for k in keys for op, d, p in deleted if (k == d if op == "=" else p.fullmatch(k))})
-        if need or undone:
+        if (need or undone) and not core_first:
             first += 1
             why = (f"uses {', '.join(need)} that the core upgrade creates or alters" if need else "") + \
                   ("; " if need and undone else "") + \
