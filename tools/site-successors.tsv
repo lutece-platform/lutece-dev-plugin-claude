@@ -1,0 +1,3 @@
+# v7 artefact	Lutece 8 successor	evidence (read by site_check.py gate, with the organisation's own file: $LUTECEPOWERS_SITE_SUCCESSORS or ~/.config/lutecepowers/site-successors.tsv; a line only with public evidence)
+module-captcha-jcaptcha	fr.paris.lutece.plugins:module-captcha-captchetat	jcaptcha has no Lutece 8 version; lutece-bom 8 manages module-captcha-captchetat (lutece-platform/lutece-tech-module-captcha-captchetat)
+plugin-piwik	fr.paris.lutece.plugins:plugin-matomo	lutece-bom 8 manages plugin-matomo (lutece-platform/lutece-site-plugin-matomo); keys piwik.default.* become matomo.default.* (webapp/WEB-INF/conf/plugins/matomo.properties); MatomoInclude.java:85-99 writes each value to the datastore only while the key is absent

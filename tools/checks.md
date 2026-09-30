@@ -379,6 +379,65 @@ Run it before the final gate, then verify again: a review that has to read a who
 | TS08 | FAIL | Spring mock imports | `org\.springframework\.mock\.web` | *.java (test) |
 | TS09 | FAIL / WARN | Failing tests in the surefire reports (the parent POM sets `testFailureIgnore=true`, so `BUILD SUCCESS` proves nothing). FAIL on a failure or an error, and when `src/test/` exists with no report (the tests were never run; the command is `mvn lutece:exploded antrun:run -Dlutece-test-hsql test`). WARN when the project has Java and no `src/test/`, or when the reports record no test run | `target/surefire-reports/*.txt` | test results |
 
+## Site (SI)
+
+Checks of a site, a pack or a theme (packaging `lutece-site`), made by `site_check.py check <site> [--war DIR]
+[--before DIR --before-ref REF] [--as-profile ENV]`. The war is the directory `lutece:site-assembly` explodes
+(`site-assemble.sh`). SI80-SI86 compare two assembled states and fail until `.migration/site-decisions.md` answers
+each difference (`- key|plugin|file|profile <id>: <reason>`). Rules and evidence: `skills/lutece-update-site/reference/`.
+
+| ID | Severity | Description | Pattern | Files |
+|----|----------|-------------|---------|-------|
+| SI01 | FAIL | Parent other than `lutece-site-pom` at `V8_FLOOR_PARENT` or later | (custom check) | pom.xml |
+| SI02 | FAIL / WARN | Not exactly one `lutece-bom` import (FAIL); BOM and starter on different versions (WARN) | (custom check) | pom.xml |
+| SI03 | WARN | `lutece-core` declared by the site | (custom check) | pom.xml |
+| SI04 | WARN | Version written for an artefact the BOM manages | (custom check, needs the BOM pom) | pom.xml |
+| SI05 | FAIL | Artefact declared with a `<type>` other than the BOM's: no managed version is found | (custom check) | pom.xml |
+| SI06 | FAIL | Artefact without version that the BOM does not manage | (custom check) | pom.xml |
+| SI07 | WARN | Version range on a dependency | `[`, `(` | pom.xml |
+| SI08 | WARN | `lutece.*.version` property: it does not change the version the imported BOM manages | (custom check) | pom.xml |
+| SI09 | FAIL | `src/conf/<env>/` or a profile with `defaultConfDirectory`: not copied since `lutece-site-pom` 8.0.1 | (custom check) | src/conf, pom.xml |
+| SI10 | FAIL | `src/java` (the lutece-site lifecycle compiles none) or classes under the packages the war excludes | (custom check) | src/java, webapp/WEB-INF/classes |
+| SI11 | FAIL | `webapp/WEB-INF/classes/META-INF/microprofile-config.properties`: site-assembly deletes and rewrites it | (custom check) | webapp |
+| SI12 | FAIL | SQL of the site Liquibase never runs: path `SqlPathInfo` does not parse, or no `-- liquibase formatted sql` first line | `sql_paths.py` | src/sql |
+| SI13 | WARN / FAIL | Takeover of the before database (needs --before): a component script that uses a table the core upgrade creates, a column it adds, or writes a datastore key it deletes, runs before `sql/upgrade/` in one start (WARN: core first); a script using a table the core upgrade drops (FAIL: a v7 upgrade to apply first) | `site_check.py takeover` | the two wars |
+| SI14 | WARN / FAIL | Component the before war does not declare whose create script creates tables of the before site: renamed (WARN: installed as new, its upgrades never run; its keys and version move to the new name) or sharing them with a component still shipped (FAIL: its create script runs on them) | create scripts of both wars | the two wars |
+| SI15 | WARN | `prerun_db_*` script in `WEB-INF/sql` but not in `WEB-INF/classes/sql`: plugin-liquibase never runs it | (path) | after war |
+| SI20 | FAIL / WARN | Spring `*_context.xml`: v8 reads none (FAIL with a bean, WARN when empty) | `<bean` | webapp/WEB-INF/conf |
+| SI21 | WARN | `log.properties`: v8 reads none | (file name) | webapp/WEB-INF/conf |
+| SI22 | FAIL / WARN | Pool service C3p0 (gone, FAIL) or other than `ManagedConnectionService` (WARN) | (custom check) | db.properties |
+| SI23 | FAIL | Pool without `<pool>.ds`, or `.ds` without `<dataSource jndiName>` in `server.xml` | (custom check) | db.properties, server.xml |
+| SI24 | WARN | Pool password in `db.properties` | (custom check) | db.properties |
+| SI25 | FAIL | `server.xml` fileset matching no jar of the war (the JDBC driver) | (custom check, needs --war) | server.xml |
+| SI26 | WARN | Same key, different values, in two files of the override source: in v8 the first file in alphabetical order wins | (custom check) | conf/override |
+| SI27 | FAIL / WARN | Override key no default declares and no class of the war names: read by nothing (WARN); FAIL when the war reads a key ending with it whose default differs from the site's value: a renamed key, the site's value lost | class-file constants, defaults | conf/override |
+| SI28 | FAIL / WARN | Configuration value naming a class the war does not ship (FAIL when the site or a library ConfigSource sets it) | (custom check, needs --war) | effective configuration |
+| SI29 | WARN / INFO | Profile name used without `%`; ConfigSource of unknown ordinal; profiles the site names (INFO) | (custom check) | conf/override |
+| SI30 | WARN | Secret written in the overlay (properties or bean property) | key name | webapp/WEB-INF/conf |
+| SI31 | WARN | Liberty `<variable>` named like a key of the site configuration: it wins at ordinal 500 | (custom check) | server.xml |
+| SI32 | WARN | Properties file of the overlay (webapp or `src/conf/<env>`) under `WEB-INF/` where the core reads none: its keys apply nowhere | (path) | webapp, src/conf |
+| SI40 | WARN | Plugin descriptor without `<name>.installed=1`: disabled on a new database | (custom check) | plugins.dat |
+| SI41 | WARN | `plugins.dat` line naming no descriptor of the war | (custom check) | plugins.dat |
+| SI42 | WARN | Plugins requiring a pool without `<name>.pool` | (custom check) | plugins.dat |
+| SI43 | FAIL | `plugins.dat` line naming a renamed plugin by its former name (the plugin's SQL files still carry it) while the new name has no line: the plugin stays disabled, on a new database and on an updated one | SQL file names of the war | plugins.dat |
+| SI44 | FAIL | No `plugins.dat` in the war while it ships plugins | (custom check) | plugins.dat |
+| SI50 | WARN | Site file replacing a file of a dependency: to re-read against that dependency's version | dependency webapp zips | webapp |
+| SI52 | FAIL | `?new` or `?api` in a template | `\?new\s*\(\|\?api\b` | templates |
+| SI53 | FAIL | Macro or parameter removed from the v8 core (`initXssBypass`, `NbItemsPerPageSelector*`, `bypassXssFilter`) | (list) | templates |
+| SI54 | FAIL | Copy of a core `commons*.html` or of the corporate theme | (path) | templates |
+| SI55 | FAIL | `jsp:useBean` in a JSP of the site | `jsp:useBean` | jsp |
+| SI56 | FAIL | v7 `web.xml` (javaee namespace, `AppInitListener`, Spring listener) | (custom check) | web.xml |
+| SI57 | WARN | Same path shipped by two dependencies and not by the site: the unzip order between them is unspecified | dependency webapp zips | webapp |
+| SI58 | FAIL | `plugins.dat` coming from a dependency, not from the site | dependency webapp zips | plugins.dat |
+| SI80 | FAIL / INFO | Effective value the site set, or an artefact it added or removed, changed, or a key an added ConfigSource introduces that the war reads; the log4j keys of a `log.properties`, one decision per file; keys gone with a removed artefact (INFO) | two assembled states | effective configuration |
+| SI81 | FAIL | Plugin shipped before, not after | two assembled states | WEB-INF/plugins |
+| SI82 | FAIL | File of the site overlay no longer shipped, or no longer the site's | `--before-ref` | webapp |
+| SI83 | WARN | Plugin shipped in a lower version after | two assembled states | WEB-INF/plugins |
+| SI84 | FAIL | Profile named by the site before and not after, or the reverse | two assembled states | conf/override |
+| SI85 | INFO | Defaults of the core or of the plugins that changed by themselves (listed in a file) | two assembled states | effective configuration |
+| SI86 | WARN | Commits of another branch (a v7 branch) after the compared ref | `git rev-list` | git |
+| SI87 | WARN | Key the static model resolves otherwise than the running site (`config --against`) | runtime dump | effective configuration |
+
 ---
 
 ## Summary

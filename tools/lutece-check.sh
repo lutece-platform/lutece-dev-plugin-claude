@@ -4,7 +4,8 @@
 #   lutece-check.sh [project_dir]      the findings of this project, per tool, with what to do
 #   lutece-check.sh --explain CODE     what a check proves and how to fix what it reports
 #
-# Runs verify-migration.sh, scan-template-design.py, check-i18n-keys.sh and check-template-parse.sh, keeps their full
+# Runs verify-migration.sh, scan-template-design.py, check-i18n-keys.sh, check-template-parse.sh and, on a site,
+# site_check.py, keeps their full
 # output under <project>/target/checkup/ and prints the findings to act on (FAIL and WARN lines, INFO counted). A v7
 # project to migrate and a v8 project are checked the same way. Exit 1 when a tool reports a blocking finding (a FAIL,
 # an unresolved i18n key, a template that does not parse), else 0.
@@ -82,5 +83,20 @@ echo "   ${line:-no summary line, see $P}"
 e=$(echo "$line" | grep -o "errors=[0-9]*" | cut -d= -f2)
 [ "${e:-1}" -eq 0 ] || { grep -v "^FMPARSE" "$P" | head -10 | sed 's/^/   /'; blocking=1; }
 
-echo "== full outputs: $OUT/{verify,scanner,i18n,parse}.txt; a code explained: $S/lutece-check.sh --explain CODE"
+# A site (a site, a pack, a theme) is also checked on what it ships: its assembled war when target/ holds one,
+# its sources otherwise. The comparison with its before state is a step of lutece-update-site, not of this checkup.
+if grep -q "<packaging>lutece-site</packaging>" pom.xml 2>/dev/null; then
+    WAR=$(find target -maxdepth 1 -mindepth 1 -type d -exec test -d '{}/WEB-INF/plugins' ';' -print 2>/dev/null | head -1)
+    run site python3 "$S/site_check.py" check . ${WAR:+--war "$WAR"}
+    C="$OUT/site.clean.txt"
+    f=$(grep -cE "^\s+FAIL \[" "$C"); w=$(grep -cE "^\s+WARN \[" "$C")
+    echo "== site-check${WAR:+ (war $WAR)}"
+    note=""; [ -n "$WAR" ] || note=" (no assembled war under target/: run site-assemble.sh for the checks that read it)"
+    echo "   $f FAIL, $w WARN$note"
+    grep -E "^\s+(FAIL|WARN) \[" "$C" | sed 's/^ */   /' | cut -c1-160
+    [ "$f" -eq 0 ] || blocking=1
+    grep -q "^TOTAL:" "$C" || { stopped "$C"; blocking=1; }
+fi
+
+echo "== full outputs: $OUT/{verify,scanner,i18n,parse,site}.txt; a code explained: $S/lutece-check.sh --explain CODE"
 exit $blocking

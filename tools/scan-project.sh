@@ -34,6 +34,8 @@ PROJECT_TYPE="unknown"
 grep -q '<type>lutece-plugin</type>\|<packaging>lutece-plugin</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="plugin"
 grep -q '<type>lutece-module</type>\|<packaging>lutece-module</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="module"
 grep -q '<type>lutece-library</type>\|<packaging>lutece-library</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="library"
+# A site, a pack or a theme declares lutece-plugin dependencies: its packaging decides, it is not a plugin.
+grep -q '<packaging>lutece-site</packaging>' pom.xml 2>/dev/null && PROJECT_TYPE="site"
 # Detect libraries using jar packaging with library- artifactId convention
 if [ "$PROJECT_TYPE" = "unknown" ]; then
     grep -q '<packaging>jar</packaging>' pom.xml 2>/dev/null && grep -q 'library-' pom.xml 2>/dev/null && PROJECT_TYPE="library"
@@ -311,8 +313,8 @@ PROPS_JSON="$PROPS_JSON]"
 
 # ─── Summary Counts ──────────────────────────────────────
 
-JAVA_FILES=$(find src/ -name "*.java" -not -path '*/test/*' 2>/dev/null | wc -l)
-TEST_FILES=$(find src/ -name "*.java" -path '*/test/*' 2>/dev/null | wc -l)
+JAVA_FILES=$({ find src/ -name "*.java" -not -path '*/test/*' 2>/dev/null || true; } | wc -l)
+TEST_FILES=$({ find src/ -name "*.java" -path '*/test/*' 2>/dev/null || true; } | wc -l)
 CONTEXT_FILES=$({ find webapp/ -name "*_context.xml" 2>/dev/null || true; } | wc -l)
 SPRING_LOOKUPS=$(gcount -rn 'SpringContextService' src/ --include="*.java" 2>/dev/null)
 GETINSTANCE_CALLS=$(gcount -rn '\.getInstance( )' src/ --include="*.java" 2>/dev/null)
@@ -322,7 +324,7 @@ CACHE_SERVICES=$(gcount -rlE 'AbstractCacheableService|net\.sf\.ehcache|initCach
 ADMIN_TEMPLATES=$({ find webapp/WEB-INF/templates/admin/ -name "*.html" 2>/dev/null || true; } | wc -l)
 SKIN_TEMPLATES=$({ find webapp/WEB-INF/templates/skin/ -name "*.html" 2>/dev/null || true; } | wc -l)
 JSP_COUNT=$({ find webapp/ -name "*.jsp" 2>/dev/null || true; } | wc -l)
-SQL_COUNT=$(find src/ -name "*.sql" 2>/dev/null | wc -l)
+SQL_COUNT=$({ find src/ -name "*.sql" 2>/dev/null || true; } | wc -l)
 REST_COUNT=$(gcount -rln '@Path\|@GET\|@POST\|@PUT\|@DELETE' src/ --include="*.java" 2>/dev/null)
 DAO_FREE=$(gcount -rn 'daoUtil\.free( )' src/ --include="*.java" 2>/dev/null)
 DEPRECATED_GETMODEL=$(gcount -rn 'getModel( )' src/ --include="*.java" 2>/dev/null)

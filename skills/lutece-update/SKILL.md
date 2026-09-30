@@ -21,7 +21,9 @@ bash ${LUTECEPOWERS_ROOT}/tools/scan-project.sh . > .migration/scan.json
 for p in 'target/' 'logs/' 'java.io.tmpdir/' '.migration/' '*.log' 'e2e/'; do grep -qxF "$p" .gitignore 2>/dev/null || echo "$p" >> .gitignore; done
 ```
 
-`summary.start` says the path: `pre-v8` (a parent before 8: the full update, a v7 database to take over) or `v8` (a
+`project.type` `site` (packaging `lutece-site`: a site, a pack, a theme) is not updated here: follow the
+`lutece-update-site` skill, which checks what the site ships and hands its plugins back to this one when they need an
+update. For the other types, `summary.start` says the path: `pre-v8` (a parent before 8: the full update, a v7 database to take over) or `v8` (a
 v8 parent: align it on the supported level, no database to take over). Show the user the type, artifact, version,
 start, scope and persistence base (`summary.persistence`: JPA stays on the container's EclipseLink,
 `patterns/persistence-patterns.md`).
