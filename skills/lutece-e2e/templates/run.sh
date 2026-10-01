@@ -315,9 +315,13 @@ invariants() {
 # stale build (a green run on code that is not in the image).
 # The image carries a copy of the war: a war written since (a site target's war replaced by hand) would otherwise
 # never reach the container, and the bench would test the previous one without a word.
+# The war checked is the one the image is built from (E2E_WAR, relative to harness/): an image built from another war
+# (the version before an update) must not be rebuilt from lutece.war. A build answered from the cache keeps the date
+# of its first build, so a war copied since always looks newer: the rebuild is then a cached no-op from the same war.
 war_newer_than_image() {
-  local built; built=$(date -d "$(docker image inspect -f '{{.Created}}' "${E2E_NAME}-server:local" 2>/dev/null)" +%s 2>/dev/null || echo 0)
-  [ -f harness/site/target/lutece.war ] && [ "$(stat -c %Y harness/site/target/lutece.war)" -gt "$built" ]
+  local war="harness/${E2E_WAR:-site/target/lutece.war}" built
+  built=$(date -d "$(docker image inspect -f '{{.Created}}' "${E2E_NAME}-server:local" 2>/dev/null)" +%s 2>/dev/null || echo 0)
+  [ -f "$war" ] && [ "$(stat -c %Y "$war")" -gt "$built" ]
 }
 needs_build() {
   [ -f harness/site/target/lutece.war ] || return 0
@@ -766,7 +770,7 @@ cmd_upgrade() {
   step "upgrade 1/3: the version before the update, on a fresh database"
   cp "$E2E_BEFORE_WAR" harness/site/target/before.war
   E2E_WAR=site/target/before.war "${COMPOSE[@]}" build lutece || exit 1
-  cmd_up
+  E2E_WAR=site/target/before.war cmd_up
   mkdir -p artifacts; n0=$(upgrade_state artifacts/upgrade-before)
   step "upgrade 2/3: the update takes that database over"
   "${COMPOSE[@]}" build lutece || exit 1
