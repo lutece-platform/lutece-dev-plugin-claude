@@ -673,7 +673,7 @@ def duplicate_keys(before, after):
 
 
 def liquibase_runs_core_first(war):
-    """Tells whether the plugin-liquibase the war ships sorts the core scripts before every other one (LUT-33644):
+    """Tells whether the plugin-liquibase the war ships sorts the core scripts before every other one:
     its LuteceRunAfterComparator then declares isCoreScript. Read in the class, not guessed from a version number."""
     for jar in war.lib.glob("plugin-liquibase-*.jar"):
         try:
@@ -706,7 +706,7 @@ def check_takeover(before, after, out):
     first, broken = 0, 0
     core_first = liquibase_runs_core_first(after)
     if core_first:
-        out.add("INFO", "SI13", "the plugin-liquibase of the war runs the core scripts first (LUT-33644): the takeover needs no core pass for the order")
+        out.add("INFO", "SI13", "the plugin-liquibase of the war runs the core scripts first: the takeover needs no core pass for the order")
     for rel, keys in sorted(duplicate_keys(before, after).items()):
         first += 1
         out.add("WARN", "SI13", f"{rel}: inserts {', '.join(keys)} without deleting it first, a key the core upgrade inserts: a duplicate key once the core is upgraded; the takeover deletes it before the components (the script needs the DELETE)")

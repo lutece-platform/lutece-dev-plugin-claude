@@ -81,7 +81,7 @@ Each Lutece artefact the before war ships, and each lutece-site dependency of th
 For each `NO-V8`, in this order: its successor, which the gate prints from `tools/site-successors.tsv` (public
 artefacts) and from the organisation's own file (`$LUTECEPOWERS_SITE_SUCCESSORS`, else
 `~/.config/lutecepowers/site-successors.tsv`: its private themes and packs, kept out of this toolkit); its v8 branch
-in its repository (MCP `lutecedata`: `repos`, `repo_sheet`); otherwise it has to be migrated first. **Stop and show the user the list**, the dependency order, and propose to migrate each
+in its repository on GitHub or GitLab (`develop`, with a Lutece 8 parent); otherwise it has to be migrated first. **Stop and show the user the list**, the dependency order, and propose to migrate each
 missing artefact with the `lutece-update-plugin` skill, one at a time, in its own clone, then to build it into
 `.migration/m2`. Resume the site only when the gate has no `NO-V8` left, or when the user decides that an artefact
 leaves the site (then it is a plugin decision of phase C, never a silent drop).

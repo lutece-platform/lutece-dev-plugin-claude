@@ -11,7 +11,7 @@ only from the classpath (`WEB-INF/classes/sql`). On a database with no `DATABASE
 it runs nothing and records the versions the war declares (`TestIncludeAllFilter`, `LiquibaseRunnerContext`): every
 v7 → v8 upgrade script is then skipped for good. Three more facts decide the procedure:
 
-- Up to its fix (LUT-33644, `LuteceRunAfterComparator.isCoreScript`), it runs the files in path order and the core
+- Up to 2.0.2-beta-01 (no `LuteceRunAfterComparator.isCoreScript`), it runs the files in path order and the core
   cannot take part in `runAfter`: `sql/plugins/` and `sql/themes/` run before `sql/upgrade/`, the core's. A theme or a
   plugin script that needs a table of the v8 core (`core_theme`), or writes a datastore key the core upgrade deletes,
   fails or is undone in a single start (SI13, which reads the war's plugin-liquibase to tell). With the fix, the core
