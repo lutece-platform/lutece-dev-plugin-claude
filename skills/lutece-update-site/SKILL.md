@@ -152,7 +152,10 @@ notification gateway). A fresh install proves nothing about an upgrade: a v7 sit
 `run.sh compare` with `E2E_V7_WAR` (its v7 war, assembled without profile), `E2E_V7_DUMP` (the recette dump of phase
 A) and `E2E_TAKEOVER` (`.migration/takeover`): the v7 site starts on the dump, the v8 site takes it over the way
 `reference/database.md` §1 describes (core first, then the components), and `artifacts/datastore-lost.txt` lists the
-settings the core upgrade removed, to set again (§2). A v8 site runs `run.sh upgrade` with `E2E_BEFORE_WAR` (the war
+settings the core upgrade removed, to set again (§2). The takeover scripts are not a bench device: they set what
+plugin-liquibase cannot read on a v7 database installed with Ant (the version of a component it could not resolve,
+the former identity of a renamed one), and an environment that starts without them can lose tables. Hand them over;
+`E2E_TAKEOVER` on a directory of two empty files shows the start without them (`reference/compare.md`). A v8 site runs `run.sh upgrade` with `E2E_BEFORE_WAR` (the war
 `site-bench-war.sh .migration/before <file>` writes): the version the environments run creates its database, the
 new one takes it over; every plugin `artifacts/upgrade-disabled.txt` lists is disabled after the deployment (a
 renamed plugin still listed in `plugins.dat` under its former name, SI43), every name `upgrade-orphans.txt` lists

@@ -52,19 +52,34 @@ LiquibaseRunner. No plugin metadata for accessrules
 
 and `core.plugins.status.<name>.version` is **never written**. `TestIncludeAllFilter` then evaluates `alreadyInstalledVersion == null` at every startup, includes creation scripts only and **discards every `update_*` script** — the plugin's schema migrations can never run again.
 
+## A Lutece 7 database installed with Ant
+
+A database installed with Ant and only later followed by plugin-liquibase has an **empty `DATABASECHANGELOG`**: on that first startup plugin-liquibase found an existing database where Liquibase never ran, executed nothing and recorded the version of every component it could resolve. `logicalFilePath` has no row to match there: **the recorded version is the only protection**.
+
+A component plugin-liquibase could not resolve in Lutece 7 (SQL directory ≠ plugin name, exactly what the directory rename fixes) has **no version**. Once the directory follows the plugin name, the component is resolved, has no version, and is installed as new on the first startup: its `create_db_*` replays (`DROP TABLE` on populated tables), its `init_*` stops the whole update on a duplicate key.
+
+Fix both ways:
+
+- a pre-execution script that records the installed version when the plugin is installed (one of its admin rights exists) and has none, the version the schema matches (a column an upgrade added tells which);
+- a real precondition on `create_db_*` and `init_*` (see `sql-liquibase.md`): an installed plugin is neither created nor initialised again, even where the pre-execution script does not run.
+
+lutece-maven-plugin 7.2.0 does not copy a pre-execution script to `WEB-INF/classes/sql` (`site_check.py` SI15 tells), and build-config 3.0.2 runs it as plain SQL in the Ant initialisation, preconditions ignored: **guard every statement with the condition of its precondition** (`INSERT … SELECT … WHERE`), so that it does nothing outside the case it is written for.
+
 ## Renaming a plugin: the data migration
 
 The plugin name is persisted outside the changelog, so no Liquibase mechanism can carry it: `core.plugins.status.<name>.installed`, `.pool`, `.version`, `.lastRunScriptType`, `plugins.uninstalled.<name>`, and the `plugin_name` columns of `core_admin_right`, `core_portlet_type`, `core_attribute`, `mylutece_attribute`, plus `genatt_entry_type.plugin`.
 
-It **cannot** ship as an `upgrade_` script: at the startup that brings the rename, the version key does not exist yet under the new name, so the filter takes the `alreadyInstalledVersion == null` branch and includes creation scripts only. Ship it as an `init_` script with a **real** precondition:
+It **cannot** ship as an `upgrade_` script: at the startup that brings the rename, the version key does not exist yet under the new name, so the filter takes the `alreadyInstalledVersion == null` branch and includes creation scripts only. An `init_` script comes too late as well: the filter decides while the changelog is read, before anything runs, so the creation scripts of that same run are already included. Ship it as the reserved pre-execution script `sql/plugins/<newname>/plugin/prerun_db_<newname>.sql` (plugin-liquibase runs it in a preliminary update): it runs before the main changelog is filtered, and the main run sees the migrated version. Give it a **real** precondition on a trace the former plugin always leaves: its rows in `DATABASECHANGELOG` **or** its `.version` key (a Lutece 7 database installed with Ant has only the second, see above). Never any former key: an orphan `.installed` comes back from `plugins.dat` at every startup.
 
 ```sql
 -- liquibase formatted sql
--- changeset <newname>:init_core_<newname>-rename.sql
--- preconditions onFail:MARK_RAN onError:WARN
--- precondition-sql-check expectedResult:1 SELECT COUNT(DISTINCT 1) FROM core_datastore WHERE entity_key LIKE '%core.plugins.status.<oldname>.%'
+-- changeset <newname>:prerun-rename-<oldname>
+-- preconditions onFail:MARK_RAN onError:MARK_RAN
+-- precondition-sql-check expectedResult:1 SELECT COUNT(DISTINCT 1) FROM (SELECT 1 AS found FROM DATABASECHANGELOG WHERE FILENAME LIKE 'sql/plugins/<olddir>/%' UNION ALL SELECT 1 FROM core_datastore WHERE entity_key LIKE '%core.plugins.status.<oldname>.version') former_plugin
 
-DELETE FROM core_datastore WHERE entity_key LIKE '%core.plugins.status.<newname>.%';
+DELETE FROM core_datastore WHERE entity_key LIKE '%core.plugins.status.<newname>.%'
+   AND REPLACE( entity_key, 'core.plugins.status.<newname>.', 'core.plugins.status.<oldname>.' )
+       IN ( SELECT entity_key FROM ( SELECT entity_key FROM core_datastore WHERE entity_key LIKE '%core.plugins.status.<oldname>.%' ) AS old_keys );
 
 UPDATE core_datastore
    SET entity_key = REPLACE( entity_key, 'core.plugins.status.<oldname>.', 'core.plugins.status.<newname>.' )
@@ -73,9 +88,11 @@ UPDATE core_datastore
 UPDATE core_admin_right SET plugin_name = '<newname>' WHERE plugin_name = '<oldname>';
 ```
 
+A new key is deleted only when its counterpart under the former name exists: deleting every new key as soon as any former key exists wipes a `.version` already migrated whenever an orphan `.installed` comes back.
+
 **`LIKE` and `REPLACE`, never exact keys.** `DatastoreService.getInstanceKey` prefixes the key with the webapp instance name whenever the instance is not the default one, so a multi-instance deployment holds `NOTIFSTORE-02.core.plugins.status.<plugin>.installed`, one row per instance. Worse, the two families do not behave alike : `.installed` and `.pool` go through `setInstanceDataValue` and **are** prefixed, while `.version` and `.lastRunScriptType` are written by `LiquibaseRunnerContext` through `setDataValue` and are **not**. Exact-key statements silently miss every named instance, and an exact-key precondition returns 0, which marks the changeset as ran without migrating anything. `REPLACE` on the key covers both forms and every instance in one statement.
 
-`COUNT(DISTINCT 1)` is used rather than `COUNT(*)` so the precondition answers 1 or 0 whatever the number of instances — an exact count could not be predicted. Checked on MariaDB and HSQLDB.
+`COUNT(DISTINCT 1)` is used rather than `COUNT(*)` so the precondition answers 1 or 0 whatever the number of instances — an exact count could not be predicted. Checked on MariaDB, PostgreSQL and HSQLDB.
 
 Also align the `PLUGIN_NAME` constant and every `PluginService.getPlugin("…")`: a diverging constant returns `null`, and `DAOUtil.loadPlugin(null)` silently falls back to the default connection service.
 
@@ -89,7 +106,7 @@ Also align the `PLUGIN_NAME` constant and every `PluginService.getPlugin("…")`
 | Tables emptied / dropped after an upgrade | same, on a `create_db_*` starting with `DROP TABLE` | same |
 | Directive present but changeset still replayed | directive in the file header, on liquibase 5 | move it to the `changeset` line |
 | `ValidationFailedException`, `1 changesets check sum`, webapp down | content of an already-shipped changeset was edited while the file was still included | append a new changeset rather than editing — see `sql-liquibase.md` |
-| Module shows up as **not installed** after a plugin rename | `core.plugins.status.<old>.installed` not migrated | `init_` migration script above |
+| Module shows up as **not installed** after a plugin rename | `core.plugins.status.<old>.installed` not migrated | pre-execution migration script above |
 | `No plugin metadata for <x>` | SQL directory name ≠ plugin `<name>` | rename the directory, apply this rule |
 
 ## How to verify

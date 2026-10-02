@@ -44,6 +44,7 @@ ALTER TABLE my_table ADD CONSTRAINT chk_... CHECK ( ... );
   ```
 
   Keep the policy line everywhere for consistency, but do not read it as a safety net — most scripts of the estate carry it with no condition attached, which is why replaying a non-idempotent `init_*` breaks the startup instead of being marked as ran.
+- **A precondition is not part of the checksum.** Adding or changing the `precondition-sql-check` of a shipped changeset leaves its `MD5SUM` unchanged: a site that already ran it starts normally. Only the body counts.
 - Don't declare `ON DELETE CASCADE` to clean child tables — the house convention is a **restrictive FK + explicit `deleteByIdForm`/`deleteByIdSlot`** chained in the service.
 - **A changeset id is never reused.** A changeset already played elsewhere is repaired by a `-pre` changeset inserted before it, guarded by a `DATABASECHANGELOG` precondition, and left untouched itself:
 
@@ -56,7 +57,7 @@ ALTER TABLE my_table ADD CONSTRAINT chk_... CHECK ( ... );
 
   Reference: `lutece-core/src/sql/upgrade/update_db_lutece_core-8.0.1-8.0.2.sql` (`-rev5-pre`, `-rev7-pre`).
 - **A released `update_*` script is never edited: roll forward.** A site that already played it is not repaired by a new body, so the fix goes in a new changeset of the next upgrade script, an `UPDATE` when the data can be corrected in place rather than a delete and re-insert (it keeps the rows that reference it). Edit a released upgrade only when its damage cannot be undone afterwards (a customised value it overwrites), and say so in the changeset comment; the sites that already played it are then out of reach, so add the recovery changeset too whenever one is possible.
-- **A plugin never reuses a core id** (an admin right `CORE_*`, a datastore key the core owns): the core's upgrade scripts run after the plugin's (`sql/plugins` sorts before `sql/upgrade`, and `runAfter:core` is refused), so a core script that removes its own row removes the plugin's for good. Give it the plugin prefix, and rename the rows of existing sites with an `UPDATE` changeset (it keeps the users who hold the right).
+- **A plugin never reuses a core id** (an admin right `CORE_*`, a datastore key the core owns): the core's upgrade scripts run after the plugin's (plugin-liquibase 2.0.2-beta-01 and earlier sort `sql/plugins` before `sql/upgrade`, and `runAfter:core` is refused), so a core script that removes its own row removes the plugin's for good. Give it the plugin prefix, and rename the rows of existing sites with an `UPDATE` changeset (it keeps the users who hold the right).
 - **`create_*` / `init_*` scripts describe a fresh install** and may be edited: plugin-liquibase includes them only on an empty database or for a new plugin, never on a site that already has the component.
 - **No `-- validCheckSum:` outside `prerun_db_*`.** plugin-liquibase filters the files by version before Liquibase sees them: an `init_*` or an `update_*` older than the installed version is not in the changelog, so its checksum is never compared and the directive does nothing, except hiding a changed body from the one case that does replay it (an unstable or snapshot version equal to the installed one, `liquibase.accept.*.versions=true`). Only the `prerun_db_*` files run at every start, unfiltered: there a changed body needs it.
 
@@ -160,6 +161,20 @@ It holds in the three branches of the filter: executed on an empty database, `MA
 
 `-- validCheckSum: ANY` also silences a mismatch — on its own line, the attribute is ignored on the `changeset` line. But Liquibase does **not** rewrite the stored `MD5SUM`, so the directive can never be removed afterwards, and it disables the integrity check on scripts that usually begin with `DROP TABLE IF EXISTS`. Permanent debt, on the least forgiving file of the plugin.
 
+## Guarding a creation script on any database
+
+A `create_db_*` that starts with `DROP TABLE IF EXISTS` destroys an installed plugin's data whenever it replays (no version recorded, see `sql-rename.md`). Guard it with a precondition that needs no `information_schema`:
+
+```sql
+-- changeset <plugin>:create_db_<plugin>.sql
+-- preconditions onFail:MARK_RAN onError:WARN
+-- precondition-sql-check expectedResult:1 SELECT COUNT(*) FROM my_table WHERE 1 = 0
+DROP TABLE IF EXISTS my_table;
+CREATE TABLE my_table ( ... );
+```
+
+The query answers 0 while the table exists (failed: `MARK_RAN`, no `DROP TABLE`) and errors when it does not (`onError:WARN`: the changeset runs). The same text works on MySQL/MariaDB, PostgreSQL and HSQLDB (checked with Liquibase 5.0.4: a fresh install creates the table, an installed plugin keeps its rows, PostgreSQL does not abort the transaction). For an `init_*`, test what it inserts first: `expectedResult:0 SELECT COUNT(*) FROM core_admin_right WHERE id_right = '<RIGHT>'`.
+
 ## What the creation script gains, existing sites never get
 
 A fresh bench runs `create_db_*.sql` and is green. An existing site runs only the `update_db_*` scripts newer
@@ -198,6 +213,7 @@ v7 installs SQL via the Ant `build.xml` (runs every plugin `.sql` regardless of 
 | Log: `LiquibaseRunner files not managed by liquibase are sql/plugins/<x>/...` | That exact file has no/invalid header | Add/fix the header |
 | Works in v7 fresh install, not in v8 cluster | Relying on the Ant build instead of Liquibase changesets | Header every `.sql` |
 | Creation script replayed on an existing site, `Duplicate entry` or `DROP TABLE` | A SQL directory was renamed, changing the changeset identity | `logicalFilePath` on the changeset line — see `sql-rename.md` |
+| `DROP TABLE` or `Duplicate entry` at the first Lutece 8 start of a database installed with Ant | The plugin was not resolved in Lutece 7 (SQL directory ≠ plugin name): no version recorded, installed as new | Pre-execution script recording the installed version + real preconditions on `create_db`/`init` — see `sql-rename.md` |
 | `ValidationFailedException`, `1 changesets check sum`, **and the webapp does not start** | The content of an already-shipped changeset was edited, and the file is still included — no `core.plugins.status.<plugin>.version` | Append a new changeset instead of editing. Sites already broken need `MD5SUM` fixed or `clearCheckSums` |
 
 ## How to verify

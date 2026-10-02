@@ -167,9 +167,14 @@ only has to record the versions, during the early initialisation: `run.sh` waits
 application deployed (`CWWKZ0001I`, printed whatever logging the site sets, where a site logging at WARN never writes
 `LiquibaseRunner ended`), not for a healthy page. A site then takes the database over in two normal starts, from
 the scripts `site_check.py takeover` wrote into `E2E_TAKEOVER`: `takeover-1-core.sql` lets only the core upgrades
-run (plugin-liquibase would run `sql/plugins/` and `sql/themes/` first), `takeover-2-components.sql` sets each
+run (plugin-liquibase 2.0.2-beta-01 and earlier run `sql/plugins/` and `sql/themes/` first), `takeover-2-components.sql` sets each
 component back to what the v7 site had installed, moves the keys of a renamed one and removes the version of a new
-one; the second start runs the component upgrades and installs. A plugin target keeps one start: the versions reset
+one; the second start runs the component upgrades and installs. These scripts set what plugin-liquibase cannot
+read on a v7 database installed with Ant (an empty `DATABASECHANGELOG`): the version of a component it could not
+resolve in v7, the former identity of a renamed one. Without them such a database can lose tables, a creation
+script replaying its `DROP TABLE` (`rules/sql-rename.md`), so a green run proves the migration with the scripts, not
+without. To see the real start, point `E2E_TAKEOVER` at a directory holding two empty files: the first start of the
+v8 site is then the one an environment would make. A plugin target keeps one start: the versions reset
 to the v7 ones (`versions.properties`), then the upgrades.
 
 ## An update of a Lutece 8 site or artefact (`upgrade`)
