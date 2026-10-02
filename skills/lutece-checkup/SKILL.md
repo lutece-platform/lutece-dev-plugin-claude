@@ -1,6 +1,8 @@
 ---
 name: lutece-checkup
 description: "Use when the user wants the mechanical state of a Lutece 8 project (core, plugin, module, site) without changing it: runs every check script of the toolkit in one pass (verify-migration, template scanner, i18n keys, template parse), summarises the blocking and the warning findings, then asks the user what to do. Triggers on 'checkup', 'bilan', 'état du plugin', 'lance les contrôles', 'vérifie le projet', 'mechanical check'."
+metadata:
+  summary: "Report the state of a project without changing it."
 ---
 
 # Lutece checkup
@@ -31,7 +33,7 @@ Never add a finding the tools did not print, never drop one.
 
 ## 3. Ask
 
-Ask the user what to do, with these options: bring the project to the supported level with the `lutece-update` skill
+Ask the user what to do, with these options: bring the project to the supported level with the `lutece-update-plugin` skill
 (every finding, the build, the review and the e2e bench, gate green), fix the blocking findings only, explain one
 finding, or stop here. Fixing findings only follows the skill that owns the files (lutece-patterns for Java,
 lutece-update-template-bo / -fo for templates), and ends by running this checkup again.

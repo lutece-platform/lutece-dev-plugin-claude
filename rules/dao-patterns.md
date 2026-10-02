@@ -48,7 +48,7 @@ Every DAO has an `IEntityDAO` interface with `insert`, `load`, `store`, `delete`
 
 ## Existing JPA Model
 
-Kept on the `jakarta.persistence` API, provider EclipseLink of the container (`persistence-3.1`, `persistence.xml` in JTA on `jdbc/portal`, `shared-cache-mode NONE`), no `org.hibernate` import, `DAOUtil` and `EntityManager` mixed only under `@Transactional` with `ManagedConnectionService`. Rules: `skills/lutece-update/patterns/persistence-patterns.md`.
+Kept on the `jakarta.persistence` API, provider EclipseLink of the container (`persistence-3.1`, `persistence.xml` in JTA on `jdbc/portal`, `shared-cache-mode NONE`), no `org.hibernate` import, `DAOUtil` and `EntityManager` mixed only under `@Transactional` with `ManagedConnectionService`. Rules: `skills/lutece-update-plugin/patterns/persistence-patterns.md`.
 
 ## Reference
 

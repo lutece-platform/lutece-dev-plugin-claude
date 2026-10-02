@@ -14,11 +14,11 @@ This repository is a plugin for coding agents (Claude Code, Codex, Cursor, Grok 
 - `rules/*.md` are canonical for their path scope (DAO, service, web, templates, SQL, POM, tests). Skills and patterns link to them instead of repeating.
 - `tools/` holds every script the skills, agents and hooks share; `tools/lutece-check.sh` is the entry point. A check lives in its script, its explanation in `tools/checks.md` (read by `lutece-check.sh --explain`); skills never list what a script reports.
 - `skills/using-lutecepowers/SKILL.md` is injected at every session start: shared paragraphs (plugin root, references, team rules) live there once.
-- Generated files, never edited by hand: `rules-cursor/*.mdc` (`scripts/build-cursor-rules.sh`) and the skills and rules tables of `README.md` and `skills/using-lutecepowers/SKILL.md` (`scripts/build-tables.sh`).
+- Generated files, never edited by hand: `rules-cursor/*.mdc` (`scripts/build-cursor-rules.sh`), the skills and rules tables of `docs/how-it-works.md` and `skills/using-lutecepowers/SKILL.md`, and the skill list of `README.md`, built from the `metadata.summary` of each skill (`scripts/build-tables.sh`).
 
 ## Writing rules
 
-- Skills follow the Agent Skills format: frontmatter `name` (= directory), `description` starting with "Use when", optional `license`, `compatibility`, `metadata`. No Claude-only frontmatter or tool names; say "ask the user", "dispatch a subagent".
+- Skills follow the Agent Skills format: frontmatter `name` (= directory), `description` starting with "Use when", optional `license`, `compatibility`, `metadata`, of which `metadata.summary` is required: one short sentence, the line of the skill in the README. No Claude-only frontmatter or tool names; say "ask the user", "dispatch a subagent".
 - English, minimal, present tense. No history prose. Scripts: one doc comment above each function, no comments inside.
 - Skills never commit; a project has one writer at a time.
 
@@ -38,6 +38,7 @@ bash tests/scripts/test-fix-i18n-bundles.sh
 bash tests/scripts/test-server-log-oracle.sh
 bash tests/scripts/test-coverage-keys.sh
 bash tests/scripts/test-v8-floor.sh
+bash tests/scripts/test-doctor.sh
 bash tests/scripts/test-i18n-keys.sh
 bash tests/scripts/test-version-tags.sh
 bash tests/scripts/test-sql-literal.sh

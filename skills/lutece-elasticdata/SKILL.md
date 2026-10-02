@@ -1,6 +1,8 @@
 ---
 name: lutece-elasticdata
 description: "Use when creating or modifying an Elasticsearch DataSource module for Lutece 8: DataSource and DataObject interfaces, CDI auto-discovery, @ConfigProperty injection, batch processing, two-daemon indexing, incremental updates through CDI events. Triggers on 'elasticdata', 'Elasticsearch', 'DataSource module'."
+metadata:
+  summary: "Write or change an Elasticsearch data source module."
 ---
 
 # Lutece 8 ElasticData DataSource Module

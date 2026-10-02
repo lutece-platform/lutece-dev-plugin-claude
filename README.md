@@ -1,174 +1,71 @@
 # Lutecepowers
 
-**Lutece 8** development toolkit for coding agents: skills, path-scoped rules, reference sources, and orchestrated workflows for migration to v8 and scalability proofs.
+Makes a coding agent work the Lutece 8 way: skills it follows step by step, rules applied to the files it edits,
+and scripts that check everything a machine can check. Claude Code, Codex, Cursor, Grok Build and OpenCode.
 
-One content tree, several coding agents. Skills follow the open [Agent Skills](https://agentskills.io) format. Supported coding agents are the ones verified with a live session: Claude Code, Codex, Cursor, Grok Build and OpenCode.
+## Before you start
 
-## Prerequisites
+1. **Linux, or Windows through WSL 2.** Nothing else: not native Windows, not Git Bash. On Windows, from an
+   administrator PowerShell: `wsl --install -d Ubuntu-24.04`, then do everything inside Ubuntu.
+2. **Keep your projects in the Linux file system** (`~/…`), never under `/mnt/c`.
+3. **Install the tools inside Linux** (Ubuntu 24.04):
 
-Linux, or Windows through WSL 2: native Windows is not supported. On Windows, from an administrator PowerShell, run `wsl --install -d Ubuntu-24.04`, then work inside the distribution.
+   ```bash
+   sudo apt install git python3-yaml openjdk-21-jdk-headless nodejs curl zip unzip
+   curl -s "https://get.sdkman.io" | bash && source "$HOME/.sdkman/bin/sdkman-init.sh" && sdk install maven
+   ```
 
-On Ubuntu 24.04:
+   Maven 3.9 (not 4). On Windows, Docker Desktop with the WSL 2 integration of the distribution ticked, for the e2e bench.
+4. **Check the setup:** in a project, ask the agent *"run the lutecepowers doctor"*. It names every problem
+   (a Windows `mvn` on the PATH, a project under `/mnt/c`, line endings git will convert, no Docker) and how to fix it.
 
-```bash
-sudo apt install git python3-yaml openjdk-21-jdk-headless nodejs curl zip unzip
-curl -s "https://get.sdkman.io" | bash
-source "$HOME/.sdkman/bin/sdkman-init.sh"
-sdk install maven
-```
+## Install
 
-- The Maven of apt is 3.8 on Ubuntu 24.04; SDKMAN installs 3.9 (not 4). The Lutece POMs declare their Maven repository: no `settings.xml` is needed.
-- node checks the plugin's scripts (JS07); without it, JS07 reports NOT EVALUATED. PyYAML is read by the e2e bench.
-- WSL puts the Windows PATH after the Linux one: `command -v mvn` must print a Linux path, not one under `/mnt/c`.
-- In WSL, the e2e bench needs Docker Desktop (WSL 2 backend) with the distribution ticked in Settings > Resources > WSL integration.
+| Agent | Command |
+|---|---|
+| Claude Code | `/plugin marketplace add lutece-platform/lutece-dev-plugin-lutecepowers` then `/plugin install lutecepowers-v8@lutece-plugins` |
+| Codex | `codex plugin marketplace add https://github.com/lutece-platform/lutece-dev-plugin-lutecepowers` then `codex plugin add lutecepowers-v8@lutece-plugins` |
+| Cursor | clone the repository, then `cursor-agent --plugin-dir <clone>` |
+| Grok Build | `grok plugin install https://github.com/lutece-platform/lutece-dev-plugin-lutecepowers --trust` |
+| OpenCode | see [the OpenCode install](docs/how-it-works.md#opencode) |
 
-## Installation
+## How it works
 
-Install once per coding agent you use.
+- Open the agent **in your project** (plugin, module, library, site) and say what you want, in your own words.
+- The agent picks the matching skill and follows it. Scripts check each step; the agent fixes what they report.
+- **Nothing is committed.** You read the result and commit.
 
-### Claude Code
+## Updating to Lutece 8 — from any version
 
-```
-/plugin marketplace add lutece-platform/lutece-dev-plugin-lutecepowers
-/plugin install lutecepowers-v8@lutece-plugins
-```
+- `lutece-update-plugin`: a plugin, a module or a library.
+- `lutece-update-site`: a site, a pack or a theme.
 
-Local development: `claude --plugin-dir /path/to/lutecepowers`.
-
-### Codex (CLI and app)
-
-```bash
-codex plugin marketplace add https://github.com/lutece-platform/lutece-dev-plugin-lutecepowers
-codex plugin add lutecepowers-v8@lutece-plugins
-```
-
-Then start a new thread. `/plugins` lists installed plugins.
-
-### Cursor
-
-```bash
-git clone https://github.com/lutece-platform/lutece-dev-plugin-lutecepowers
-cursor-agent --plugin-dir /path/to/lutecepowers
-```
-
-Verified with Cursor CLI. Marketplace publication (`/add-plugin`) is not done yet.
-
-### Grok Build
-
-```bash
-grok plugin install https://github.com/lutece-platform/lutece-dev-plugin-lutecepowers --trust
-```
-
-### OpenCode
-
-```bash
-git clone https://github.com/lutece-platform/lutece-dev-plugin-lutecepowers ~/.config/opencode/lutece-dev-plugin-lutecepowers
-mkdir -p ~/.config/opencode/plugins
-ln -s ~/.config/opencode/lutece-dev-plugin-lutecepowers/.opencode/plugins/lutecepowers.js ~/.config/opencode/plugins/lutecepowers.js
-```
-
-OpenCode loads every plugin file found in `~/.config/opencode/plugins/`. Requires `bash` on the PATH.
-
-## What happens at session start
-
-A single hook script, `hooks/session-start`, runs on every coding agent that supports session hooks. It:
-
-1. Injects the `using-lutecepowers` skill as context, with the absolute plugin root substituted for `LUTECEPOWERS_ROOT`. Fires on startup, clear and compact, not on resume, so a resumed session is not charged twice.
-2. Clones or updates the Lutece v8 reference repositories listed in `hooks/sync-references` into `~/.lutece-references/` in the background (branch `develop`, plus the v7 branches of each repository).
-3. On Claude Code, when the current directory is a Lutece Maven project, copies the rules into `.claude/rules/` so they load automatically by path. It also exports `LUTECEPOWERS_ROOT` to the shell.
-
-The reference sync runs at most once per hour, six repositories at a time.
-
-The script takes the coding agent name as an optional argument (Cursor and OpenCode pass it), otherwise detects it from its environment, and emits the output shape that agent expects (`hookSpecificOutput.additionalContext` for Claude Code and Codex; `additional_context` for Cursor).
-
-Coding agents without a usable session hook load the bootstrap another way: OpenCode through an in-process plugin that runs the same hook script and injects its output into the first user message, Grok through the skill description alone.
-
-## Other hooks
-
-- `hooks/verify-edit` (after each edit, Claude Code): runs `tools/verify-file.sh` on the edited file of a Lutece project and hands its FAIL and WARN lines back to the agent at once.
-- `hooks/migration-gate` (Stop, Claude Code): while a project carries `.migration/gate-required`, refuses to end the turn until a full `final-gate.sh` passes.
+The starting version does not matter: Lutece 3, 5, 7 or an older 8. The skills do not climb version after
+version. The checks describe the Lutece 8 target, so every gap is reported whatever the starting point, and the
+database follows the plugin's own upgrade scripts from the version the site recorded. A migration is proven on an
+e2e bench: the artefact before, then after, on the same database.
 
 ## Skills
 
 <!-- skills:start -->
-| Skill | Use when |
+| Skill | For |
 |---|---|
-| `lutece-brainstorming` | Use before any creative Lutece work: a new plugin, a new feature, a new screen, or a behaviour change. Explores intent, requirements and design with the user before any implementation. Triggers on 'I want to build', 'add a feature', 'new plugin', 'how should we design'. |
-| `lutece-cache` | Use when adding, fixing or reviewing a cache in a Lutece 8 plugin: AbstractCacheableService, CDI initialization, cache keys, invalidation through CDI events. Triggers on 'cache', 'cacheable', 'invalidate', 'CacheService'. |
-| `lutece-checkup` | Use when the user wants the mechanical state of a Lutece 8 project (core, plugin, module, site) without changing it: runs every check script of the toolkit in one pass (verify-migration, template scanner, i18n keys, template parse), summarises the blocking and the warning findings, then asks the user what to do. Triggers on 'checkup', 'bilan', 'état du plugin', 'lance les contrôles', 'vérifie le projet', 'mechanical check'. |
-| `lutece-e2e` | Use to give any Lutece 8 core, plugin, module or site an e2e/ bench that runs with one command: isolated Docker stack (Open Liberty HotSpot, MariaDB instrumented), synthetic volume, static + dynamic inventory of every back-office screen and action, Playwright suites (screens, YAML scenarios, forms) with a clean-console rule, server timings, SQL digests, JFR, k6, and a compact report. Also proves a migration's upgrade path: `run.sh compare` builds the artefact before its migration on a v7 site, then the v8 one on that same database, so a missing update_db script is caught instead of hidden by a fresh install. Triggers on 'e2e', 'tests de bout en bout', 'Playwright', 'tester tous les écrans', 'banc de test', 'non-régression BO', 'prouver la migration', 'chemin de mise à jour'. |
-| `lutece-elasticdata` | Use when creating or modifying an Elasticsearch DataSource module for Lutece 8: DataSource and DataObject interfaces, CDI auto-discovery, @ConfigProperty injection, batch processing, two-daemon indexing, incremental updates through CDI events. Triggers on 'elasticdata', 'Elasticsearch', 'DataSource module'. |
-| `lutece-lucene-indexer` | Use when adding plugin-internal Lucene search to a Lutece 8 plugin: custom index, indexing daemon, CDI events, batch processing. Triggers on 'Lucene', 'full-text search inside the plugin', 'indexer'. |
-| `lutece-patterns` | Use before writing or reviewing any Lutece 8 code (CRUD, JspBean, XPage, service, DAO, daemon, template) and when answering questions about Lutece 8 architecture, layered design or coding conventions. Canonical patterns extracted from lutece-core. |
-| `lutece-rbac` | Use when adding or reviewing permissions in a Lutece 8 plugin: RBAC entity permissions, ResourceIdService, plugin.xml declaration, JspBean authorization checks. Triggers on 'RBAC', 'permission', 'right', 'authorization', 'ResourceIdService'. |
-| `lutece-scalability-v8` | Use after a migration to v8 to make a Lutece plugin horizontally scalable and prove it: scans scalability anti-patterns, fixes them, deploys a real 3-instance cluster (Liberty, MariaDB, nginx, Hazelcast) and verifies through UI end-to-end tests. Triggers on 'scalability', 'cluster', 'multi-instance', 'horizontal scaling'. |
-| `lutece-solr-indexer` | Use when creating or modifying a Solr search module for Lutece 8: SolrIndexer interface, CDI auto-discovery, SolrItem dynamic fields, batch indexing, incremental updates through CDI events. Triggers on 'Solr', 'search module', 'SolrIndexer'. |
-| `lutece-update` | Use when bringing a Lutece plugin, module or library to the Lutece level lutecepowers supports, whatever its starting point: migrating from v7 or older (Spring to CDI, javax to jakarta, XML context, templates, tests), or updating a v8 project to the current level (parent, deprecated API, checks, bench). The scripts report every checkable finding with what to do, one agent makes every change, a read-only reviewer and the e2e bench prove the result. Triggers on 'migrate to v8', 'migration v7 v8', 'CDI migration', 'update', 'mettre à jour', 'mise à niveau', 'remettre au niveau'. |
-| `lutece-update-site` | Use when bringing a Lutece site (packaging lutece-site: a site, a pack or a theme) to the Lutece 8 level lutecepowers supports, whatever its starting point: migrating a v7 or older site, or updating a v8 site (parent, BOM, starter, pack). Checks first that every artefact the site ships has a Lutece 8 version and hands the missing ones to lutece-update; then proves that nothing the site configured, shipped or overrode is lost, by comparing the assembled site before and after and by running it. Triggers on 'migrer un site', 'passer le site en v8', 'mettre à jour le site', 'monter le pack', 'site v8', 'migrate site', 'update site'. |
-| `lutece-update-template-bo` | Converts a Lutece Back Office (admin) template to the BO FreeMarker macros of lutece-core (Tabler theme). Discovers the macros from the core sources rather than from a fixed list, so it never goes stale, and applies the house rules that are not readable from the macro files: manageFeature versus table, the mandatory empty state, the page hierarchy, no offcanvas (a modal or a plain link), no inline form, and the e-mail templates that must never be converted. Takes the template path as argument. Triggers on 'migrer un template BO', 'convertir un template admin', 'macros BO', 'thème tabler', 'update back office template'. |
-| `lutece-update-template-fo` | Converts a Lutece Front Office (skin) template to the FO FreeMarker macros of lutece-core. Discovers the macros from the core sources rather than from a fixed list, so it never goes stale, and applies the rules that are not readable from the macro files: the FO macros are never the Back Office ones, the FreeMarker syntax to use, Bootstrap 5 classes, and the jQuery that must become vanilla JS. Takes the template path as argument. Triggers on 'migrer un template FO', 'convertir un template skin', 'macros FO', 'front office template', 'update skin template'. |
-| `lutece-v8-review` | Use when the user asks to review, audit, check or verify a Lutece plugin, module or library for v8 compliance or conformity, or after a migration to v8 before delivering. Read-only. Dispatches the lutece-v8-reviewer instructions as a subagent, or follows them inline on a harness without dispatch. |
-| `lutece-workflow` | Use when creating or modifying a Lutece 8 workflow module: tasks, CDI producers, task components, templates, configuration DAOs. Triggers on 'workflow', 'task', 'workflow module', 'TaskComponent'. |
+| `lutece-brainstorming` | Shape a new plugin, feature or screen with you before any code. |
+| `lutece-cache` | Add, fix or review a cache in a plugin. |
+| `lutece-checkup` | Report the state of a project without changing it. |
+| `lutece-e2e` | Give a project an e2e bench that tests every screen in one command. |
+| `lutece-elasticdata` | Write or change an Elasticsearch data source module. |
+| `lutece-lucene-indexer` | Add Lucene search inside a plugin. |
+| `lutece-patterns` | The Lutece 8 code patterns, read before writing code. |
+| `lutece-rbac` | Add or review the permissions of a plugin. |
+| `lutece-scalability-v8` | Make a plugin run on a cluster, and prove it. |
+| `lutece-solr-indexer` | Write or change a Solr search module. |
+| `lutece-update-plugin` | Update a plugin, module or library to Lutece 8, from any version. |
+| `lutece-update-site` | Update a site, pack or theme to Lutece 8, from any version. |
+| `lutece-update-template-bo` | Convert a back-office template to the core macros. |
+| `lutece-update-template-fo` | Convert a front-office template to the core macros. |
+| `lutece-v8-review` | Review a project for Lutece 8 compliance, read-only. |
+| `lutece-workflow` | Write or change a workflow module. |
 <!-- skills:end -->
 
-## Agent
-
-| Agent | Description |
-|-------|-------------|
-| `lutece-v8-reviewer` | Read-only compliance reviewer. Runs `scan-project.sh` and `verify-migration.sh`, then semantic analysis (CDI scopes, singletons, producers), then a full build with tests read from the surefire reports. Structured PASS/WARN/FAIL report. Frontmatter limited to `name` and `description` so any coding agent that reads `agents/` loads it; the `lutece-v8-review` skill drives it elsewhere. |
-
-## Rules
-
-Short constraints applied to files matching a glob. Source of truth: `rules/*.md` (Claude Code format, `paths:` frontmatter). `rules-cursor/*.mdc` and the tables below are generated from it (`scripts/build-cursor-rules.sh`, `scripts/build-tables.sh`).
-
-<!-- rules:start -->
-| Rule | Applies to | Constraint |
-|---|---|---|
-| `dao-patterns` | `**/business/**/*.java` | Lutece 8 DAO/Home constraints: DAOUtil lifecycle, generated keys, SQL constants, Home facade, CDI lookup |
-| `dependency-convergence` | `pom.xml` | Lutece 8 dependency convergence: latest released global-pom 8.x as parent, Jakarta EE 10 pins, which test artifacts the parent manages, enforcer rules |
-| `dependency-references` | always | When a task involves a dependency (Lutece or external), ensure its source/docs are available for exploration |
-| `java-conventions` | `**/*.java` | Lutece 8 global Java conventions: Jakarta EE, CDI, forbidden patterns |
-| `jsp-admin` | `**/*.jsp` | Lutece 8 JSP constraints: admin feature JSP boilerplate, bean naming, errorPage, no init() for MVC beans |
-| `messages-properties` | always | Lutece 8 i18n constraints: no prefix in .properties, prefix in Java/templates, key naming |
-| `plugin-descriptor` | `**/plugins/*.xml` | Lutece 8 plugin.xml constraints: structure, icon-url, core-version-dependency, admin-feature and application declaration |
-| `rest-resource` | `**/rs/**/*.java`, `**/rest/**/*.java` | Lutece 8 JAX-RS resources: application path, securing endpoints per resource, and how a bench tests them |
-| `service-layer` | `**/service/**/*.java` | Lutece 8 service layer constraints: CDI scopes, injection, getInstance removal, events, configuration |
-| `sql-liquibase` | `**/sql/**/*.sql` | Lutece 8 SQL: every plugin .sql (create_db, init_db, init_core, upgrade) MUST carry the Liquibase formatted-sql header, otherwise the schema silently fails to deploy in v8 |
-| `sql-rename` | `**/sql/**/*.sql`, `**/WEB-INF/plugins/*.xml` | Renaming a SQL directory or a plugin: logicalFilePath goes on the changeset line (not the file header), or existing sites replay their creation scripts and lose data |
-| `template-back-office` | `**/templates/admin/**/*.html` | Lutece 8 Freemarker constraints: layout macros, list layout (@manageFeature / @table), form components, messages, i18n, vanilla JS |
-| `template-front-office` | `**/templates/skin/**/*.html` | Lutece 8 front-office (skin/site) templates: FO macros (c*), Bootstrap 5, vanilla JS, messages null-safety |
-| `testing` | `**/test/**/*.java`, `pom.xml` | Lutece 8 build and test commands, JUnit 5 conventions, test base classes |
-| `web-bean` | `**/web/**/*.java` | Lutece 8 JspBean/XPage constraints: CDI annotations, @Controller attributes, CRUD lifecycle, CSRF policy, Models, pagination |
-<!-- rules:end -->
-
-## Orchestrated workflows
-
-How subagents and teammates run on each coding agent is described once, in the `using-lutecepowers` skill (section Subagents and teams). No skill ever commits.
-
-### Update (`lutece-update`)
-
-Brings a plugin, module or library to the supported Lutece level whatever its starting point: a pre-v8 artefact gets
-the full migration and the takeover of its v7 database, a v8 one is aligned on the current level. One agent, in a
-fixed order; the scripts report every checkable finding with what to do, the agent makes every change.
-
-| Phase | What |
-|-------|------|
-| A — Scan | `scan-project.sh` → JSON inventory, starting point (`pre-v8` or `v8`), dependency v8 check |
-| B — First check | `lutece-check.sh`: every finding by code, the work of the steps |
-| C — Steps | config, Java, templates, tests (`steps/*.md`): all of them from pre-v8, only those with a finding from v8 |
-| D — Build | `final-gate.sh --no-e2e`: 0 compiler warning, 0 failures and 0 errors in the surefire reports, 0 FAIL |
-| E — Review | `lutece-v8-reviewer`, a read-only subagent |
-| F — e2e bench | `lutece-e2e`, and `run.sh compare` from pre-v8, one subagent |
-| G — Gate loop | `final-gate.sh` until green, every WARN fixed or justified |
-
-Scripts (`tools/`): `lutece-check.sh`, `scan-project.sh`, `final-gate.sh`, `verify-migration.sh` (100+ checks, `--json`), `verify-file.sh`, and what they call.
-
-### Scalability (`lutece-scalability-v8`)
-
-Scans seven scalability axes, reproduces each defect through a UI end-to-end test on a real cluster, fixes it, and proves the fix by turning that test green.
-
-## Known limits
-
-- The `lutece-v8-reviewer` agent keeps only `name` and `description` so every coding agent loads it. Its read-only guarantee is therefore in the prompt, not enforced by a tool allowlist.
-- Grok Build 1.0.13 discovers the plugin hooks but does not execute them, so the reference sync and the rules copy do not run there. Skills still trigger from their descriptions.
-- Codex runs its own sandbox (bwrap). Inside another sandbox, run `codex exec --dangerously-bypass-approvals-and-sandbox` or the scan scripts fail to start.
+Details: [how it works](docs/how-it-works.md) (session start, hooks, rules, agents, workflows, known limits).

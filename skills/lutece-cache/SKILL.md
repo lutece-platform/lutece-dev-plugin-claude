@@ -1,6 +1,8 @@
 ---
 name: lutece-cache
 description: "Use when adding, fixing or reviewing a cache in a Lutece 8 plugin: AbstractCacheableService, CDI initialization, cache keys, invalidation through CDI events. Triggers on 'cache', 'cacheable', 'invalidate', 'CacheService'."
+metadata:
+  summary: "Add, fix or review a cache in a plugin."
 ---
 
 # Lutece 8 Cache Implementation

@@ -1,6 +1,8 @@
 ---
 name: lutece-e2e
 description: "Use to give any Lutece 8 core, plugin, module or site an e2e/ bench that runs with one command: isolated Docker stack (Open Liberty HotSpot, MariaDB instrumented), synthetic volume, static + dynamic inventory of every back-office screen and action, Playwright suites (screens, YAML scenarios, forms) with a clean-console rule, server timings, SQL digests, JFR, k6, and a compact report. Also proves a migration's upgrade path: `run.sh compare` builds the artefact before its migration on a v7 site, then the v8 one on that same database, so a missing update_db script is caught instead of hidden by a fresh install. Triggers on 'e2e', 'tests de bout en bout', 'Playwright', 'tester tous les écrans', 'banc de test', 'non-régression BO', 'prouver la migration', 'chemin de mise à jour'."
+metadata:
+  summary: "Give a project an e2e bench that tests every screen in one command."
 ---
 
 # Lutece e2e — one bench, every screen, one command
@@ -219,7 +221,7 @@ and the run stays green; never add a guard in the plugin to turn it green.
 
 **The CSRF one is not waivable, and "the platform does not protect this path" is not a reason to skip it.** It is
 a reason to write it: a legacy path outside the automatic filter is exactly where the hole lives. A portlet
-JspBean is the known case — the plugin closes it itself (`lutece-update`,
+JspBean is the known case — the plugin closes it itself (`lutece-update-plugin`,
 `patterns/mvc-patterns.md` §11). Cover **every** mutation, including the ones reached by a link: a delete behind
 `<a href="…Do…?id=1">` is a GET that writes.
 

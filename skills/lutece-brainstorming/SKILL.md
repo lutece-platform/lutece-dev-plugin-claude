@@ -1,6 +1,8 @@
 ---
 name: lutece-brainstorming
 description: "Use before any creative Lutece work: a new plugin, a new feature, a new screen, or a behaviour change. Explores intent, requirements and design with the user before any implementation. Triggers on 'I want to build', 'add a feature', 'new plugin', 'how should we design'."
+metadata:
+  summary: "Shape a new plugin, feature or screen with you before any code."
 ---
 
 # Brainstorming — Turning Ideas Into Designs

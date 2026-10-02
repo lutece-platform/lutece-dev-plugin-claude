@@ -2,7 +2,7 @@
 # migration-gate — Stop hook: refuses to end the turn while a migration in progress is not re-verified.
 #
 # Opt-in by design. It does nothing unless the project carries the marker `.migration/gate-required`, which the
-# lutece-update skill drops when its gate loop starts and which only a full final-gate.sh,
+# lutece-update-plugin skill drops when its gate loop starts and which only a full final-gate.sh,
 # e2e included, removes: a green gate without e2e lets the turn end but keeps the marker. Without that marker every
 # other session ends normally.
 #

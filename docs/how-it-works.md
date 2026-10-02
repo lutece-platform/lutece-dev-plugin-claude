@@ -1,45 +1,91 @@
----
-name: using-lutecepowers
-description: Use at the start of every session in a Lutece project, before any other action. Explains which Lutece skills, rules, reference sources and build commands exist, and how to reach them from your harness. Triggers on any Lutece 8 plugin, module, library or site work, on any migration to v8, and whenever a pom.xml declares lutece-plugin, lutece-module, lutece-library or lutece-site packaging.
-license: MIT
-compatibility: Works on any harness that loads Agent Skills. Subagent and team dispatch are optional and degrade to sequential execution.
-metadata:
-  author: Lutece
-  homepage: https://github.com/lutece-platform/lutece-dev-plugin-lutecepowers
----
+# How lutecepowers works
 
-# Using Lutecepowers
+The detail behind the [README](../README.md): prerequisites, installation per coding agent, what runs at session
+start, the hooks, every skill and rule, the orchestrated workflows and the known limits.
 
-Lutecepowers is a set of skills, path-scoped rules, reference sources and scripts for **Lutece 8** development. The content is the same on every harness. Only the way you invoke a skill or dispatch a subagent changes, see [Harness adaptation](#harness-adaptation).
+## Prerequisites
 
-## Mandatory reads
+Linux, or Windows through WSL 2: native Windows and Git Bash are not supported. Keep the projects in the Linux file system (`~/…`), never under `/mnt/c`. `tools/doctor.sh` checks all of this. On Windows, from an administrator PowerShell, run `wsl --install -d Ubuntu-24.04`, then work inside the distribution.
 
-1. **Before writing any Lutece code** (bean, service, DAO, XPage, daemon, template): load the `lutece-patterns` skill.
-2. **Before editing a file matching a rule glob** (table below): read that rule file. On Claude Code the rules are also loaded automatically from `.claude/rules/`.
-3. **Before writing any non-trivial pattern**: search `~/.lutece-references/` for an existing implementation. The references are the living truth. They are cloned and updated in the background at session start from the `develop` branch (where v8 lives), and each one also carries the v7 branches that exist upstream (`develop_core7`, `master_core7`; `develop7.x` and `master7.x` for lutece-core), listed by `git branch -r`, to compare a pattern before and after migration. Repositories born in v8 have none. The list of repositories is the `REPOS` array of `${LUTECEPOWERS_ROOT}/hooks/sync-references`.
+On Ubuntu 24.04:
 
-## Plugin root
+```bash
+sudo apt install git python3-yaml openjdk-21-jdk-headless nodejs curl zip unzip
+curl -s "https://get.sdkman.io" | bash
+source "$HOME/.sdkman/bin/sdkman-init.sh"
+sdk install maven
+```
 
-Skills, agents and scripts refer to the installed plugin directory as `${LUTECEPOWERS_ROOT}`.
+- The Maven of apt is 3.8 on Ubuntu 24.04; SDKMAN installs 3.9 (not 4). The Lutece POMs declare their Maven repository: no `settings.xml` is needed.
+- node checks the plugin's scripts (JS07); without it, JS07 reports NOT EVALUATED. PyYAML is read by the e2e bench.
+- WSL puts the Windows PATH after the Linux one: `command -v mvn` must print a Linux path, not one under `/mnt/c`.
+- In WSL, the e2e bench needs Docker Desktop (WSL 2 backend) with the distribution ticked in Settings > Resources > WSL integration.
 
-- The session-start hook prints the absolute value at the top of the context it injects and substitutes it in this text. On Claude Code it is also exported to your shell.
-- If the variable is not set in your shell, substitute the literal path from the injected context.
-- Every script also resolves the root from its own location, so `bash "${LUTECEPOWERS_ROOT}/tools/<script>.sh"` works as soon as the path is right.
-- Fallback when nothing is injected: `find ~ -maxdepth 7 -path '*/skills/using-lutecepowers/SKILL.md' 2>/dev/null | head -1`, then take the directory containing `skills/`.
-- When you dispatch a subagent or teammate, write the literal path into its prompt. A subagent does not see this context.
+## Installation
 
-## Toolkit
+Install once per coding agent you use.
 
-One command checks any Lutece project, a v7 one to migrate as a v8 one:
+### Claude Code
 
-- `bash ${LUTECEPOWERS_ROOT}/tools/lutece-check.sh <project>` runs every check and prints only the findings of this
-  project, each with what to do; `--explain CODE` says what a check proves and how to fix it.
-- `bash ${LUTECEPOWERS_ROOT}/tools/doctor.sh <project>` checks the machine (Linux or WSL 2, the project outside
-  `/mnt/c`, the Linux java and Maven 3.9, git line endings, Docker): run it when the user asks for the doctor, and
-  before any work when a build or a bench fails for a reason outside the project.
+```
+/plugin marketplace add lutece-platform/lutece-dev-plugin-lutecepowers
+/plugin install lutecepowers-v8@lutece-plugins
+```
 
-On Claude Code, every edit of a Lutece file is checked at once: what `verify-file.sh` finds comes back to you. What a
-script reports is not repeated in the skills: fix what it says.
+Local development: `claude --plugin-dir /path/to/lutecepowers`.
+
+### Codex (CLI and app)
+
+```bash
+codex plugin marketplace add https://github.com/lutece-platform/lutece-dev-plugin-lutecepowers
+codex plugin add lutecepowers-v8@lutece-plugins
+```
+
+Then start a new thread. `/plugins` lists installed plugins.
+
+### Cursor
+
+```bash
+git clone https://github.com/lutece-platform/lutece-dev-plugin-lutecepowers
+cursor-agent --plugin-dir /path/to/lutecepowers
+```
+
+Verified with Cursor CLI. Marketplace publication (`/add-plugin`) is not done yet.
+
+### Grok Build
+
+```bash
+grok plugin install https://github.com/lutece-platform/lutece-dev-plugin-lutecepowers --trust
+```
+
+### OpenCode
+
+```bash
+git clone https://github.com/lutece-platform/lutece-dev-plugin-lutecepowers ~/.config/opencode/lutece-dev-plugin-lutecepowers
+mkdir -p ~/.config/opencode/plugins
+ln -s ~/.config/opencode/lutece-dev-plugin-lutecepowers/.opencode/plugins/lutecepowers.js ~/.config/opencode/plugins/lutecepowers.js
+```
+
+OpenCode loads every plugin file found in `~/.config/opencode/plugins/`. Requires `bash` on the PATH.
+
+## What happens at session start
+
+A single hook script, `hooks/session-start`, runs on every coding agent that supports session hooks. It:
+
+1. Injects the `using-lutecepowers` skill as context, with the absolute plugin root substituted for `LUTECEPOWERS_ROOT`. Fires on startup, clear and compact, not on resume, so a resumed session is not charged twice.
+2. Clones or updates the Lutece v8 reference repositories listed in `hooks/sync-references` into `~/.lutece-references/` in the background (branch `develop`, plus the v7 branches of each repository).
+3. On Claude Code, when the current directory is a Lutece Maven project, copies the rules into `.claude/rules/` so they load automatically by path. It also exports `LUTECEPOWERS_ROOT` to the shell.
+
+The reference sync runs at most once per hour, six repositories at a time.
+
+The script takes the coding agent name as an optional argument (Cursor and OpenCode pass it), otherwise detects it from its environment, and emits the output shape that agent expects (`hookSpecificOutput.additionalContext` for Claude Code and Codex; `additional_context` for Cursor).
+
+Coding agents without a usable session hook load the bootstrap another way: OpenCode through an in-process plugin that runs the same hook script and injects its output into the first user message, Grok through the skill description alone.
+
+## Other hooks
+
+- `hooks/verify-edit` (after each edit, Claude Code): runs `tools/verify-file.sh` on the edited file of a Lutece project and hands its FAIL and WARN lines back to the agent at once.
+- `hooks/migration-gate` (Stop, Claude Code): while a project carries `.migration/gate-required`, refuses to end the turn until a full `final-gate.sh` passes.
 
 ## Skills
 
@@ -64,11 +110,15 @@ script reports is not repeated in the skills: fix what it says.
 | `lutece-workflow` | Use when creating or modifying a Lutece 8 workflow module: tasks, CDI producers, task components, templates, configuration DAOs. Triggers on 'workflow', 'task', 'workflow module', 'TaskComponent'. |
 <!-- skills:end -->
 
-The reviewer procedure itself is `${LUTECEPOWERS_ROOT}/agents/lutece-v8-reviewer.md`, also registered as a native agent where the harness loads `agents/`.
+## Agent
+
+| Agent | Description |
+|-------|-------------|
+| `lutece-v8-reviewer` | Read-only compliance reviewer. Runs `scan-project.sh` and `verify-migration.sh`, then semantic analysis (CDI scopes, singletons, producers), then a full build with tests read from the surefire reports. Structured PASS/WARN/FAIL report. Frontmatter limited to `name` and `description` so any coding agent that reads `agents/` loads it; the `lutece-v8-review` skill drives it elsewhere. |
 
 ## Rules
 
-Rules are short constraints that apply to files matching a glob. Source files live in `${LUTECEPOWERS_ROOT}/rules/`. Tables below are generated from the skill and rule frontmatter (`scripts/build-tables.sh`).
+Short constraints applied to files matching a glob. Source of truth: `rules/*.md` (Claude Code format, `paths:` frontmatter). `rules-cursor/*.mdc` and the tables below are generated from it (`scripts/build-cursor-rules.sh`, `scripts/build-tables.sh`).
 
 <!-- rules:start -->
 | Rule | Applies to | Constraint |
@@ -90,39 +140,34 @@ Rules are short constraints that apply to files matching a glob. Source files li
 | `web-bean` | `**/web/**/*.java` | Lutece 8 JspBean/XPage constraints: CDI annotations, @Controller attributes, CRUD lifecycle, CSRF policy, Models, pagination |
 <!-- rules:end -->
 
-Delivery by harness:
+## Orchestrated workflows
 
-- **Claude Code**: the hook copies the rules into `.claude/rules/` of the Lutece project. They load automatically by path (Grok reads that directory too, but does not run the hook).
-- **Cursor**: shipped as native `.mdc` rules with `globs`.
-- **Other harnesses**: nothing is automatic. Read the rule before touching a matching file.
+How subagents and teammates run on each coding agent is described once, in the `using-lutecepowers` skill (section Subagents and teams). No skill ever commits.
 
-## Build and test
+### Update (`lutece-update-plugin`)
 
-```bash
-# Compile only
-mvn clean install -Dmaven.test.skip=true
-# Full build with tests (exploded webapp + HSQL are required)
-mvn clean lutece:exploded antrun:run -Dlutece-test-hsql test -q
-```
+Brings a plugin, module or library to the supported Lutece level whatever its starting point: a pre-v8 artefact gets
+the full migration and the takeover of its v7 database, a v8 one is aligned on the current level. One agent, in a
+fixed order; the scripts report every checkable finding with what to do, the agent makes every change.
 
-Never run plain `mvn test`. Lutece tests need the `lutece:exploded antrun:run` goals first.
+| Phase | What |
+|-------|------|
+| A — Scan | `scan-project.sh` → JSON inventory, starting point (`pre-v8` or `v8`), dependency v8 check |
+| B — First check | `lutece-check.sh`: every finding by code, the work of the steps |
+| C — Steps | config, Java, templates, tests (`steps/*.md`): all of them from pre-v8, only those with a finding from v8 |
+| D — Build | `final-gate.sh --no-e2e`: 0 compiler warning, 0 failures and 0 errors in the surefire reports, 0 FAIL |
+| E — Review | `lutece-v8-reviewer`, a read-only subagent |
+| F — e2e bench | `lutece-e2e`, and `run.sh compare` from pre-v8, one subagent |
+| G — Gate loop | `final-gate.sh` until green, every WARN fixed or justified |
 
-## Subagents and teams
+Scripts (`tools/`): `lutece-check.sh`, `scan-project.sh`, `final-gate.sh`, `verify-migration.sh` (100+ checks, `--json`), `verify-file.sh`, and what they call.
 
-`lutece-update-plugin` runs in one agent and dispatches two read-only or self-contained subagents, one after the other (the reviewer, the e2e bench). `lutece-scalability-v8` is written as a lead orchestrating **teammates** described in `teammates/*.md` files.
+### Scalability (`lutece-scalability-v8`)
 
-- **Harness with a team or subagent tool**: dispatch one subagent per teammate with the spawn template given in the skill. On Claude Code, Agent Teams is experimental and needs `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`; without it, use regular subagents.
-- **Harness without dispatch**: run the subagent or teammate instructions yourself, sequentially, in the order the skill gives. Read each file, execute it fully, then move to the next. Never invent a tool call.
+Scans seven scalability axes, reproduces each defect through a UI end-to-end test on a real cluster, fixes it, and proves the fix by turning that test green.
 
-Rules shared by every skill: a project has one writer at a time; no skill ever creates a git commit.
+## Known limits
 
-## Harness adaptation
-
-Skills name actions (read a file, run a command, invoke a skill, dispatch a subagent). Map them to your tools with the reference for your harness:
-
-- Codex: `references/codex-tools.md`
-- Cursor: `references/cursor-tools.md`
-- OpenCode: `references/opencode-tools.md`
-- Claude Code, Grok Build: native tool surface, no mapping needed.
-
-User instructions (CLAUDE.md, AGENTS.md, direct requests) take precedence over skills, which override default behaviour.
+- The `lutece-v8-reviewer` agent keeps only `name` and `description` so every coding agent loads it. Its read-only guarantee is therefore in the prompt, not enforced by a tool allowlist.
+- Grok Build 1.0.13 discovers the plugin hooks but does not execute them, so the reference sync and the rules copy do not run there. Skills still trigger from their descriptions.
+- Codex runs its own sandbox (bwrap). Inside another sandbox, run `codex exec --dangerously-bypass-approvals-and-sandbox` or the scan scripts fail to start.

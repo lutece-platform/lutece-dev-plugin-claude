@@ -284,7 +284,7 @@ if [ -f pom.xml ] && [ -d src/test ]; then
 fi
 COUNT=0; [ -n "$PM13_MATCHES" ] && COUNT=$(echo "$PM13_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "PM13" "PASS" "Web-layer tests have the test implementations they need" 0
-else emit "PM13" "WARN" "Test dependency missing: a JspBean/XPage test needs jaxb-runtime (else the test startup stops before the macros load, pages fail on @pageContainer), a processController test also needs hibernate-validator and expressly (lutece-update steps/4-tests.md)" "$COUNT" "$PM13_MATCHES"; fi
+else emit "PM13" "WARN" "Test dependency missing: a JspBean/XPage test needs jaxb-runtime (else the test startup stops before the macros load, pages fail on @pageContainer), a processController test also needs hibernate-validator and expressly (lutece-update-plugin steps/4-tests.md)" "$COUNT" "$PM13_MATCHES"; fi
 
 if [ "$PM12_COUNT" -eq 0 ]; then
     emit "PM12" "PASS" "No Jakarta EE 11 artifact (EE 10 baseline)" 0

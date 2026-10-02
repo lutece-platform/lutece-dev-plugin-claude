@@ -98,5 +98,6 @@ if grep -q "<packaging>lutece-site</packaging>" pom.xml 2>/dev/null; then
     grep -q "^TOTAL:" "$C" || { stopped "$C"; blocking=1; }
 fi
 
-echo "== full outputs: $OUT/{verify,scanner,i18n,parse,site}.txt; a code explained: $S/lutece-check.sh --explain CODE"
+outputs="verify,scanner,i18n,parse"; [ -f "$OUT/site.txt" ] && outputs="$outputs,site"
+echo "== full outputs: $OUT/{$outputs}.txt; a code explained: $S/lutece-check.sh --explain CODE"
 exit $blocking

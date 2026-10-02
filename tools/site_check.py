@@ -20,7 +20,7 @@ check   checks the site sources and, with --war, the site assembled from them (t
         line per finding, and exits 1 when a FAIL is reported.
 gate    the Lutece 8 status of every Lutece artefact an assembled site ships (read from the pom.properties of its
         jars): managed by the target lutece-bom, published with a Lutece 8 parent, or without any Lutece 8 version.
-        Exits 1 when one artefact has no Lutece 8 version: it has to be updated first (lutece-update).
+        Exits 1 when one artefact has no Lutece 8 version: it has to be updated first (lutece-update-plugin).
 config  the effective configuration of an assembled site: every key, its value and the source that wins, computed
         the way the core and MicroProfile Config resolve it. With --against, the dump the running site printed
         (site-config-dump.jsp: one `key=value` per line) is compared with it: a key the model resolves otherwise
@@ -1537,7 +1537,7 @@ def gate(war_dir, bom, offline, site_dir=None, m2=None, extra=()):
         else:
             missing += 1
             hint = f"successor {known[art][0]} ({known[art][1]})" if art in known else (
-                "not checked (offline)" if offline else "no published version with a Lutece 8 parent: update it first (lutece-update)")
+                "not checked (offline)" if offline else "no published version with a Lutece 8 parent: update it first (lutece-update-plugin)")
             origin = f" [brought by {via[art]}: if its Lutece 8 version no longer needs it, a plugin decision]" if art in via else ""
             print(f"NO-V8      {art:48} {ver:24} -> {hint}{origin}")
     print(f"TOTAL: {missing} artefact(s) without a Lutece 8 version, {snapshots} with a Lutece 8 snapshot only")

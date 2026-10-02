@@ -1,6 +1,8 @@
 ---
 name: lutece-lucene-indexer
 description: "Use when adding plugin-internal Lucene search to a Lutece 8 plugin: custom index, indexing daemon, CDI events, batch processing. Triggers on 'Lucene', 'full-text search inside the plugin', 'indexer'."
+metadata:
+  summary: "Add Lucene search inside a plugin."
 ---
 
 # Lutece 8 Search Indexer

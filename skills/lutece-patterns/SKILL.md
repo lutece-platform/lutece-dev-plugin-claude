@@ -1,6 +1,8 @@
 ---
 name: lutece-patterns
 description: "Use before writing or reviewing any Lutece 8 code (CRUD, JspBean, XPage, service, DAO, daemon, template) and when answering questions about Lutece 8 architecture, layered design or coding conventions. Canonical patterns extracted from lutece-core."
+metadata:
+  summary: "The Lutece 8 code patterns, read before writing code."
 ---
 
 # Lutece 8 — Architecture Patterns

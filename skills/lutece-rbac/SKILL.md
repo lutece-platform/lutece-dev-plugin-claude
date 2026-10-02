@@ -1,6 +1,8 @@
 ---
 name: lutece-rbac
 description: "Use when adding or reviewing permissions in a Lutece 8 plugin: RBAC entity permissions, ResourceIdService, plugin.xml declaration, JspBean authorization checks. Triggers on 'RBAC', 'permission', 'right', 'authorization', 'ResourceIdService'."
+metadata:
+  summary: "Add or review the permissions of a plugin."
 ---
 
 # Lutece 8 RBAC Implementation

@@ -91,7 +91,7 @@ and the update goes on. Check `XT03`.
 plugin that writes to them:
 
 - **ports its portlet to HTML and removes those statements** when it can
-  (`skills/lutece-update/patterns/mvc-patterns.md` §10). Check `XT01`.
+  (`skills/lutece-update-plugin/patterns/mvc-patterns.md` §10). Check `XT01`.
 - **otherwise declares plugin-xmltransformer** in its pom, and puts `-- lutece runAfter:xmltransformer` as the second
   line of every install script that writes to those tables, so they exist when the script runs. Check `XT02`. The
   same header serves any dependency on another plugin's tables (`runAfter:genericattributes` for entry types).

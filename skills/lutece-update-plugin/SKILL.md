@@ -1,6 +1,8 @@
 ---
-name: lutece-update
+name: lutece-update-plugin
 description: "Use when bringing a Lutece plugin, module or library to the Lutece level lutecepowers supports, whatever its starting point: migrating from v7 or older (Spring to CDI, javax to jakarta, XML context, templates, tests), or updating a v8 project to the current level (parent, deprecated API, checks, bench). The scripts report every checkable finding with what to do, one agent makes every change, a read-only reviewer and the e2e bench prove the result. Triggers on 'migrate to v8', 'migration v7 v8', 'CDI migration', 'update', 'mettre à jour', 'mise à niveau', 'remettre au niveau'."
+metadata:
+  summary: "Update a plugin, module or library to Lutece 8, from any version."
 ---
 
 # Lutece update

@@ -3,6 +3,8 @@ name: lutece-v8-review
 description: "Use when the user asks to review, audit, check or verify a Lutece plugin, module or library for v8 compliance or conformity, or after a migration to v8 before delivering. Read-only. Dispatches the lutece-v8-reviewer instructions as a subagent, or follows them inline on a harness without dispatch."
 license: MIT
 compatibility: Any harness. Subagent dispatch optional.
+metadata:
+  summary: "Review a project for Lutece 8 compliance, read-only."
 ---
 
 # Lutece v8 review

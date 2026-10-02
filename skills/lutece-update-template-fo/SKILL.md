@@ -1,6 +1,8 @@
 ---
 name: lutece-update-template-fo
 description: "Converts a Lutece Front Office (skin) template to the FO FreeMarker macros of lutece-core. Discovers the macros from the core sources rather than from a fixed list, so it never goes stale, and applies the rules that are not readable from the macro files: the FO macros are never the Back Office ones, the FreeMarker syntax to use, Bootstrap 5 classes, and the jQuery that must become vanilla JS. Takes the template path as argument. Triggers on 'migrer un template FO', 'convertir un template skin', 'macros FO', 'front office template', 'update skin template'."
+metadata:
+  summary: "Convert a front-office template to the core macros."
 ---
 
 # Updating a Lutece FO template

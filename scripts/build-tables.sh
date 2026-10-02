@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Regenerates the skills and rules tables of the bootstrap skill and the README from the
-# frontmatter of skills/*/SKILL.md and rules/*.md, between <!-- skills --> / <!-- rules --> markers.
+# Regenerates the skills and rules tables from the frontmatter of skills/*/SKILL.md and rules/*.md, between
+# <!-- skills --> / <!-- rules --> markers: the full tables in the bootstrap skill and docs/how-it-works.md, the
+# short skill list (metadata summary) in the README.
 # Run after adding or editing a skill or rule. Output is committed.
 
 set -euo pipefail
@@ -24,8 +25,12 @@ for d in sorted(root.glob("skills/*/")):
     fm = frontmatter(d / "SKILL.md")
     if field(fm, "name") == "using-lutecepowers":
         continue
-    skills.append((field(fm, "name"), field(fm, "description")))
-skills_table = "| Skill | Use when |\n|---|---|\n" + "\n".join(f"| `{n}` | {d} |" for n, d in skills)
+    summary = re.search(r'^\s+summary:\s*"?(.*?)"?\s*$', fm, re.M)
+    if not summary:
+        raise SystemExit(f"{d}SKILL.md: missing metadata summary")
+    skills.append((field(fm, "name"), field(fm, "description"), summary.group(1).strip()))
+skills_table = "| Skill | Use when |\n|---|---|\n" + "\n".join(f"| `{n}` | {d} |" for n, d, _ in skills)
+skills_list = "| Skill | For |\n|---|---|\n" + "\n".join(f"| `{n}` | {s} |" for n, _, s in skills)
 
 rules = []
 for f in sorted(root.glob("rules/*.md")):
@@ -45,8 +50,9 @@ def splice(path, marker, table):
     with path.open("w", encoding="utf-8", newline="\n") as f:
         f.write(f"{head}{start}\n{table}\n{end}{tail}")
 
-for target in (root / "skills/using-lutecepowers/SKILL.md", root / "README.md"):
+for target in (root / "skills/using-lutecepowers/SKILL.md", root / "docs/how-it-works.md"):
     splice(target, "skills", skills_table)
     splice(target, "rules", rules_table)
+splice(root / "README.md", "skills", skills_list)
 print(f"Tables regenerated: {len(skills)} skills, {len(rules)} rules")
 PY

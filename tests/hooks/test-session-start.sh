@@ -152,9 +152,9 @@ done
 GEN="$TMP/gen"; mkdir -p "$GEN/rules" "$GEN/scripts" "$GEN/tools"; cp "$ROOT/tools/python.sh" "$GEN/tools/"; cp "$ROOT"/rules/*.md "$GEN/rules/"; cp "$ROOT/scripts/build-cursor-rules.sh" "$GEN/scripts/"
 bash "$GEN/scripts/build-cursor-rules.sh" >/dev/null 2>&1
 diff -rq "$GEN/rules-cursor" "$ROOT/rules-cursor" >/dev/null 2>&1 && pass "rules-cursor/ matches rules/ (regenerated)" || fail "rules-cursor/ out of date: run scripts/build-cursor-rules.sh"
-mkdir -p "$GEN/skills/using-lutecepowers"; cp -r "$ROOT"/skills/* "$GEN/skills/"; cp "$ROOT/README.md" "$GEN/"; cp "$ROOT/scripts/build-tables.sh" "$GEN/scripts/"
+mkdir -p "$GEN/skills/using-lutecepowers" "$GEN/docs"; cp -r "$ROOT"/skills/* "$GEN/skills/"; cp "$ROOT/README.md" "$GEN/"; cp "$ROOT/docs/how-it-works.md" "$GEN/docs/"; cp "$ROOT/scripts/build-tables.sh" "$GEN/scripts/"
 bash "$GEN/scripts/build-tables.sh" >/dev/null 2>&1
-diff -q "$GEN/README.md" "$ROOT/README.md" >/dev/null && diff -q "$GEN/skills/using-lutecepowers/SKILL.md" "$ROOT/skills/using-lutecepowers/SKILL.md" >/dev/null && pass "skills/rules tables match frontmatter (regenerated)" || fail "tables out of date: run scripts/build-tables.sh"
+diff -q "$GEN/README.md" "$ROOT/README.md" >/dev/null && diff -q "$GEN/docs/how-it-works.md" "$ROOT/docs/how-it-works.md" >/dev/null && diff -q "$GEN/skills/using-lutecepowers/SKILL.md" "$ROOT/skills/using-lutecepowers/SKILL.md" >/dev/null && pass "skills/rules tables match frontmatter (regenerated)" || fail "tables out of date: run scripts/build-tables.sh"
 
 [ "$FAIL" -gt 0 ] && { echo "STATUS: FAILED ($FAIL)"; exit 1; }
 echo "STATUS: PASSED"

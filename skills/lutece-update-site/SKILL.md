@@ -1,6 +1,8 @@
 ---
 name: lutece-update-site
-description: "Use when bringing a Lutece site (packaging lutece-site: a site, a pack or a theme) to the Lutece 8 level lutecepowers supports, whatever its starting point: migrating a v7 or older site, or updating a v8 site (parent, BOM, starter, pack). Checks first that every artefact the site ships has a Lutece 8 version and hands the missing ones to lutece-update; then proves that nothing the site configured, shipped or overrode is lost, by comparing the assembled site before and after and by running it. Triggers on 'migrer un site', 'passer le site en v8', 'mettre à jour le site', 'monter le pack', 'site v8', 'migrate site', 'update site'."
+description: "Use when bringing a Lutece site (packaging lutece-site: a site, a pack or a theme) to the Lutece 8 level lutecepowers supports, whatever its starting point: migrating a v7 or older site, or updating a v8 site (parent, BOM, starter, pack). Checks first that every artefact the site ships has a Lutece 8 version and hands the missing ones to lutece-update-plugin; then proves that nothing the site configured, shipped or overrode is lost, by comparing the assembled site before and after and by running it. Triggers on 'migrer un site', 'passer le site en v8', 'mettre à jour le site', 'monter le pack', 'site v8', 'migrate site', 'update site'."
+metadata:
+  summary: "Update a site, pack or theme to Lutece 8, from any version."
 ---
 
 # Lutece update — site
@@ -80,7 +82,7 @@ For each `NO-V8`, in this order: its successor, which the gate prints from `tool
 artefacts) and from the organisation's own file (`$LUTECEPOWERS_SITE_SUCCESSORS`, else
 `~/.config/lutecepowers/site-successors.tsv`: its private themes and packs, kept out of this toolkit); its v8 branch
 in its repository (MCP `lutecedata`: `repos`, `repo_sheet`); otherwise it has to be migrated first. **Stop and show the user the list**, the dependency order, and propose to migrate each
-missing artefact with the `lutece-update` skill, one at a time, in its own clone, then to build it into
+missing artefact with the `lutece-update-plugin` skill, one at a time, in its own clone, then to build it into
 `.migration/m2`. Resume the site only when the gate has no `NO-V8` left, or when the user decides that an artefact
 leaves the site (then it is a plugin decision of phase C, never a silent drop).
 

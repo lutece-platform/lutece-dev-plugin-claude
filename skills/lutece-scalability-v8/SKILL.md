@@ -1,6 +1,8 @@
 ---
 name: lutece-scalability-v8
 description: "Use after a migration to v8 to make a Lutece plugin horizontally scalable and prove it: scans scalability anti-patterns, fixes them, deploys a real 3-instance cluster (Liberty, MariaDB, nginx, Hazelcast) and verifies through UI end-to-end tests. Triggers on 'scalability', 'cluster', 'multi-instance', 'horizontal scaling'."
+metadata:
+  summary: "Make a plugin run on a cluster, and prove it."
 ---
 
 # Lutece Scalability v8 — Consolidate & Prove (Agent Teams)
@@ -25,7 +27,7 @@ Check that the plugin is **already v8-compliant**:
 bash ${LUTECEPOWERS_ROOT}/tools/check-v8-floor.sh .
 mvn -B clean verify -DskipTests
 ```
-If `check-v8-floor.sh` exits 1, stop: the plugin is below the Lutece 8 level lutecepowers supports; raise its `lutece-core` and parent as the message says. If the build **FAILS**, stop. Ask the user: *"The plugin does not build on v8. Please run `lutece-update` first, then re-run this skill."* — scalability work cannot begin until migration is complete and the code compiles.
+If `check-v8-floor.sh` exits 1, stop: the plugin is below the Lutece 8 level lutecepowers supports; raise its `lutece-core` and parent as the message says. If the build **FAILS**, stop. Ask the user: *"The plugin does not build on v8. Please run `lutece-update-plugin` first, then re-run this skill."* — scalability work cannot begin until migration is complete and the code compiles.
 
 If the build **SUCCEEDS**, proceed to A.1.
 
