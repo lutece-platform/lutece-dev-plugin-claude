@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Checks lpe2e upgrade without a server: the previous version it starts from (E2E_BEFORE_WAR, then E2E_V7_DUMP, then a
-# v7 site: E2E_V7_REF for a plugin, E2E_V7_WAR for a site, else a usage error), the takeover scripts (required for a
-# site, optional for a plugin, both files checked), the cleanup of a previous upgrade's artifacts, and the summary of a
-# failed upgrade, which replaces any older verdict.
+# v7 site: E2E_V7_REF for a plugin, E2E_V7_WAR for a site, else a usage error), the copy of a previous site the hard
+# links cannot reach, the takeover scripts (required for a site, optional for a plugin, both files checked), the
+# cleanup of a previous upgrade's artifacts, and the summary of a failed upgrade, which replaces any older verdict.
 set -u
 . "$(dirname "$0")/../../tools/python.sh"
 E="$(cd "$(dirname "$0")" && pwd)/../../skills/lutece-e2e"
@@ -24,6 +24,9 @@ check "a site ignores E2E_V7_REF" "$(py E2E_TARGET=site E2E_V7_REF=HEAD)" "exit 
 check "a dump wins over the v7 site" "$(py E2E_TARGET=plugin E2E_V7_REF=HEAD E2E_V7_DUMP=/d.sql)" dump
 check "the previous v8 war wins over everything" "$(py E2E_TARGET=plugin E2E_V7_REF=HEAD E2E_V7_DUMP=/d.sql E2E_BEFORE_WAR=/b.war)" before
 check "no previous version is a usage error" "$(py E2E_TARGET=plugin)" "exit 2"
+mkdir -p "$T/src/WEB-INF/lib" && touch "$T/src/index.html" "$T/src/WEB-INF/lib/a.jar"
+PY='(lambda u: (setattr(u, "sh", lambda *a, **k: (__import__("os").makedirs(str(a[-1]) + "/WEB-INF", exist_ok=True), type("R", (), {"returncode": 1})())[1]), sorted(str(p.relative_to(s)) for s in [u.before_site(type("B", (), {"state": __import__("pathlib").Path("'$T'/st"), "e2e": __import__("pathlib").Path("'$T'/e2e")})())] for p in s.rglob("*") if p.is_file() and "override" not in str(p)))[1])(upgrade)'
+check "a previous site the hard links cannot reach is copied whole" "$(py E2E_TARGET=plugin E2E_BEFORE_WAR=$T/src)" "['WEB-INF/conf/db.properties', 'WEB-INF/lib/a.jar', 'index.html']"
 mkdir -p "$T/tk" "$T/half"; touch "$T/tk/takeover-1-core.sql" "$T/tk/takeover-2-components.sql" "$T/half/takeover-1-core.sql"
 PY='[p.name for p in upgrade.takeover_scripts() or []]'
 check "a plugin without E2E_TAKEOVER takes over in one start" "$(py E2E_TARGET=plugin)" "[]"

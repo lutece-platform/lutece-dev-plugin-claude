@@ -328,6 +328,7 @@ def before_site(bench):
     shutil.rmtree(site, ignore_errors=True)
     if src.is_dir():
         if sh("cp", "-al", src, site).returncode:
+            shutil.rmtree(site, ignore_errors=True)
             shutil.copytree(src, site)
     elif src.is_file():
         with zipfile.ZipFile(src) as z:
