@@ -258,6 +258,21 @@ expect xs-xsl XS01 FAIL
 expect xs-sql XS01 PASS
 expect xs-sql XT01 FAIL
 expect xs-html XS01 PASS
+pom xs-core "<project>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>fr.paris.lutece</groupId>
+    <artifactId>lutece-core</artifactId>
+    <packaging>lutece-core</packaging>
+    <version>8.0.2</version>
+</project>"
+put xs-core src/java/fr/paris/lutece/portal/business/portlet/AliasPortlet.java 'public class AliasPortlet extends Portlet
+{
+    public String getXml( HttpServletRequest request )
+    {
+        return "<portlet/>";
+    }
+}'
+expect xs-core XS01 PASS
 expect xs-bean XS01 PASS
 
 J=src/java/fr/paris/lutece/plugins/myplugin/service/MyRenderer.java

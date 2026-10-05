@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """java_checks.py — Java checks of verify-migration.sh that need more than a grep.
 
-Usage: java_checks.py <st04|mv01|hm01|cs03|wb10|wb11|da03|dp04|pi01|rl01|pd02|gi01|cd08|mv08|wg01|pd03|dp01|cd05> [project_root]
+Usage: java_checks.py <st04|mv01|hm01|cs03|wb10|wb11|da03|dp04|dp05|dp06|pi01|rl01|pd02|gi01|cd08|mv08|wg01|pd03|dp01|cd05> [project_root]
 
 st04  a type of the project that CDI must resolve (an @Inject point, CDI.current( ).select( X.class ).get( )) while
       no class of the project assignable to it carries a bean-defining annotation and no @Produces method returns
@@ -31,6 +31,11 @@ dp01  a call to a lutece-core getInstance( ) deprecated for removal (read in the
 dp04  an import of a lutece-core type deprecated for removal (@Deprecated( forRemoval = true ) on the type, read in the
       core of ~/.lutece-references), with the replacement its @deprecated javadoc gives (the type's, else its first
       deprecated member's).
+dp05  an import of a lutece-core type the v7 core had (develop7.x of the reference clone) and the v8 core does not,
+      neither in its sources nor in the libraries it depends on that the references clone: where it moved when a v8
+      type of the same simple name exists, else removed. SpringContextService is left to SP01.
+dp06  a lutece-core type, method or core_* table the project uses that the core's develop has and its last published
+      tag does not: a site on the published core fails (missing class, NoSuchMethodError, missing table).
 cd08  a CDI.current( ) lookup inside an instance method of a CDI bean: the bean injects what it looks up (@Inject;
       @Inject @Any Instance<X> for an extension point, an optional bean or a name known at run time).
 mv08  an @Pager whose defaultItemsPerPage names a property key that no properties file under webapp/WEB-INF/conf
@@ -55,11 +60,12 @@ Prints one line per finding (file:line: message); nothing when the project is cl
 import glob
 import os
 import re
+import subprocess
 import sys
 
 BEAN_DEFINING = re.compile(r"@(ApplicationScoped|RequestScoped|SessionScoped|ConversationScoped|Dependent|Singleton|"
                            r"Interceptor|Decorator|Stereotype)\b")
-CLASS_DECL = re.compile(r"(?m)^[ \t]*(?:(?:public|protected|private|abstract|final|static)\s+)*"
+CLASS_DECL = re.compile(r"(?m)^[ \t]*(?:@[\w.]+(?:\([^()]*\))?[ \t]+)*(?:(?:public|protected|private|abstract|final|static)\s+)*"
                         r"(class|interface|enum|record)\s+(\w+)(?:<[^{]*?>)?([^{;]*)\{")
 ADMIN_MVC = {"MVCAdminJspBean"}
 
@@ -100,7 +106,7 @@ def types(files):
         rest = m.group(3)
         supers = [re.sub(r"<.*", "", t).strip().split(".")[-1]
                   for t in re.split(r",|\bextends\b|\bimplements\b", rest) if t.strip()]
-        head = code[:m.start()]
+        head = code[:m.start(1)]
         pkg = re.search(r"(?m)^package\s+([\w.]+)\s*;", code)
         info[m.group(2)] = {"path": path, "kind": m.group(1), "abstract": "abstract" in code[m.start():m.end()],
                             "bean": bool(BEAN_DEFINING.search(head)), "supers": [s for s in supers if s],
@@ -234,8 +240,9 @@ def portlet_homes(info):
 
 
 def hm01(root):
-    """Homes in the v8 form: a plain Home is static (no getInstance( )); a portlet home is an @ApplicationScoped,
-    non-final bean with a public no-arg constructor whose getInstance( ) looks it up through CDI."""
+    """Homes in the v8 form: a plain Home is static (no getInstance( )); a portlet home is one the core can create and
+    use: it builds it by reflection (Class.forName( ).getDeclaredConstructor( ).newInstance( )), so it needs a public
+    no-arg constructor and gets no injection, and a CDI bean of it cannot be final. A hand-made singleton works."""
     files = sources(root)
     info = types(files)
     portlets = portlet_homes(info)
@@ -256,18 +263,45 @@ def hm01(root):
             continue
         decl = CLASS_DECL.search(code)
         problems = []
+        core = i["package"] == "fr.paris.lutece.portal.business.portlet"
+        if not re.search(r"\bpublic\b", code[decl.start():decl.end()]):
+            problems.append("class not public")
+        if i["bean"] and re.search(r"\bfinal\b", code[decl.start():decl.end()]):
+            problems.append("final (CDI cannot proxy it)")
+        if re.search(r"@(?:Inject|PostConstruct)\b", code):
+            problems.append("@Inject or @PostConstruct (the core creates portlet homes by reflection: never injected nor initialised)")
+        constructors = re.findall(r"(?<!new)\s((?:public|protected|private)\s+)?%s\s*\(([^)]*)\)\s*(?:throws[^{]*)?\{" % cls, code)
+        no_arg_ok = any(not args.strip() and (mod.strip() == "public" or (core and mod.strip() == "protected")) for mod, args in constructors)
+        if constructors and not no_arg_ok:
+            problems.append("no public no-arg constructor")
+        if problems:
+            out.append("%s:%d: portlet home %s: %s" % (rel, line(decl.start()), cls, "; ".join(problems)))
+    return out
+
+
+def hm02(root):
+    """Portlet homes not in the modern form: an @ApplicationScoped bean whose getInstance( ) returns
+    CDI.current( ).select( X.class ).get( ). A hand-made singleton works
+    (HM01 passes it) but is the older form."""
+    files = sources(root)
+    info = types(files)
+    portlets = portlet_homes(info)
+    out = []
+    for cls, i in sorted(info.items()):
+        if cls not in portlets or i["kind"] != "class" or i["abstract"]:
+            continue
+        code = strip(files[i["path"]])
+        decl = CLASS_DECL.search(code)
+        getter = re.search(r"\bstatic\s+[\w.<>]+\s+getInstance\s*\(\s*\)", code)
+        problems = []
         if not i["bean"]:
             problems.append("not @ApplicationScoped")
-        if re.search(r"\bfinal\b", code[decl.start():decl.end()]):
-            problems.append("final (CDI cannot proxy it)")
         if re.search(r"\bstatic\s+(?:%s|PortletHome)\s+\w+\s*[=;]" % cls, code) or re.search(r"\bnew\s+%s\s*\(" % cls, code):
             problems.append("hand-made singleton (static instance)")
-        if re.search(r"\b(?:private|protected)\s+%s\s*\(\s*\)" % cls, code) and i["package"] != "fr.paris.lutece.portal.business.portlet":
-            problems.append("no public no-arg constructor (the core creates portlet homes by reflection)")
         if getter and not re.search(r"CDI\s*\.\s*current\s*\(\s*\)\s*\.\s*select\s*\(\s*%s\s*\.\s*class\s*\)" % cls, code):
             problems.append("getInstance( ) does not return CDI.current( ).select( %s.class ).get( )" % cls)
         if problems:
-            out.append("%s:%d: portlet home %s: %s" % (rel, line(decl.start()), cls, "; ".join(problems)))
+            out.append("%s:%d: portlet home %s: %s" % (os.path.relpath(i["path"], root), code[:decl.start()].count("\n") + 1, cls, "; ".join(problems)))
     return out
 
 
@@ -299,7 +333,7 @@ def wb10(root):
     for name, t in sorted(info.items()):
         code = strip(files[t["path"]])
         m = CLASS_DECL.search(code)
-        if not m or not re.search(r"@RequestScoped\b", code[:m.start()]):
+        if not m or not re.search(r"@RequestScoped\b", code[:m.start(1)]):
             continue
         chain, cur, seen = [], name, set()
         while cur in info and cur not in seen:
@@ -527,6 +561,87 @@ def dp04(root):
     return out
 
 
+def core_types_gone():
+    """The lutece-core types of the v7 branch of the references the v8 core no longer has, neither in its sources nor
+    in the libraries it depends on that the references clone: full name -> the v8 types of the same simple name
+    (where it moved), empty when it is gone."""
+    core = os.path.dirname(os.path.dirname(CORE_SOURCES))
+    r = subprocess.run(["git", "-C", core, "ls-tree", "-r", "--name-only", "origin/develop7.x", "--", "src/java"],
+                       capture_output=True, text=True)
+    if r.returncode or not os.path.isdir(CORE_SOURCES):
+        return {}
+    to_name = lambda rel: rel[len("src/java/"):-5].replace("/", ".")
+    v7 = {to_name(f) for f in r.stdout.split() if f.endswith(".java")}
+    refs = os.path.dirname(core)
+    libs = re.findall(r"<artifactId>(library-[\w.-]+)</artifactId>", open(os.path.join(core, "pom.xml"), errors="replace").read())
+    roots = [CORE_SOURCES] + [os.path.join(refs, d, "src", "java") for d in os.listdir(refs) for lib in libs if d.endswith(lib)]
+    v8 = {os.path.relpath(os.path.join(d, n), root)[:-5].replace(os.sep, ".")
+          for root in roots for d, _, names in os.walk(root) for n in names if n.endswith(".java")}
+    by_simple = {}
+    for t in v8:
+        by_simple.setdefault(t.rsplit(".", 1)[1], []).append(t)
+    return {t: sorted(by_simple.get(t.rsplit(".", 1)[1], [])) for t in v7 - v8}
+
+
+COVERED_ELSEWHERE = {"fr.paris.lutece.portal.service.spring.SpringContextService"}
+"""Types gone in v8 a dedicated check already reports with its replacement (SP01)."""
+
+
+def dp05(root):
+    """Imports of lutece-core types the v7 core had and the v8 core does not."""
+    gone = {t: m for t, m in core_types_gone().items() if t not in COVERED_ELSEWHERE}
+    out = []
+    for path, raw in sorted(sources(root).items()):
+        for m in re.finditer(r"(?m)^import\s+([\w.]+)\s*;", raw):
+            if m.group(1) in gone:
+                moved = gone[m.group(1)]
+                out.append("%s:%d: %s is no longer in lutece-core: %s" % (
+                    os.path.relpath(path, root), raw[:m.start()].count("\n") + 1, m.group(1),
+                    "moved to " + " or ".join(moved) if moved else "removed; find what replaces it in the core before writing"))
+    return out
+
+
+def dp06(root):
+    """Core types, methods and core_* tables the project uses that the core's develop has and its last published tag
+    does not: the project needs a core nobody can install yet."""
+    core = os.path.dirname(os.path.dirname(CORE_SOURCES))
+    git = lambda *a: subprocess.run(["git", "-C", core, *a], capture_output=True, text=True)
+    tag = git("describe", "--tags", "--abbrev=0").stdout.strip()
+    if not tag:
+        return []
+    methods = lambda text: set(re.findall(r"(?:public|protected)\s+(?:static\s+|final\s+|abstract\s+|synchronized\s+|<[^>]+>\s+)*[\w<>\[\],.? ]+?\s+(\w+)\s*\(", text or ""))
+    tables = lambda text: set(re.findall(r"CREATE TABLE(?: IF NOT EXISTS)?\s+(core_\w+)", text or "", re.I))
+    out, cache = [], {}
+    for path, raw in sorted(sources(root).items()):
+        for m in re.finditer(r"(?m)^import\s+(fr\.paris\.lutece\.(?!plugins\.)[\w.]+)\s*;", raw):
+            fqcn = m.group(1)
+            rel = "src/java/" + fqcn.replace(".", "/") + ".java"
+            if fqcn not in cache:
+                now = os.path.join(core, rel)
+                if not os.path.isfile(now):
+                    cache[fqcn] = None
+                    continue
+                old = git("show", "%s:%s" % (tag, rel))
+                cache[fqcn] = "class" if old.returncode else methods(open(now, errors="replace").read()) - methods(old.stdout)
+            new = cache[fqcn]
+            line = raw[:m.start()].count("\n") + 1
+            if new == "class":
+                out.append("%s:%d: %s is on the core's develop, in no published core (last: %s)" % (os.path.relpath(path, root), line, fqcn, tag))
+            elif new:
+                name = fqcn.rsplit(".", 1)[1]
+                used = sorted(n for n in new if re.search(r"\b%s\s*\(" % re.escape(n), strip(raw)))
+                if used:
+                    out.append("%s:%d: %s.%s on the core's develop, in no published core (last: %s)" % (
+                        os.path.relpath(path, root), line, name, "/".join(used), tag))
+    created = tables(open(os.path.join(core, "src/sql/create_db_lutece_core.sql"), errors="replace").read()) \
+        - tables(git("show", "%s:src/sql/create_db_lutece_core.sql" % tag).stdout)
+    for f in sorted(glob.glob(os.path.join(root, "src/sql/**/*.sql"), recursive=True)):
+        used = sorted(t for t in created if re.search(r"\b%s\b" % t, open(f, errors="replace").read()))
+        if used:
+            out.append("%s: table %s created by the core's develop only (last published: %s)" % (os.path.relpath(f, root), ", ".join(used), tag))
+    return out
+
+
 def core_deprecated_singletons():
     """Maps the simple name of every lutece-core class whose static getInstance( ) is deprecated to its full name."""
     out = {}
@@ -629,7 +744,7 @@ def cd05(root):
     for path, raw in sorted(sources(root).items()):
         code = strip(raw)
         m = CLASS_DECL.search(code)
-        if not m or not BEAN_DEFINING.search(code[:m.start()]) or STARTUP_OBSERVER.search(code):
+        if not m or not BEAN_DEFINING.search(code[:m.start(1)]) or STARTUP_OBSERVER.search(code):
             continue
         for head, name, start, end in method_spans(code):
             if name != m.group(2) and "@PostConstruct" not in head:
@@ -828,11 +943,11 @@ def pd03(root):
 
 def main():
     """Runs one check on a project and prints its findings."""
-    if len(sys.argv) < 2 or sys.argv[1] not in ("st04", "mv01", "hm01", "cs03", "wb10", "wb11", "da03", "dp04", "pi01", "rl01", "pd02", "gi01", "cd08", "mv08", "wg01", "pd03", "dp01", "cd05"):
+    if len(sys.argv) < 2 or sys.argv[1] not in ("st04", "mv01", "hm01", "hm02", "cs03", "wb10", "wb11", "da03", "dp04", "dp05", "dp06", "pi01", "rl01", "pd02", "gi01", "cd08", "mv08", "wg01", "pd03", "dp01", "cd05"):
         print(__doc__, file=sys.stderr)
         sys.exit(2)
     root = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else ".")
-    for line in {"st04": st04, "mv01": mv01, "hm01": hm01, "cs03": cs03, "wb10": wb10, "wb11": wb11, "da03": da03, "dp04": dp04, "pi01": pi01, "rl01": rl01, "pd02": pd02, "gi01": gi01, "cd08": cd08, "mv08": mv08, "wg01": wg01, "pd03": pd03, "dp01": dp01, "cd05": cd05}[sys.argv[1]](root):
+    for line in {"st04": st04, "mv01": mv01, "hm01": hm01, "hm02": hm02, "cs03": cs03, "wb10": wb10, "wb11": wb11, "da03": da03, "dp04": dp04, "dp05": dp05, "dp06": dp06, "pi01": pi01, "rl01": rl01, "pd02": pd02, "gi01": gi01, "cd08": cd08, "mv08": mv08, "wg01": wg01, "pd03": pd03, "dp01": dp01, "cd05": cd05}[sys.argv[1]](root):
         print(line)
 
 

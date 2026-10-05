@@ -23,7 +23,7 @@
 | PM03 | FAIL | javax.mail dependency, test scope aside | `com\.sun\.mail` | pom.xml |
 | PM04 | FAIL | Jersey dependencies, test scope aside (Liberty provides JAX-RS) | `org\.glassfish\.jersey` | pom.xml |
 | PM05 | FAIL | json-lib (use Jackson), test scope aside | `net\.sf\.json-lib` | pom.xml |
-| PM06 | FAIL | Parent below `8.0.2`, the lowest Lutece 8 parent lutecepowers supports (`V8_FLOOR_PARENT` of `tools/v8-floor.conf`) | (custom check) | pom.xml |
+| PM06 | FAIL | Parent below the latest released lutece-global-pom / lutece-site-pom 8.x (`V8_FLOOR_PARENT` of `tools/v8-floor.conf`, read in the release repository) | (custom check) | pom.xml |
 | PM07 | WARN | springVersion property, read by nothing (remove) | `<springVersion>` | pom.xml |
 | PM08 | WARN | Jira properties (remove) | `<jiraProjectName>\|<jiraComponentId>` | pom.xml |
 | PM09 | WARN | Bounded version range (use open) | `,[0-9].*)</version>` | pom.xml |
@@ -65,6 +65,7 @@
 | ID | Severity | Description | Pattern | Files |
 |----|----------|-------------|---------|-------|
 | DL01 | FAIL | net.sf.json (use Jackson) | `net\.sf\.json` | *.java |
+| DL02 | FAIL | `au.com.bytecode.opencsv` imported without `net.sf.opencsv` declared: opencsv 2 came with the v7 core, the v8 core ships `com.opencsv` 5 | `^import au\.com\.bytecode\.opencsv` | *.java, pom.xml |
 
 ## Event Residues (EV)
 
@@ -92,6 +93,8 @@
 | DP02 | FAIL | `FileImageService.init( )`: the core registers FileImageService at startup (`AppInit`), a second call registers the provider twice. `FileImagePublicService.init( )` is not concerned: the core never registers it | `[^A-Za-z]FileImageService\.init` | *.java |
 | DP03 | FAIL | getModel() usage | `getModel( )` | *.java |
 | DP04 | FAIL | an import of a lutece-core type deprecated for removal (`@Deprecated( forRemoval = true )` on the type, read in the core of `~/.lutece-references`): the replacement its `@deprecated` javadoc gives, the type's or else its deprecated member's (`CaptchaSecurityService` → `@Inject @Named( BeanUtils.BEAN_CAPTCHA_SERVICE ) Instance<ICaptchaService>`; the event managers → CDI events and `@Observes`; `WorkgroupRemovalListenerService.getService( )` and the other `*RemovalListenerService` → `@Inject @Named( BeanUtils.BEAN_WORKGROUP_REMOVAL_SERVICE ) RemovalListenerService`, `BEAN_ROLE_REMOVAL_SERVICE`…) | java_checks.py dp04 | *.java |
+| DP05 | FAIL | an import of a lutece-core type the v7 core had (`develop7.x` of the references) and the v8 core does not: moved (the v8 core types of the same simple name are given) or removed (`BreadcrumbItem`); `SpringContextService` is left to SP01 | java_checks.py dp05 | *.java |
+| DP06 | WARN | a lutece-core type, method or `core_*` table the project uses that the core's `develop` has and its last published tag does not: the build passes on the snapshot, a site on the published core fails | java_checks.py dp06 | *.java, src/sql |
 | PI01 | FAIL | a `PluginDefaultImplementation.init( )` that initialises a service (a CDI lookup or a `getInstance( )` then a call, a static `XService.init( )`, a `registerListener` or `registerProvider`): the work moves into a `@Observes @Initialized( ApplicationScoped.class ) ServletContext` method, the service's own when the project has it, else an own bean's with the service injected (`patterns/cdi-patterns.md`, Startup initialisation); the plugin class keeps only what the descriptor needs | java_checks.py pi01 | *.java |
 | RL01 | FAIL | a removal listener registered outside a startup observer, a producer or an `@Inject` method (a static `init( )` of an entity, a service `init( )` called by the plugin): it registers in a `@Observes @Initialized( ApplicationScoped.class )` method, on the core's `RemovalListenerService` injected by name (`patterns/cdi-patterns.md` §23) | java_checks.py rl01 | *.java |
 | PD02 | FAIL | a `PluginDefaultImplementation` subclass whose `init( )` does something while no plugin descriptor names it in `<class>` (the descriptor names `PluginDefaultImplementation` or another class): the core never instantiates it and that `init( )` never runs; what it does moves into a startup observer (`patterns/cdi-patterns.md` §23), the class goes (a constant it held moves to the service) | java_checks.py pd02 | *.java, plugins/*.xml |
@@ -197,9 +200,11 @@ not reported, nor is any pattern outside `/rest/` — a filter on `/jsp/site/*` 
 | ST02 | FAIL | final on a normal-scoped CDI class (application, request, session: proxied) injected, selected or looked up through `Instance` by its concrete type; `@Dependent` beans are not proxied | (cross-file check) | *.java |
 | ST03 | FAIL | concrete DAO class without CDI scope (an abstract DAO base is skipped: its subclasses carry the scope) | (cross-file check) | *.java |
 | ST04 | FAIL | Project type resolved by CDI (`@Inject`, `select( X.class ).get( )`) with no bean and no producer; libraries skipped | `java_checks.py st04` | *.java |
-| HM01 | FAIL | Home not in the v8 form: a plain Home with `getInstance( )`; a portlet home not `@ApplicationScoped`, `final`, with a hand-made static instance, a non-public no-arg constructor, or a `getInstance( )` not returning `CDI.current( ).select( X.class ).get( )` | java_checks.py hm01 | *Home.java |
+| HM01 | FAIL | Home not in the v8 form: a plain Home with `getInstance( )`; a portlet home the core cannot create or use (it builds it by reflection): no public no-arg constructor, an `@Inject` field (never injected), or a CDI bean declared `final`. A hand-made singleton works | java_checks.py hm01 | *Home.java |
+| HM02 | WARN | Portlet home in the older form (not `@ApplicationScoped`, hand-made singleton, `getInstance( )` without CDI): it works, the modern form is the CDI bean of `rules/dao-patterns.md` | java_checks.py hm02 | 
 | ST05 | FAIL | files created by the migration excluded by .gitignore (they would never be committed) | `git check-ignore` | beans.xml, test microprofile-config |
 | ST07 | FAIL | production class named like a test (`Test*`, `*Test`, `*Tests`, `*TestCase`) under src/java: surefire collects it from WEB-INF/classes | file names | src/java |
+| ST08 | FAIL | `src/site/*.xml` that `maven-site-plugin` cannot read: an HTML entity such as `&egrave;` in the root `<project>` tag, or an unclosed tag (entities elsewhere are read) | XML parse | src/site/*.xml |
 
 **ST02** — `final` is legal and is the core's own pattern when the bean is resolved only
 through its interface (`@ApplicationScoped public final class XDAO implements IXDAO`, as
@@ -227,6 +232,8 @@ after the gate.
 | SQ08 | FAIL | install script `plugins/<p>/(plugin\|core)/(create\|init)_*.sql` under `webapp/WEB-INF/sql` without the Liquibase header: the war ships it and plugin-liquibase refuses to start in `safeRun` | first non-empty line ≠ `-- liquibase formatted sql` | webapp/WEB-INF/sql |
 | SQ09 | FAIL | `src/sql/plugins/<name>/` (or `<plugin>/modules/<module>/`, read as `<plugin>-<module>`) named after no `<name>` of the project descriptors: plugin-liquibase versions its scripts as that other component's (LUT-33232) and aborts the startup in `safeRun` on a site that does not carry it; the scripts go in the project's own directory, and `-- lutece runAfter:<plugin>` in their leading comments orders them after another plugin's | directory names vs `webapp/WEB-INF/plugins/*.xml` `<name>` | src/sql |
 | SQ10 | FAIL | Liquibase changeset without any SQL statement: validation fails (`'sql' is required`) and no changeset of the site runs, whatever `failOnError` | changeset header followed by comments or blank lines only | src/sql |
+| SQ11 | FAIL | Changeset identity (`author:id`) declared twice in one upgrade script: Liquibase refuses the changelog | changeset headers | src/sql/**/update_*.sql |
+| SQ12 | WARN | Changeset of an upgrade script whose body differs from the last tag or the last commit (an id taken over in a rebase, an edited release): a base that ran it never gets the new body, a replay fails its checksum; allowed only for damage that cannot be undone afterwards, said in the changeset comment | `git show <tag>:` / `HEAD:` | src/sql/**/update_*.sql |
 
 **SQ02** — a fresh install runs the creation script and is green; an existing site runs only the
 `update_db_*` scripts newer than its recorded version. An older upgrade that (re)creates the table
@@ -285,7 +292,7 @@ model. The check fails on a class extending `PortletJspBean` that never calls
 | ID | Severity | Description | Pattern | Files |
 |----|----------|-------------|---------|-------|
 | I18N01 | FAIL | i18n key repeating the plugin prefix that the project asks for as written (`#i18n{agenda.x}` while the bundle declares `agenda.x`, read `agenda.agenda.x`), or a key glued to the line above; a prefixed key nothing asks for is dead and left to I18N08 (`fix-i18n-bundles.py`) | (cross-file check) | *_messages*.properties |
-| I18N03 | FAIL | i18n key in the default bundle and not in `_fr`, or the reverse (the two languages the core ships) | (cross-file check) | *_messages*.properties |
+| I18N03 | FAIL | i18n key in the default bundle and not in `_fr`, or the reverse (the two languages the core ships); a key nothing uses is left to I18N08 (remove it, do not translate it) | (cross-file check) | *_messages*.properties |
 | I18N04 | WARN | the other languages of a bundle lack keys of the default bundle | (cross-file check) | *_messages_*.properties |
 | I18N05 | FAIL | bundle suffixed with a country code (`_cz`, `_dk`, `_se`…) where Java expects a language code (`_cs`, `_da`, `_sv`): never loaded | file names | *_messages_*.properties |
 | I18N06 | FAIL | bundle line without `=`/`:` separator (`key>value`): read as a key with an empty value | line scan | *_messages*.properties |
@@ -333,7 +340,8 @@ in an interactive shell is not. When the answer "nothing left" is the point of t
 |----|----------|-------------|---------|-------|
 | LE01 | FAIL | line endings converted in a changed file (diff widened to the whole file) | carriage returns in HEAD vs the work tree | changed files |
 | PV01 | FAIL | pom version and plugin descriptor `<version>` differ | (cross-file check) | pom.xml, plugins/*.xml |
-| PV02 | FAIL | version not above the last released git tag: an upgraded site never runs the new upgrade scripts. The numbers only count, as plugin-liquibase compares them (`PluginVersion` of library-sql-utils): `4.0.2-SNAPSHOT` after a `4.0.2-beta-03` release is the same version, raise it to `4.0.3-SNAPSHOT` | `git tag` | pom.xml |
+| PV02 | FAIL | version not above the last released git tag while upgrade scripts changed since (WARN, not evaluated, in a shallow clone without tags or outside git): an upgraded site never runs the new upgrade scripts. The numbers only count, as plugin-liquibase compares them (`PluginVersion` of library-sql-utils): `4.0.2-SNAPSHOT` after a `4.0.2-beta-03` release is the same version, raise it to `4.0.3-SNAPSHOT` | `git tag` | pom.xml |
+| PV03 | WARN | version not above the last released git tag, no upgrade script since: raise it before adding one | (git tags) | pom.xml |
 
 **LE01** — the fix is `tools/restore-line-endings.sh`: it puts back the endings HEAD has on every changed file
 whose endings moved, whatever else changed in it, and touches nothing else. A file that carries real changes on
@@ -354,7 +362,8 @@ Run it before the final gate, then verify again: a review that has to read a who
 | TM04 | FAIL | `errors` / `infos` / `warnings` read with `?size` / `?has_content`, no default nor `??` guard: the MVC model holds them only when there is one | `template_rules.py unsafe-messages` | *.html, *.ftl |
 | TM05 | FAIL | Old jQuery autocomplete (SuggestPOI `autocomplete-js.jsp`, `createAutocomplete`, `.autocomplete(`) | `template_rules.py suggestpoi` | webapp *.html, *.ftl, *.jsp |
 | TM06 | FAIL | `@addRequiredJsFiles` in a back-office template (not BO) | `template_rules.py fo-required-js` | admin *.html, *.ftl |
-| TM07 | FAIL | Loop variable of a list over `errors` printed as `${x}`, not `${x.message}` (an MVCMessage); over `infos` / `warnings` printed as `${x.message}` (a string: the page throws) unless the body tests `x.message??` / `?is_string` | `template_rules.py mvc-message` | *.html, *.ftl |
+| TM07 | FAIL | Loop variable of a list over `errors` printed as `${x}`, not `${x.message}` (an MVCMessage); over `infos` / `warnings` printed as `${x.message}` (a string: the page throws) unless the body tests `x.message??` / `?is_string`, or the project fills that list with `MVCMessage` objects itself | `template_rules.py mvc-message` | *.html, *.ftl |
+| TM13 | WARN | `${x.message}` over `infos` / `warnings` the project fills with `MVCMessage` objects itself: it works, the modern form is the core's `addInfo( )` / `addWarning( )` and `${x}` | `template_rules.py own-messages` | *.html, *.ftl |
 | TM08 | WARN / FAIL | Design rules a macro-written template still breaks (entity list in `@table`, list without `@empty`, `@checkBox` without switch or without an explicit value, raw HTML, undeclared or repeated macro parameter, a script looking up an element the template only emits under a condition, a link to a JSP the webapp does not carry, a jQuery-era upload widget, a vendored copy of jQuery, Bootstrap 3/4 or Font Awesome markup, an unstyled btn-default button, BO macro in skin, image icon in `core_admin_right`, jQuery without a `library-theme-jquery` dependency, offcanvas, a front-office form without `@cForm`, an inline form) | `scan-template-design.py --flat --warn-only` (codes in its header; needs the assembled webapp, see `ensure-exploded.sh`). WARN on a finding; FAIL when the scan could not run although the project assembled | admin/*.html, skin/*.html, src/sql |
 | TM09 | FAIL | Template FreeMarker cannot parse (answers 500) | `check-template-parse.sh` (FreeMarker `Template` constructor on every file) | *.html |
 
@@ -378,6 +387,7 @@ Run it before the final gate, then verify again: a review that has to read a who
 | TS07 | FAIL | SpringContextService in tests | `SpringContextService\.getBean` | *.java (test) |
 | TS08 | FAIL | Spring mock imports | `org\.springframework\.mock\.web` | *.java (test) |
 | TS09 | FAIL / WARN | Failing tests in the surefire reports (the parent POM sets `testFailureIgnore=true`, so `BUILD SUCCESS` proves nothing). FAIL on a failure or an error, and when `src/test/` exists with no report (the tests were never run; the command is `mvn lutece:exploded antrun:run -Dlutece-test-hsql test`). WARN when the project has Java and no `src/test/`, or when the reports record no test run | `target/surefire-reports/*.txt` | test results |
+| TS10 | WARN | No test file names a class of the project (a placeholder such as `assertTrue( true )`): the tests pass and prove nothing | class names of src/java in src/test | *.java (test) |
 
 ## Site (SI)
 
@@ -393,7 +403,7 @@ each difference (`- key|plugin|file|profile <id>: <reason>`). Rules and evidence
 | SI03 | WARN | `lutece-core` declared by the site | (custom check) | pom.xml |
 | SI04 | WARN | Version written for an artefact the BOM manages | (custom check, needs the BOM pom) | pom.xml |
 | SI05 | FAIL | Artefact declared with a `<type>` other than the BOM's: no managed version is found | (custom check) | pom.xml |
-| SI06 | FAIL | Artefact without version that the BOM does not manage | (custom check) | pom.xml |
+| SI06 | FAIL / WARN | Artefact without version that neither the BOM nor the parent poms manage, in the dependencies or a profile, whatever the scope: the pom does not load (WARN for a provided or test one when the parent poms are not in the local repository) | (custom check, parents read in --m2) | pom.xml |
 | SI07 | WARN | Version range on a dependency | `[`, `(` | pom.xml |
 | SI08 | WARN | `lutece.*.version` property: it does not change the version the imported BOM manages | (custom check) | pom.xml |
 | SI09 | FAIL | `src/conf/<env>/` or a profile with `defaultConfDirectory`: not copied since `lutece-site-pom` 8.0.1 | (custom check) | src/conf, pom.xml |
@@ -409,7 +419,7 @@ each difference (`- key|plugin|file|profile <id>: <reason>`). Rules and evidence
 | SI23 | FAIL | Pool without `<pool>.ds`, or `.ds` without `<dataSource jndiName>` in `server.xml` | (custom check) | db.properties, server.xml |
 | SI24 | WARN | Pool password in `db.properties` | (custom check) | db.properties |
 | SI25 | FAIL | `server.xml` fileset matching no jar of the war (the JDBC driver) | (custom check, needs --war) | server.xml |
-| SI26 | WARN | Same key, different values, in two files of the override source: in v8 the first file in alphabetical order wins | (custom check) | conf/override |
+| SI26 | WARN | Same key, different values, in two files of the override source: in v8 the last file loaded wins (override/plugins after override/, then alphabetical) | (custom check) | conf/override |
 | SI27 | FAIL / WARN | Override key no default declares and no class of the war names: read by nothing (WARN); FAIL when the war reads a key ending with it whose default differs from the site's value: a renamed key, the site's value lost | class-file constants, defaults | conf/override |
 | SI28 | FAIL / WARN | Configuration value naming a class the war does not ship (FAIL when the site or a library ConfigSource sets it) | (custom check, needs --war) | effective configuration |
 | SI29 | WARN / INFO | Profile name used without `%`; ConfigSource of unknown ordinal; profiles the site names (INFO) | (custom check) | conf/override |
@@ -437,6 +447,8 @@ each difference (`- key|plugin|file|profile <id>: <reason>`). Rules and evidence
 | SI85 | INFO | Defaults of the core or of the plugins that changed by themselves (listed in a file) | two assembled states | effective configuration |
 | SI86 | WARN | Commits of another branch (a v7 branch) after the compared ref | `git rev-list` | git |
 | SI87 | WARN | Key the static model resolves otherwise than the running site (`config --against`) | runtime dump | effective configuration |
+| SI88 | FAIL | Two plain CDI beans of the war under one name (`@Named` without value on classes of the same simple name in two plugins): the site does not deploy, WELD-001414 | class-file annotations (needs --war) | jars of the war |
+| SI89 | FAIL | Install script of the war (theme, site, pack) inserting a `core_datastore` key the core's `init_db_lutece_core.sql` already inserts, without a `DELETE` first: a new database fails on the duplicate key | `INSERT INTO core_datastore` (needs --war) | WEB-INF/classes/sql/**/init_*.sql |
 
 ---
 

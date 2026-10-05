@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks CD01, CD05, CS01, CS02, ST02, ST05 and ST07 both ways: the defect fires, the v8 form, a longer name or a legit
+# Checks CD01, CD05, CS01, CS02, ST02, ST05, ST07 and ST08 both ways: the defect fires, the v8 form, a longer name or a legit
 # shape from the reference plugins does not; each false positive or negative the fleet replay found has its case.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -405,6 +405,16 @@ fixture st07-ok src/test/java/fr/paris/lutece/plugins/demo/service/MyServiceTest
 expect st07-suffix ST07 FAIL
 expect st07-prefix ST07 FAIL
 expect st07-ok ST07 PASS
+fixture st08-entity src/site/site_fr.xml '<project name="Lut&egrave;ce"><body><menu name="Pr&eacute;sentation"/></body></project>'
+fixture st08-unclosed src/site/site.xml '<project><body><menu name="Intro"><item name="a" href="a.html"></menu></body></project>'
+fixture st08-ok src/site/site_fr.xml '<project><body><menu name="Présentation &amp; aide"/></body></project>'
+fixture st08-inner src/site/site_fr.xml '<project name="Lutèce"><body><menu name="Pr&eacute;sentation"/></body></project>'
+fixture st08-leading src/site/site.xml $'\n<?xml version="1.0" encoding="UTF-8"?>\n<project><body/></project>'
+expect st08-entity ST08 FAIL
+expect st08-unclosed ST08 FAIL
+expect st08-ok ST08 PASS
+expect st08-inner ST08 PASS
+expect st08-leading ST08 PASS
 
-[ "$fails" -eq 0 ] && { echo "PASS: CD01 flags a static singleton on a CDI or @Singleton bean only, outside comments, CD05 a lazy bean registering itself in its constructor or @PostConstruct without @Observes @Initialized, never Plugin.init, a declaration or an unregister, CS01 each portlet do* without its token, through a project parent and a validating helper, CS02 unqualified or super. cache calls on a ContentService, not its own methods or comments, ST02 a final normal-scoped bean resolved by its concrete type (field or Instance), not through its interface nor @Dependent, ST05 a beans.xml or test config git ignores, ST07 a production class surefire takes for a test"; exit 0; }
+[ "$fails" -eq 0 ] && { echo "PASS: CD01 flags a static singleton on a CDI or @Singleton bean only, outside comments, CD05 a lazy bean registering itself in its constructor or @PostConstruct without @Observes @Initialized, never Plugin.init, a declaration or an unregister, CS01 each portlet do* without its token, through a project parent and a validating helper, CS02 unqualified or super. cache calls on a ContentService, not its own methods or comments, ST02 a final normal-scoped bean resolved by its concrete type (field or Instance), not through its interface nor @Dependent, ST05 a beans.xml or test config git ignores, ST07 a production class surefire takes for a test, ST08 a src/site descriptor maven-site-plugin cannot read (HTML entity in the root tag, unclosed tag), not an entity elsewhere nor blank lines before the declaration"; exit 0; }
 exit 1

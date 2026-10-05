@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks TS06, ST01, WB04, WB07, ST03, JS04, SQ06, SQ08, SQ09, SQ10 and MV03 both ways, each on a passing and a failing fixture.
+# Checks TS06, ST01, WB04, WB07, ST03, JS04, SQ06, SQ08, SQ09, SQ10, SQ11, SQ12, DL02, TS10 and MV03 both ways, each on a passing and a failing fixture.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 V="${VERIFY:-$HERE/../../tools/verify-migration.sh}"
@@ -163,5 +163,36 @@ printf -- '-- liquibase formatted sql\n-- changeset myplugin:a\nSELECT 1;\n-- ch
 expect sq10-ok SQ10 PASS
 expect sq10-bad SQ10 FAIL
 
-[ "$fails" -eq 0 ] && { echo "PASS: TS06 reads the annotation block, ST01 needs CDI beans, WB07 ignores an empty feature-icon-url, ST03 skips abstract DAO bases, JS04 ignores @Controller in comments, reads jsp:useBean and flags a @Controller called outside processController, WB12 reads admin_url, WB13 compares the install SQL with the descriptor, WB14 knows the Tabler icons, I18N01 accepts a sub-namespace named like the plugin and leaves a dead key to I18N08, SQ06 finds SQL Liquibase never sees, MV03 flags a @Controller without securityTokenEnabled and names a token riding a GET action link or a script, not a view link, WB04 accepts min-core-version 8.0.0, SQ08 finds an untagged install script in the war, SQ09 a SQL directory no plugin owns, SQ10 an empty changeset, JP04 JPA only, TS09 names a broken test database, CD09 the dead jcaptcha test, grep checks skip comments and declarations"; exit 0; }
+U=src/sql/plugins/myplugin/upgrade/update_db_myplugin-1.0.0-1.1.0.sql
+for k in sq11-dup sq12-ok sq12-rebase sq12-release; do mkdir -p "$T/$k/$(dirname "$U")"; done
+printf -- '-- liquibase formatted sql\n-- changeset myplugin:rev1\nSELECT 1;\n-- changeset myplugin:rev1\nSELECT 2;\n' > "$T/sq11-dup/$U"
+for k in sq12-ok sq12-rebase sq12-release; do
+    printf -- '-- liquibase formatted sql\n-- changeset myplugin:rev1\nINSERT INTO t VALUES (1);\n' > "$T/$k/$U"
+    ( cd "$T/$k" && git init -q && git add -A && git -c user.name=t -c user.email=t@t commit -qm one ) >/dev/null
+done
+( cd "$T/sq12-release" && git tag v1 && printf -- '-- liquibase formatted sql\n-- changeset myplugin:rev1\nINSERT INTO t VALUES (9);\n' > "$U" \
+    && git -c user.name=t -c user.email=t@t commit -qam two )
+printf -- '-- liquibase formatted sql\n-- changeset myplugin:rev1\n-- preconditions onFail:MARK_RAN onError:WARN\nINSERT  INTO t VALUES (1);\n-- changeset myplugin:rev2\nSELECT 2;\n' > "$T/sq12-ok/$U"
+printf -- '-- liquibase formatted sql\n-- changeset myplugin:rev1\nALTER TABLE t ADD c INT;\n' > "$T/sq12-rebase/$U"
+expect sq11-dup SQ11 FAIL
+expect sq12-ok SQ11 PASS
+expect sq12-ok SQ12 PASS
+expect sq12-rebase SQ12 WARN
+expect sq12-release SQ12 WARN
+
+for k in dl2-bad dl2-declared dl2-v8; do mkdir -p "$T/$k/src/java/x"; printf '<project></project>\n' > "$T/$k/pom.xml"; done
+printf 'import au.com.bytecode.opencsv.CSVReader;\nclass A { }\n' | tee "$T/dl2-bad/src/java/x/A.java" > "$T/dl2-declared/src/java/x/A.java"
+printf '<project><dependencies><dependency><groupId>net.sf.opencsv</groupId><artifactId>opencsv</artifactId><version>1.8</version></dependency></dependencies></project>\n' > "$T/dl2-declared/pom.xml"
+printf 'import com.opencsv.CSVReader;\nclass A { }\n' > "$T/dl2-v8/src/java/x/A.java"
+expect dl2-bad DL02 FAIL
+expect dl2-declared DL02 PASS
+expect dl2-v8 DL02 PASS
+
+for k in ts10-empty ts10-real; do mkdir -p "$T/$k/src/java/x" "$T/$k/src/test/java/x"; printf 'class Task { }\n' > "$T/$k/src/java/x/Task.java"; done
+printf 'class ATest { void t( ) { assertTrue( true ); } // Task\n}\n' > "$T/ts10-empty/src/test/java/x/ATest.java"
+printf 'class TaskTest { void t( ) { new Task( ); } }\n' > "$T/ts10-real/src/test/java/x/TaskTest.java"
+expect ts10-empty TS10 WARN
+expect ts10-real TS10 PASS
+
+[ "$fails" -eq 0 ] && { echo "PASS: TS06 reads the annotation block, ST01 needs CDI beans, WB07 ignores an empty feature-icon-url, ST03 skips abstract DAO bases, JS04 ignores @Controller in comments, reads jsp:useBean and flags a @Controller called outside processController, WB12 reads admin_url, WB13 compares the install SQL with the descriptor, WB14 knows the Tabler icons, I18N01 accepts a sub-namespace named like the plugin and leaves a dead key to I18N08, SQ06 finds SQL Liquibase never sees, MV03 flags a @Controller without securityTokenEnabled and names a token riding a GET action link or a script, not a view link, WB04 accepts min-core-version 8.0.0, SQ08 finds an untagged install script in the war, SQ09 a SQL directory no plugin owns, SQ10 an empty changeset, SQ11 a changeset id twice in a file, SQ12 a committed or released changeset with another body but not a new changeset, a precondition or spacing, DL02 an opencsv 2 import nothing declares, TS10 tests naming no class of the project (a comment does not count), JP04 JPA only, TS09 names a broken test database, CD09 the dead jcaptcha test, grep checks skip comments and declarations"; exit 0; }
 exit 1

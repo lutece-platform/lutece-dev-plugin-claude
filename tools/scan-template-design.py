@@ -83,6 +83,9 @@ Both sides
   TD71 WARN  back-office link to an @Action (href='…?action=…'): the plugin sends a mutation by GET, which carries no
              token; the core running it anyway is a core defect (core_defect), once fixed the link is refused -> a
              confirmation view (view=…) whose page posts the action
+  TD72 WARN  a core macro called without an argument whose default is an i18n key the core bundles do not carry
+             (cStepGroup, cStepContent labelAddIteration/labelDelIteration: #i18n{portal.portal.theme.*}): the
+             control renders without a label -> pass the label
   TD67 WARN  an id the template's script looks up is emitted twice (explicit, or defaulted to the name by @cInput,
              @cSelect, @input, @select): getElementById returns the first one, often a hidden field
   TD64 WARN  a date/time @input shares its id (explicit, or its name: @input and @select default the id to the name)
@@ -375,6 +378,37 @@ def switch_always_writes_value(path):
     return False
 
 
+def core_bundle_keys():
+    """Every portal.<bundle>.<key> of the core's bundles, any language: from the core jar of the assembled webapp,
+    else from the reference clone."""
+    keys = set()
+    rx = re.compile(r"fr/paris/lutece/portal/resources/([a-z_]+?)_messages(?:_[a-zA-Z_]+)?\.properties$")
+    jars = glob.glob(os.path.join(CORE, "WEB-INF/lib/lutece-core-*.jar"))
+    if jars:
+        import zipfile
+        with zipfile.ZipFile(jars[0]) as z:
+            entries = [(rx.search(n), z.read(n).decode("latin-1")) for n in z.namelist() if rx.search(n)]
+    else:
+        entries = [(rx.search(f.replace(os.sep, "/")), read(f)) for f in
+                   glob.glob(os.path.join(CORE, "src/java/fr/paris/lutece/portal/resources/*.properties"))]
+    for match, text in entries:
+        if match:
+            keys.update("portal.%s.%s" % (match.group(1), k.strip()) for k in re.findall(r"^\s*([^#!\s=:][^=:]*?)\s*[=:]", text, flags=re.M))
+    return keys
+
+
+def dead_label_defaults(directory, keys):
+    """Map macro name -> {parameter: key} for every <#macro> under a directory whose parameter defaults to an
+    #i18n{portal.…} key absent from the core bundles."""
+    found = {}
+    for path in glob.glob(os.path.join(directory, "**", "*.ftl"), recursive=True):
+        for match in MACRO_DEF.finditer(read(path)):
+            for param, key in re.findall(r"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*'#i18n\{(portal\.[^}]+)\}'", match.group(2)):
+                if key not in keys:
+                    found.setdefault(match.group(1), {})[param] = key
+    return found
+
+
 def collect_macros(directory):
     """Map macro name -> parameter set (None = any) for every <#macro> under a directory; homonyms merge their parameters."""
     found = {}
@@ -499,6 +533,8 @@ class Knowledge:
         self.css_admin = theme_classes(CORE, ("/themes/skin/", "/css/skin/")) if assembled else set()
         self.css_skin = theme_classes(CORE, ("/themes/admin/", "/css/admin/")) if assembled else set()
         self.css_classes = self.css_admin | self.css_skin
+        keys = core_bundle_keys() if self.available else set()
+        self.dead_labels = {**dead_label_defaults(BO_MACRO_DIR, keys), **dead_label_defaults(FO_MACRO_DIR, keys)} if keys else {}
         self.switch_writes_empty_value = switch_always_writes_value(os.path.join(BO_MACRO_DIR, "forms/checkbox/checkBox.ftl")) if self.available else False
 
     def known(self, name):
@@ -879,6 +915,9 @@ def check_common(text, findings, kind, know):
             continue
         for arg in sorted(names - params):
             unknown_args.setdefault((name, arg), line)
+        for arg, key in sorted(know.dead_labels.get(name, {}).items()):
+            if arg not in names:
+                add(findings, "TD72", "WARN", line, "@%s without %s: its default #i18n{%s} is no key of the core, the control renders without a label -> pass %s" % (name, arg, key, arg))
     hits = [line_of(text, m.start()) for m in CALL.finditer(text) if re.search(r"""(['"])[^'"]*<#[a-z]""", m.group(2) or "")]
     add_grouped(findings, "TD52", "WARN", hits, "FreeMarker directive inside a quoted macro argument: the string literal prints it verbatim; build the value with <#assign> before the call")
     for name, line in sorted(unknown_macro.items(), key=lambda kv: kv[1]):

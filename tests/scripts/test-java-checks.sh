@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks ST04, MV01, HM01, DP01 (java_checks.py, verify-file.sh) and SP03: each fires on its defect and stays silent on sound code.
+# Checks ST04, MV01, HM01, HM02, DP01 (java_checks.py, verify-file.sh) and SP03: each fires on its defect and stays silent on sound code.
 set -u
 . "$(dirname "$0")/../../tools/python.sh"
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -225,7 +225,40 @@ EOF
 hm=$(python3 "$S/java_checks.py" hm01 "$Q")
 check "HM01 fires on a plain Home with getInstance" 'echo "$hm" | grep -q "ThingHome is a Home"'
 check "HM01 leaves a static plain Home alone" '! echo "$hm" | grep -q OtherHome'
-check "HM01 fires on a hand-made portlet home singleton" 'echo "$hm" | grep -q "portlet home DemoPortletHome: not @ApplicationScoped; final"'
+check "HM01 passes a hand-made portlet home singleton" '! echo "$hm" | grep -q DemoPortletHome'
+check "HM02 reports a hand-made portlet home singleton as the older form" 'python3 "$S/java_checks.py" hm02 "$Q" | grep -q "portlet home DemoPortletHome: not @ApplicationScoped; hand-made singleton (static instance)"'
+cat > "$B/portlet/BrokenPortletHome.java" <<'EOF'
+package fr.paris.lutece.plugins.demo.business.portlet;
+
+import fr.paris.lutece.portal.business.portlet.PortletHome;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+
+@ApplicationScoped
+public final class BrokenPortletHome extends PortletHome
+{
+    @Inject
+    private IBrokenPortletDAO _dao;
+
+    private BrokenPortletHome( )
+    {
+    }
+}
+EOF
+hm=$(python3 "$S/java_checks.py" hm01 "$Q")
+check "HM01 fires on a portlet home the core cannot create, a final bean and an injected field" 'echo "$hm" | grep -q "portlet home BrokenPortletHome: final (CDI cannot proxy it); @Inject or @PostConstruct (the core creates portlet homes by reflection: never injected nor initialised); no public no-arg constructor"'
+rm "$B/portlet/BrokenPortletHome.java"
+printf 'package fr.paris.lutece.plugins.demo.business.portlet;\nclass HiddenPortletHome extends PortletHome\n{\n    public HiddenPortletHome( )\n    {\n    }\n}\n' > "$B/portlet/HiddenPortletHome.java"
+printf 'package fr.paris.lutece.plugins.demo.business.portlet;\npublic class SetterPortletHome extends PortletHome\n{\n    @Inject\n    public void setDAO( IDemoPortletDAO dao )\n    {\n    }\n}\n' > "$B/portlet/SetterPortletHome.java"
+printf 'package fr.paris.lutece.plugins.demo.business.portlet;\npublic class ArgPortletHome extends PortletHome\n{\n    public ArgPortletHome( IDemoPortletDAO dao )\n    {\n    }\n}\n' > "$B/portlet/ArgPortletHome.java"
+hm=$(python3 "$S/java_checks.py" hm01 "$Q")
+check "HM01 fires on a portlet home class that is not public" 'echo "$hm" | grep -q "portlet home HiddenPortletHome: class not public"'
+check "HM01 fires on a portlet home injected through a setter" 'echo "$hm" | grep -q "portlet home SetterPortletHome: @Inject or @PostConstruct"'
+check "HM01 fires on a portlet home with only a constructor taking arguments" 'echo "$hm" | grep -q "portlet home ArgPortletHome: no public no-arg constructor"'
+rm "$B/portlet/HiddenPortletHome.java" "$B/portlet/SetterPortletHome.java" "$B/portlet/ArgPortletHome.java"
+printf 'package fr.paris.lutece.plugins.demo.business.portlet;\n@ApplicationScoped public final class InlinePortletHome extends PortletHome\n{\n}\n' > "$B/portlet/InlinePortletHome.java"
+check "HM01 reads a class whose annotation shares its declaration line" 'python3 "$S/java_checks.py" hm01 "$Q" | grep -q "portlet home InlinePortletHome: final (CDI cannot proxy it)"'
+rm "$B/portlet/InlinePortletHome.java"
 cat > "$B/portlet/DemoPortletHome.java" <<'EOF'
 package fr.paris.lutece.plugins.demo.business.portlet;
 
@@ -247,6 +280,7 @@ public class DemoPortletHome extends PortletHome
 }
 EOF
 check "HM01 passes a portlet home in the v8 form" '! python3 "$S/java_checks.py" hm01 "$Q" | grep -q DemoPortletHome'
+check "HM02 passes a portlet home in the CDI form" '! python3 "$S/java_checks.py" hm02 "$Q" | grep -q DemoPortletHome'
 C="$T/csrf"; W2="$C/src/java/x"; mkdir -p "$W2"
 printf '<project><packaging>lutece-plugin</packaging></project>\n' > "$C/pom.xml"
 printf 'package x;\n@Controller( controllerJsp = "ManageX.jsp", right = "X", securityTokenEnabled = true )\npublic class XJspBean extends MVCAdminJspBean\n{\n    private static final String METHOD_POST = "POST";\n    public String processController( HttpServletRequest request, HttpServletResponse response )\n    {\n        if ( !METHOD_POST.equalsIgnoreCase( request.getMethod( ) ) ) { return null; }\n        return null;\n    }\n}\n' > "$W2/XJspBean.java"
@@ -336,4 +370,32 @@ printf 'package x.test;\npublic class WorkflowService\n{\n}\n' > "$D1/test/Workf
 printf 'package x;\nimport fr.paris.lutece.portal.service.workflow.WorkflowService;\r\npublic class E\r\n{\r\n    void f( ) { WorkflowService.getInstance( ); }\r\n}\r\n' > "$D1/E.java"
 dp01=$(LUTECE_REFERENCES="$T/dcore" python3 "$S/java_checks.py" dp01 "$T/dp1" | sed 's|^src/java/x/||' | cut -d: -f1,2 | tr '\n' ' ')
 check "DP01 fires on the core class, one line or two, qualified, at grep's line, not on a comment, a longer name or a project class of the same name" '[ "$dp01" = "A.java:5 A.java:6 A.java:9 E.java:5 " ]'
-if [ $fail = 0 ]; then echo "PASS: ST04, MV01, SP03, HM01, CS03, WB10, WB11, DA03, DP04, PI01, RL01, PD02, GI01, CD08, MV08, WG01, PD03 and DP01 fire on their defect and stay silent on sound code"; else echo "$st04"; echo "$mv01"; echo "$hm"; exit 1; fi
+R="$T/refs5"; C="$R/lutece-core"
+mkdir -p "$C/src/java/fr/paris/lutece/portal/web/admin" "$C/src/java/fr/paris/lutece/portal/service/portal" "$R/lutece-tech-library-core-utils/src/java/fr/paris/lutece/util/string"
+( cd "$C" && git init -q && printf '<project><dependencies><dependency><artifactId>library-core-utils</artifactId></dependency></dependencies></project>\n' > pom.xml \
+  && for t in portal/web/admin/BreadcrumbItem portal/web/xpages/SiteMapCacheService util/string/StringUtil; do mkdir -p "src/java/fr/paris/lutece/$(dirname $t)"; echo "class $(basename $t) { }" > "src/java/fr/paris/lutece/$t.java"; done \
+  && git add -A && git -c user.name=t -c user.email=t@t commit -qm v7 && git branch -q develop7.x && git update-ref refs/remotes/origin/develop7.x develop7.x \
+  && git rm -rq src/java && mkdir -p src/java/fr/paris/lutece/portal/service/portal && echo "class SiteMapCacheService { }" > src/java/fr/paris/lutece/portal/service/portal/SiteMapCacheService.java )
+echo "class StringUtil { }" > "$R/lutece-tech-library-core-utils/src/java/fr/paris/lutece/util/string/StringUtil.java"
+mkdir -p "$T/dp5/src/java/x"
+printf 'package x;\nimport fr.paris.lutece.portal.web.admin.BreadcrumbItem;\nimport fr.paris.lutece.portal.web.xpages.SiteMapCacheService;\nimport fr.paris.lutece.util.string.StringUtil;\nclass A { }\n' > "$T/dp5/src/java/x/A.java"
+dp05=$(LUTECE_REFERENCES="$R" python3 "$S/java_checks.py" dp05 "$T/dp5")
+check "DP05 names a core type removed in v8" 'echo "$dp05" | grep -q "A.java:2: fr.paris.lutece.portal.web.admin.BreadcrumbItem is no longer in lutece-core: removed;"'
+check "DP05 gives where a core type moved" 'echo "$dp05" | grep -q "A.java:3: .*SiteMapCacheService is no longer in lutece-core: moved to fr.paris.lutece.portal.service.portal.SiteMapCacheService"'
+check "DP05 leaves a type a core library carries now" '! echo "$dp05" | grep -q StringUtil'
+R6="$T/refs6"; C6="$R6/lutece-core"; P6=src/java/fr/paris/lutece/portal/business/portlet
+mkdir -p "$C6/$P6" "$C6/src/sql"
+( cd "$C6" && git init -q && printf 'public abstract class PortletHtmlContent {\n    public String getHtmlContent( ) { return null; }\n}\n' > "$P6/PortletHtmlContent.java" \
+  && printf 'CREATE TABLE core_portlet (id int);\n' > src/sql/create_db_lutece_core.sql && git add -A && git -c user.name=t -c user.email=t@t commit -qm r1 && git tag lutece-core-8.0.2-beta-03 \
+  && printf 'public abstract class PortletHtmlContent {\n    public String getHtmlContent( ) { return null; }\n    protected String renderTemplate( String s ) { return s; }\n}\n' > "$P6/PortletHtmlContent.java" \
+  && printf 'CREATE TABLE core_portlet (id int);\nCREATE TABLE IF NOT EXISTS core_portlet_template (id int);\n' > src/sql/create_db_lutece_core.sql \
+  && git -c user.name=t -c user.email=t@t commit -qam dev )
+mkdir -p "$T/dp6/src/java/x" "$T/dp6/src/sql/plugins/x/core" "$T/dp6old/src/java/x"
+printf 'package x;\nimport fr.paris.lutece.portal.business.portlet.PortletHtmlContent;\nclass A extends PortletHtmlContent { String h( ) { return renderTemplate( "t" ); } }\n' > "$T/dp6/src/java/x/A.java"
+printf 'INSERT INTO core_portlet_template VALUES (1);\n' > "$T/dp6/src/sql/plugins/x/core/init_core_x.sql"
+printf 'package x;\nimport fr.paris.lutece.portal.business.portlet.PortletHtmlContent;\nclass A extends PortletHtmlContent { String h( ) { return getHtmlContent( ); } }\n' > "$T/dp6old/src/java/x/A.java"
+dp06=$(LUTECE_REFERENCES="$R6" python3 "$S/java_checks.py" dp06 "$T/dp6")
+check "DP06 names a core method of develop only" 'echo "$dp06" | grep -q "A.java:2: PortletHtmlContent.renderTemplate on the core.s develop, in no published core (last: lutece-core-8.0.2-beta-03)"'
+check "DP06 names a core table of develop only" 'echo "$dp06" | grep -q "init_core_x.sql: table core_portlet_template created by the core.s develop only"'
+check "DP06 leaves a core method the published core has" '[ -z "$(LUTECE_REFERENCES="$R6" python3 "$S/java_checks.py" dp06 "$T/dp6old")" ]'
+if [ $fail = 0 ]; then echo "PASS: ST04, MV01, SP03, HM01, HM02, CS03, WB10, WB11, DA03, DP04, PI01, RL01, PD02, GI01, CD08, MV08, WG01, PD03, DP01, DP05 and DP06 fire on their defect and stay silent on sound code"; else echo "$st04"; echo "$mv01"; echo "$hm"; exit 1; fi

@@ -3,7 +3,7 @@
 
 Usage: template_rules.py <rule> [project_root | template_file]
        rule: offcanvas | fo-forms | inline-forms | jquery | fo-upload | unsafe-messages | suggestpoi | fo-required-js
-             | mvc-message
+             | mvc-message | own-messages
 
 Prints one line per breach, `path:line: excerpt`, and exits 1 when there is one. FreeMarker, HTML, JSP and script
 comments are ignored, and so are the macro libraries under templates/*/themes/. Shared by verify-migration.sh (TM02
@@ -28,7 +28,10 @@ to TM07, TM10 to TM12) and scan-template-design.py (TD48, TD49, TD50).
                 also in the JSPs.
 - fo-required-js  @addRequiredJsFiles in a back-office template instead of @addRequiredBOJsFiles.
 - mvc-message   ${x} where x is the loop variable of a list over errors (an MVCMessage, printed through ${x.message}),
-                or ${x.message} over infos or warnings (strings: the page throws), unless the body tests it.
+                or ${x.message} over infos or warnings (strings: the page throws), unless the body tests it or the
+                project fills that list with MVCMessage objects itself.
+- own-messages  ${x.message} over infos or warnings the project fills with MVCMessage objects itself: it works, the
+                modern form is the core's addInfo( ) / addWarning( ) and ${x}.
 """
 import os
 import re
@@ -196,9 +199,50 @@ def fo_required_js(text, skin):
     return [] if skin else [line_of(text, m.start()) for m in FO_REQUIRED_JS.finditer(text)]
 
 
-def mvc_message(text, skin):
-    """Lines printing the loop variable of a list over errors without .message, or of a list over infos or warnings
-    with .message (a string has none: the page throws) unless the body tests it (x.message??, ?is_string)."""
+OWN_MESSAGE_LISTS = set()
+ADMIN_BASES = {"MVCAdminJspBean", "PluginAdminPageJspBean", "AdminFeaturesPageJspBean"}
+COMMENTS = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
+
+
+def own_message_lists(root):
+    """(list, side) pairs the project fills with MVCMessage objects itself: a main Java class (comments aside) that
+    creates an MVCMessage and names the list (MARK_INFOS, "infos"); its side is skin for an MVCApplication, admin for
+    an admin JspBean. Only that side's templates may print ${x.message} over that list."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import java_checks
+    files = java_checks.sources(root)
+    info = java_checks.types(files)
+    found = set()
+    for cls, i in info.items():
+        code = COMMENTS.sub("", files[i["path"]])
+        if not re.search(r"\bnew\s+MVCMessage\s*\(", code):
+            continue
+        seen, stack = set(), [cls]
+        while stack:
+            t = stack.pop()
+            if t not in seen:
+                seen.add(t)
+                stack.extend(info.get(t, {}).get("supers", []))
+        sides = ({"skin"} if "MVCApplication" in seen else set()) | ({"admin"} if seen & ADMIN_BASES else set())
+        for kind in ("infos", "warnings"):
+            if re.search(r"\bMARK_%s\b|\"%s\"" % (kind.upper(), kind), code):
+                found |= {(kind, side) for side in sides}
+    return found
+
+
+def project_root(path):
+    """The nearest folder holding a pom.xml at or above a path, else the path's folder."""
+    at = os.path.abspath(path if os.path.isdir(path) else os.path.dirname(path))
+    while at != os.path.dirname(at):
+        if os.path.isfile(os.path.join(at, "pom.xml")):
+            return at
+        at = os.path.dirname(at)
+    return os.path.abspath(path if os.path.isdir(path) else os.path.dirname(path))
+
+
+def message_prints(text):
+    """(line, list) of each loop variable printed the wrong way for the core's lists: a list over errors without
+    .message, a list over infos or warnings with .message unless the body tests it (x.message??, ?is_string)."""
     out = []
     for m in MESSAGE_LIST.finditer(text):
         depth, end = 1, len(text)
@@ -214,12 +258,26 @@ def mvc_message(text, skin):
             continue
         else:
             wrong = r"\$\{\s*%s\.message\b" % var
-        out += [line_of(text, m.end() + h.start()) for h in re.finditer(wrong, body)]
+        out += [(line_of(text, m.end() + h.start()), m.group(1)) for h in re.finditer(wrong, body)]
     return out
 
 
+def mvc_message(text, skin):
+    """Lines printing a message the way that throws or shows the object (TM07), the lists this template's side fills
+    with MVCMessage objects itself aside: those are own-messages (TM13)."""
+    side = "skin" if skin else "admin"
+    return [line for line, kind in message_prints(text) if (kind, side) not in OWN_MESSAGE_LISTS]
+
+
+def own_messages(text, skin):
+    """Lines printing ${x.message} over infos or warnings this template's side fills with MVCMessage objects itself:
+    it works, the modern form is the core's addInfo( ) / addWarning( ) and ${x} (TM13)."""
+    side = "skin" if skin else "admin"
+    return [line for line, kind in message_prints(text) if (kind, side) in OWN_MESSAGE_LISTS]
+
+
 RULES = {"offcanvas": offcanvas, "fo-forms": fo_forms, "inline-forms": inline_forms, "jquery": jquery, "fo-upload": fo_upload,
-         "unsafe-messages": unsafe_messages, "suggestpoi": suggestpoi, "fo-required-js": fo_required_js, "mvc-message": mvc_message}
+         "unsafe-messages": unsafe_messages, "suggestpoi": suggestpoi, "fo-required-js": fo_required_js, "mvc-message": mvc_message, "own-messages": own_messages}
 SCOPES = {"jquery": (("webapp/WEB-INF/templates",), (".html", ".ftl", ".js")),
           "suggestpoi": (("webapp",), (".html", ".ftl", ".jsp"))}
 DEFAULT_SCOPE = (("webapp/WEB-INF/templates/admin", "webapp/WEB-INF/templates/skin"), (".html", ".ftl"))
@@ -243,6 +301,8 @@ def main():
                 dirs.sort()
                 paths += [os.path.join(dirpath, n) for n in sorted(files) if n.endswith(exts)]
         paths = [p for p in paths if not MACRO_LIBRARY.search(os.path.abspath(p).replace(os.sep, "/"))]
+    if sys.argv[1] in ("mvc-message", "own-messages"):
+        OWN_MESSAGE_LISTS.update(own_message_lists(project_root(root)))
     found = 0
     for path in paths:
         with open(path, encoding="utf-8", errors="replace", newline="") as fh:

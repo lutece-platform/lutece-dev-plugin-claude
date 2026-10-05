@@ -146,6 +146,19 @@ names bad TM11 "tm11-form.html"
 names bad TM11 "tm11-novalidation.html"
 names bad TM11 "tm11-tform.html"
 names bad TM12 "admin/plugins/x/tm12.html"
+project ownmsg
+put ownmsg "$S/calendar.html" "<#list infos as info><p>\${info.message}</p></#list>"
+put ownmsg src/java/fr/paris/lutece/plugins/x/web/XApp.java "public class XApp extends MVCApplication { void view( Map<String, Object> model ) { List<MVCMessage> infos = new ArrayList<>( ); infos.add( new MVCMessage( \"x\" ) ); model.put( MARK_INFOS, infos ); } }"
+run ownmsg
+project ownmsg-admin
+put ownmsg-admin "$A/manage.html" "<#list infos as info><p>\${info.message}</p></#list>"
+put ownmsg-admin src/java/fr/paris/lutece/plugins/x/web/XApp.java "public class XApp extends MVCApplication { void view( Map<String, Object> model ) { List<MVCMessage> infos = new ArrayList<>( ); infos.add( new MVCMessage( \"x\" ) ); model.put( MARK_INFOS, infos ); } }"
+run ownmsg-admin
+expect ownmsg-admin TM07 FAIL
+expect ownmsg TM07 PASS
+expect ownmsg TM13 WARN
+names ownmsg TM13 "$S/calendar.html"
+expect good TM13 PASS
 expect jquery TM02 WARN
 names jquery TM02 "webapp/js/plugins/x/x.js"
 expect design-bad TM08 WARN

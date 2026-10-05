@@ -142,6 +142,15 @@ printf "<script src=\"js/admin/plugins/x/x.js\"></script>\n" > "$V/webapp/WEB-IN
 expect "TD61: script path the assembled webapp does not carry" 1 "$(tda TD61)"
 printf "<script src=\"themes/shared/plugins/x/js/x.js\"></script>\n<#if hasMap><script src=\"js/plugins/leaflet/leaflet.js\"></script></#if>\n" > "$V/webapp/WEB-INF/templates/admin/plugins/x/a.html"
 expect "TD61: carried script, and a script of an optional plugin" 0 "$(tda TD61)"
+mkdir -p "$L/WEB-INF/templates/skin/themes/macros/forms/steps" "$L/WEB-INF/lib" "$V/webapp/WEB-INF/templates/skin/plugins/x" "$T/corejar/fr/paris/lutece/portal/resources"
+printf "<#macro cStepGroup title labelAddIteration='#i18n{portal.portal.theme.labelAdd}' labelOk='#i18n{portal.theme.labelAdd}' deprecated...></#macro>\n" > "$L/WEB-INF/templates/skin/themes/macros/forms/steps/cStepGroup.ftl"
+printf 'labelAdd=Add\n' > "$T/corejar/fr/paris/lutece/portal/resources/theme_messages.properties"
+(cd "$T/corejar" && python3 -c "import zipfile,sys; z=zipfile.ZipFile(sys.argv[1],'w'); z.write('fr/paris/lutece/portal/resources/theme_messages.properties')" "$L/WEB-INF/lib/lutece-core-8.0.2.jar")
+printf "<@cStepGroup title='t'></@cStepGroup>\n" > "$V/webapp/WEB-INF/templates/skin/plugins/x/a.html"
+expect "TD72: a core macro left on a default label key the core bundles lack" 1 "$(tda TD72)"
+printf "<@cStepGroup title='t' labelAddIteration='#i18n{x.labelAdd}'></@cStepGroup>\n" > "$V/webapp/WEB-INF/templates/skin/plugins/x/a.html"
+expect "TD72: the label passed, the other default key exists" 0 "$(tda TD72)"
+rm -rf "$V/webapp/WEB-INF/templates/skin" "$L/WEB-INF/lib" "$L/WEB-INF/templates/skin/themes/macros/forms"
 
 mkdir -p "$W/webapp/WEB-INF/plugins" "$W/webapp/themes/admin/x/css"
 echo "<plug-in><admin-css-stylesheets><admin-css-stylesheet>themes/admin/x/css/x.css</admin-css-stylesheet></admin-css-stylesheets></plug-in>" > "$W/webapp/WEB-INF/plugins/x.xml"
@@ -269,5 +278,5 @@ printf 'class C {\n    private static final String MESSAGE_A = "module.wf.x.task
 expect "I18N02: a module checks its module.<plugin>.<module> keys only" 1 "$(cd "$M" && bash "$S/verify-migration.sh" . 2>/dev/null | grep -A3 '\[I18N02\]' | grep -c '^ *module.wf.x.task.missing:')"
 expect "I18N02: the plugin's own keys are left to it" 0 "$(cd "$M" && bash "$S/verify-migration.sh" . 2>/dev/null | grep -c 'x.owned.by.plugin.x')"
 
-[ "$fail" -eq 0 ] && echo "PASS: template rules, TD55, TD56, TD57, TD58, TD59, TD60, TD61, TD62, TD63, TD64, TD65, TD66, TD67, TD68, TD69, TD70, TD71, TD46, TM01, DA02, I18N02, I18N07, I18N10, TL01, MV05, MV06, MV07, WB08, JX10, CD06, CD07, JS04, JS07, fix-button-colours"
+[ "$fail" -eq 0 ] && echo "PASS: template rules, TD55, TD56, TD57, TD58, TD59, TD60, TD61, TD62, TD63, TD64, TD65, TD66, TD67, TD68, TD69, TD70, TD71, TD72, TD46, TM01, DA02, I18N02, I18N07, I18N10, TL01, MV05, MV06, MV07, WB08, JX10, CD06, CD07, JS04, JS07, fix-button-colours"
 exit $fail

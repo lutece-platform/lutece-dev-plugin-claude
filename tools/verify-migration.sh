@@ -362,6 +362,15 @@ echo ""
 # ─── Deprecated Libraries ────────────────────────────────
 echo "CATEGORY: Deprecated libraries"
 check_grep "DL01" 'net\.sf\.json' "src/" "FAIL" "net.sf.json -> com.fasterxml.jackson"
+# DL02: opencsv 2.x (packages au.com.bytecode.opencsv) came with the v7 core; the v8 core ships com.opencsv 5. A plugin
+# that imports the old packages without declaring net.sf.opencsv itself no longer compiles.
+DL02_MATCHES=""
+if [ -d src ] && ! { [ -f pom.xml ] && masked_pom all | grep -q "<groupId>net\.sf\.opencsv</groupId>"; }; then
+    DL02_MATCHES=$(grep -rn --include=*.java "^import au\.com\.bytecode\.opencsv" src/ 2>/dev/null)
+fi
+COUNT=0; [ -n "$DL02_MATCHES" ] && COUNT=$(echo "$DL02_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "DL02" "PASS" "No opencsv 2 import left to the core" 0
+else emit "DL02" "FAIL" "au.com.bytecode.opencsv came with the v7 core, the v8 core ships com.opencsv: move to com.opencsv (CSVReader/CSVWriter builders) or declare net.sf.opencsv" "$COUNT" "$DL02_MATCHES"; fi
 echo ""
 
 # ─── Event Residues ──────────────────────────────────────
@@ -395,6 +404,18 @@ DP04_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" dp04 . 2>/dev/null)
 COUNT=0; [ -n "$DP04_MATCHES" ] && COUNT=$(echo "$DP04_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "DP04" "PASS" "No lutece-core type deprecated for removal" 0
 else emit "DP04" "FAIL" "lutece-core type deprecated for removal: use the replacement the core gives" "$COUNT" "$DP04_MATCHES"; fi
+# DP05: an import of a lutece-core type the v7 core had and the v8 core does not (java_checks.py dp05): removed with no
+# deprecation first, nothing points at a replacement; the compiler says the symbol is missing, not where it went.
+DP05_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" dp05 . 2>/dev/null)
+COUNT=0; [ -n "$DP05_MATCHES" ] && COUNT=$(echo "$DP05_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "DP05" "PASS" "No lutece-core type the v8 core no longer has" 0
+else emit "DP05" "FAIL" "lutece-core type gone in v8 (moved, or removed with nothing pointing at a replacement)" "$COUNT" "$DP05_MATCHES"; fi
+# DP06: core API or core_* table on the core's develop and in no published core (java_checks.py dp06): the build passes
+# on the latest snapshot, a site on the published core fails. A signal, not a bound to raise: no release carries it yet.
+DP06_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" dp06 . 2>/dev/null)
+COUNT=0; [ -n "$DP06_MATCHES" ] && COUNT=$(echo "$DP06_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "DP06" "PASS" "No core API or table of an unpublished core" 0
+else emit "DP06" "WARN" "Needs a core not published yet: say it in the hand-over, raise the lutece-core lower bound to the first release that carries it once there is one" "$COUNT" "$DP06_MATCHES"; fi
 # PI01: a plugin init( ) that initialises a service; in v8 the service observes the startup itself (java_checks.py pi01).
 PI01_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" pi01 . 2>/dev/null)
 COUNT=0; [ -n "$PI01_MATCHES" ] && COUNT=$(echo "$PI01_MATCHES" | wc -l)
@@ -873,11 +894,17 @@ COUNT=0; [ -n "$DA03_MATCHES" ] && COUNT=$(echo "$DA03_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "DA03" "PASS" "DAO numeric reads and binds match the column types" 0
 else emit "DA03" "WARN" "Number read or bound on a text column: align the column type with an upgrade script, or use get/setString" "$COUNT" "$DA03_MATCHES"; fi
 
-# HM01: Homes in the v8 form: a plain Home is static, a portlet home is a CDI bean looked up through CDI (java_checks.py).
+# HM01: Homes in the v8 form: a plain Home is static, a portlet home is one the core can create by reflection (java_checks.py).
 HM01_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" hm01 . 2>/dev/null)
 COUNT=0; [ -n "$HM01_MATCHES" ] && COUNT=$(echo "$HM01_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "HM01" "PASS" "Homes in the v8 form" 0
-else emit "HM01" "FAIL" "Home not in the v8 form: plain Home static without getInstance( ); portlet home @ApplicationScoped, not final, getInstance( ) through CDI" "$COUNT" "$HM01_MATCHES"; fi
+else emit "HM01" "FAIL" "Home not in the v8 form: plain Home static without getInstance( ); portlet home the core can create by reflection (public no-arg constructor, no @Inject field, a CDI bean not final)" "$COUNT" "$HM01_MATCHES"; fi
+
+# HM02: a portlet home in the older form (hand-made singleton): it works, the modern form is a CDI bean (java_checks.py).
+HM02_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" hm02 . 2>/dev/null)
+COUNT=0; [ -n "$HM02_MATCHES" ] && COUNT=$(echo "$HM02_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "HM02" "PASS" "Portlet homes in the modern form" 0
+else emit "HM02" "WARN" "Portlet home in the older form: make it @ApplicationScoped, getInstance( ) returning CDI.current( ).select( X.class ).get( ) (rules/dao-patterns.md)" "$COUNT" "$HM02_MATCHES"; fi
 
 # ST05: files created by the migration must be able to reach the repository. ST01 only proves the file is on
 # disk; a file that .gitignore excludes never will, and the plugin ships without its CDI descriptor (the Home
@@ -1092,8 +1119,9 @@ echo "CATEGORY: v8 core changes"
 # stub, and the back office cannot create an XSL portlet whose type is not
 # DOCUMENT* (MANDATORY_FIELDS, whatever is installed). Port per mvc-patterns.md §10:
 # extend PortletHtmlContent, implement getHtmlContent(), delete the XSL and the core_style rows.
+# lutece-core is left out: it owns the portlet base classes, PortletHtmlContent included.
 XS01_MATCHES=""
-if [ -d "src/" ]; then
+if [ -d "src/" ] && ! grep -q "<packaging>lutece-core</packaging>" pom.xml 2>/dev/null; then
     XS01_MATCHES=$({ grep -rln --exclude-dir=test 'getXmlDocument\|public String getXml(' src/ --include="*.java" 2>/dev/null || true; } | while read -r f; do
         grep -q 'extends PortletHtmlContent' "$f" 2>/dev/null && continue
         grep -q 'class .*Portlet\b' "$f" 2>/dev/null || continue
@@ -1347,14 +1375,70 @@ if [ "$COUNT" -eq 0 ]; then emit "SQ10" "PASS" "Every changeset carries SQL" 0
 else emit "SQ10" "FAIL" "Changeset without SQL: Liquibase validation fails and no changeset of the site runs (remove the changeset or give it its statements)" "$COUNT" "$SQ10_MATCHES"; fi
 echo ""
 
+# SQ11-SQ12: a changeset identity reused in an upgrade script. Liquibase tracks (author:id, file): the same identity
+# twice in one file fails the validation (SQ11). A body changed under an identity the last tag or the last commit
+# carries (a rebase that took the id of another changeset, an edited release) never reaches the bases that ran it, and
+# fails with ValidationFailedException where the file is replayed (SQ12); the rules allow it only for damage that
+# cannot be undone afterwards, said in the changeset comment.
+SQ11_MATCHES=""; SQ12_MATCHES=""
+if [ -d src/sql ]; then
+    SQ1X=$(python3 - <<'PY'
+import glob, re, subprocess
+def changesets(text):
+    out, cur = [], None
+    for line in text.splitlines():
+        m = re.match(r"--\s*changeset\s+(\S+)", line)
+        if m:
+            cur = [m.group(1), []]
+            out.append(cur)
+        elif cur and line.strip() and not line.lstrip().startswith("--"):
+            cur[1].append(" ".join(line.split()))
+    return [(i, "\n".join(b)) for i, b in out]
+def git(*args):
+    r = subprocess.run(["git", *args], capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 else None
+tag = (git("describe", "--tags", "--abbrev=0") or "").strip()
+for f in sorted(glob.glob("src/sql/**/update_*.sql", recursive=True)):
+    text = open(f, encoding="utf-8", errors="replace").read()
+    if "liquibase formatted sql" not in text.split("\n", 1)[0]:
+        continue
+    now = changesets(text)
+    seen = {}
+    for ident, body in now:
+        if ident in seen:
+            print("SQ11 %s: changeset %s declared twice" % (f, ident))
+        seen.setdefault(ident, body)
+    told = set()
+    for ref in (tag, "HEAD"):
+        old = git("show", "%s:%s" % (ref, f)) if ref else None
+        for ident, body in dict(changesets(old or "")).items():
+            if ident in seen and seen[ident] != body and ident not in told:
+                told.add(ident)
+                print("SQ12 %s: changeset %s has another body than in %s" % (f, ident, ref))
+PY
+)
+    SQ11_MATCHES=$(echo "$SQ1X" | sed -n 's/^SQ11 //p')
+    SQ12_MATCHES=$(echo "$SQ1X" | sed -n 's/^SQ12 //p')
+fi
+COUNT=0; [ -n "$SQ11_MATCHES" ] && COUNT=$(echo "$SQ11_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "SQ11" "PASS" "No changeset identity reused in the upgrade scripts" 0
+else emit "SQ11" "FAIL" "Changeset identity declared twice in one file: Liquibase refuses the changelog; give the second one a new id" "$COUNT" "$SQ11_MATCHES"; fi
+COUNT=0; [ -n "$SQ12_MATCHES" ] && COUNT=$(echo "$SQ12_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "SQ12" "PASS" "No released or committed changeset of the upgrade scripts rewritten" 0
+else emit "SQ12" "WARN" "Released or committed changeset with another body (an id taken over in a rebase?): a base that ran it never gets the new body; add a new changeset, or say in its comment why the edit cannot wait (rules/sql-liquibase.md)" "$COUNT" "$SQ12_MATCHES"; fi
+echo ""
+
 # I18N03: a key the default bundle carries and _fr does not, or the reverse (the two languages the core ships): the
-# missing language falls back, a French user reads the English text, nothing logs it. I18N04: the other languages.
+# missing language falls back, a French user reads the English text, nothing logs it. A key nothing uses is I18N08's:
+# removing it is the fix, not translating it. I18N04: the other languages.
 I18N03_MATCHES=""
 if [ -d "src/java" ]; then
     I18N03_MATCHES=$(SCRIPT_DIR="$SCRIPT_DIR" python3 - <<'PY'
 import glob, os, sys
 sys.path.insert(0, os.environ["SCRIPT_DIR"])
 from bundles import keys
+from i18n_unused import unused
+dead = {(os.path.normpath(b), k) for b, _, k in unused(".", os.path.expanduser("~/.lutece-references"))}
 for base in glob.glob("src/java/**/*_messages.properties", recursive=True):
     stem = base[:-len(".properties")]
     variants = [base] + sorted(glob.glob(stem + "_*.properties"))
@@ -1366,7 +1450,8 @@ for base in glob.glob("src/java/**/*_messages.properties", recursive=True):
         for k in sorted(fk - dk):
             print("%s: %s missing (present in %s)" % (base, k, os.path.basename(fr)))
         for k in sorted(dk - fk):
-            print("%s: %s missing (present in %s)" % (fr, k, os.path.basename(base)))
+            if (os.path.normpath(base), k) not in dead:
+                print("%s: %s missing (present in %s)" % (fr, k, os.path.basename(base)))
 PY
 )
     I18N03_OTHERS=$(SCRIPT_DIR="$SCRIPT_DIR" python3 - <<'PY'
@@ -1699,12 +1784,38 @@ if [ "$COUNT" -eq 0 ]; then emit "ST07" "PASS" "No production class named like a
 else emit "ST07" "FAIL" "Production class named like a test: surefire collects it from WEB-INF/classes and the test run breaks" "$COUNT" "$ST07_MATCHES"; fi
 echo ""
 
+# ST08: a src/site/*.xml maven-site-plugin cannot read: an unclosed tag, or an HTML entity such as &egrave; inside the
+# root <project ...> tag (its parser knows the HTML entities everywhere else). It fails the site build, and with it the
+# "Generating reports" step of the release. Blank lines before the XML declaration are read fine.
+ST08_MATCHES=""
+if [ -d "src/site" ]; then
+    ST08_MATCHES=$(find src/site -maxdepth 1 -name "*.xml" 2>/dev/null | sort | python3 -c '
+import re, sys, xml.etree.ElementTree as ET
+HTML = re.compile(r"&(?!(?:amp|lt|gt|quot|apos|#[0-9]+|#x[0-9a-fA-F]+);)[A-Za-z][A-Za-z0-9]*;")
+for f in sys.stdin.read().split():
+    text = open(f, encoding="utf-8", errors="replace").read().lstrip()
+    root = re.search(r"<(?![?!])[^>]*>", text)
+    if root and HTML.search(root.group(0)):
+        print("%s: HTML entity in the root tag: %s" % (f, HTML.search(root.group(0)).group(0)))
+        continue
+    try:
+        ET.fromstring(HTML.sub("x", text))
+    except ET.ParseError as e:
+        print("%s: %s" % (f, e))
+')
+fi
+COUNT=0; [ -n "$ST08_MATCHES" ] && COUNT=$(echo "$ST08_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "ST08" "PASS" "src/site descriptors are well-formed XML" 0
+else emit "ST08" "FAIL" "src/site descriptor maven-site-plugin cannot read (HTML entity in <project>, unclosed tag): the site build fails; write the character itself" "$COUNT" "$ST08_MATCHES"; fi
+echo ""
+
 # PV01: the pom and the plugin descriptor disagree on the version: the plugin screen, the upgrade scripts (Liquibase
 # compares the installed version with the scripts' target) and the release read different ones.
-# PV02: the v8 version is not above the last released tag: a site already on that release is "up to date", so the new
-# upgrade scripts are silently NOT included (2.0.0-SNAPSHOT after a 2.1.x release).
+# PV02: the v8 version is not above the last released tag while upgrade scripts changed since: a site already on that
+# release is "up to date", so those scripts are silently NOT included (2.0.0-SNAPSHOT after a 2.1.x release).
+# PV03: the same version without upgrade script since: nothing is lost yet, the next script would be.
 PV_MATCHES=$(python3 - <<'PY'
-import glob, re, subprocess
+import glob, os, re, subprocess
 def version(v):
     return tuple(int(x) for x in re.findall(r"\d+", v.split("-")[0])[:3])
 pom = re.sub(r"<!--.*?-->", "", open("pom.xml", encoding="utf-8", errors="replace").read(), flags=re.S) if __import__("os").path.isfile("pom.xml") else ""
@@ -1718,25 +1829,40 @@ for x in glob.glob("webapp/WEB-INF/plugins/*.xml"):
     if xv and "${" not in xv.group(1) and xv.group(1).strip() != pv:
         print("PV01 %s: <version>%s</version>, the pom says %s" % (x, xv.group(1).strip(), pv))
 try:
+    inside = subprocess.run(["git", "rev-parse", "--is-shallow-repository"], capture_output=True, text=True)
     tags = subprocess.run(["git", "tag"], capture_output=True, text=True).stdout.split()
 except OSError:
-    tags = []
+    inside, tags = None, []
+if inside is None or inside.returncode:
+    print("PV02NE not a git checkout: the release tags cannot be read")
+elif inside.stdout.strip() == "true" and not tags:
+    print("PV02NE shallow clone without tags: fetch them (git fetch --unshallow --tags) to compare with the last release")
 released = [(version(re.findall(r"\d+\.\d+(?:\.\d+)*", t)[-1]), t) for t in tags if re.search(r"\d+\.\d+", t)]
 released = [(v, t) for v, t in released if v]
 if released:
     last = max(released)
     if version(pv) <= last[0]:
         why = " (plugin-liquibase compares the numbers only, PluginVersion of library-sql-utils: a qualifier such as -beta-03 or -SNAPSHOT does not count)" if re.search(r"\d-[A-Za-z]", last[1] + " " + pv) else ""
-        print("PV02 pom.xml: version %s is not above the last release %s: a site on that release never runs the new upgrade scripts%s" % (pv, last[1], why))
+        since = subprocess.run(["git", "diff", "--name-only", last[1], "HEAD", "--", "src/sql"], capture_output=True, text=True).stdout.split()
+        upgrades = [f for f in since if re.search(r"/upgrades?/[^/]+\.sql$", f)]
+        if upgrades:
+            print("PV02 pom.xml: version %s is not above the last release %s, and %d upgrade script(s) changed since (%s): a site on that release never runs them%s" % (pv, last[1], len(upgrades), ", ".join(os.path.basename(f) for f in upgrades[:3]), why))
+        else:
+            print("PV03 pom.xml: version %s is not above the last release %s: raise it before adding an upgrade script, or a site on that release never runs it%s" % (pv, last[1], why))
 PY
 )
-PV01_MATCHES=$(echo "$PV_MATCHES" | grep "^PV01" | sed 's/^PV01 //'); PV02_MATCHES=$(echo "$PV_MATCHES" | grep "^PV02" | sed 's/^PV02 //')
+PV01_MATCHES=$(echo "$PV_MATCHES" | grep "^PV01 " | sed 's/^PV01 //'); PV02_MATCHES=$(echo "$PV_MATCHES" | grep "^PV02 " | sed 's/^PV02 //')
+PV02_UNJUDGED=$(echo "$PV_MATCHES" | grep "^PV02NE " | sed 's/^PV02NE //'); PV03_MATCHES=$(echo "$PV_MATCHES" | grep "^PV03 " | sed 's/^PV03 //')
 COUNT=0; [ -n "$PV01_MATCHES" ] && COUNT=$(echo "$PV01_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "PV01" "PASS" "pom and plugin descriptor carry the same version" 0
 else emit "PV01" "FAIL" "pom and plugin descriptor versions differ" "$COUNT" "$PV01_MATCHES"; fi
 COUNT=0; [ -n "$PV02_MATCHES" ] && COUNT=$(echo "$PV02_MATCHES" | wc -l)
-if [ "$COUNT" -eq 0 ]; then emit "PV02" "PASS" "The version is above the last release" 0
-else emit "PV02" "FAIL" "Version not above the last release: the upgrade scripts are skipped on upgraded sites" "$COUNT" "$PV02_MATCHES"; fi
+if [ -n "$PV02_UNJUDGED" ]; then emit "PV02" "WARN" "Version NOT EVALUATED against the last release" 1 "$PV02_UNJUDGED"
+elif [ "$COUNT" -eq 0 ]; then emit "PV02" "PASS" "The version is above the last release" 0
+else emit "PV02" "FAIL" "Version not above the last release while upgrade scripts changed since: upgraded sites skip them" "$COUNT" "$PV02_MATCHES"; fi
+COUNT=0; [ -n "$PV03_MATCHES" ] && COUNT=$(echo "$PV03_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "PV03" "PASS" "The version is above the last release, or nothing to judge" 0
+else emit "PV03" "WARN" "Version not above the last release: raise it before the next upgrade script" "$COUNT" "$PV03_MATCHES"; fi
 echo ""
 
 echo "CATEGORY: JSP"
@@ -1905,6 +2031,11 @@ TM07_MATCHES=$(template_rules mvc-message 2>/dev/null)
 COUNT=0; [ -n "$TM07_MATCHES" ] && COUNT=$(echo "$TM07_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "TM07" "PASS" "Errors print .message, infos and warnings print the string" 0
 else emit "TM07" "FAIL" "\${error} -> \${error.message} (MVCMessage); \${info.message} / \${warning.message} -> \${info} (a string: the page throws)" "$COUNT" "$TM07_MATCHES"; fi
+# TM13: infos or warnings the project fills with MVCMessage objects itself: they work, the core's addInfo / addWarning is the modern form.
+TM13_MATCHES=$(template_rules own-messages 2>/dev/null)
+COUNT=0; [ -n "$TM13_MATCHES" ] && COUNT=$(echo "$TM13_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "TM13" "PASS" "Infos and warnings come from the core's addInfo / addWarning" 0
+else emit "TM13" "WARN" "Infos or warnings kept as the project's own MVCMessage list: use the core's addInfo( ) / addWarning( ) and print \${info}" "$COUNT" "$TM13_MATCHES"; fi
 
 # TM08: design rules a template already written with macros can still break (scan-template-design.py header lists
 # the codes). A check that could not run is never a PASS: the scan exits 2 when the project will not assemble, and
@@ -1978,6 +2109,25 @@ else emit "TS06" "FAIL" "Test methods without @Test annotation" "$COUNT" "$TS06_
 
 check_grep "TS07" 'SpringContextService\.getBean' "src/test/" "FAIL" "SpringContextService.getBean in tests -> @Inject"
 check_grep "TS08" 'org\.springframework\.mock\.web' "src/test/" "FAIL" "Spring mock imports -> fr.paris.lutece.test.mocks"
+
+# TS10: tests that never name a class of the project (assertTrue( true ), a placeholder): they pass and prove nothing.
+TS10_MATCHES=""
+if [ -d src/test ]; then
+    TS10_MATCHES=$(python3 - <<'PY'
+import glob, os, re
+main = {os.path.basename(f)[:-5] for d in ("src/java", "src/main/java") for f in glob.glob(d + "/**/*.java", recursive=True)}
+tests = sorted(glob.glob("src/test/**/*.java", recursive=True))
+if main and tests:
+    names = re.compile(r"\b(%s)\b" % "|".join(map(re.escape, sorted(main))))
+    if not any(names.search(re.sub(r"//[^\n]*|/\*.*?\*/", "", open(f, encoding="utf-8", errors="replace").read(), flags=re.S)) for f in tests):
+        print("\n".join(tests))
+PY
+)
+fi
+COUNT=0; [ -n "$TS10_MATCHES" ] && COUNT=$(echo "$TS10_MATCHES" | wc -l)
+if [ "$COUNT" -eq 0 ]; then emit "TS10" "PASS" "The tests exercise classes of the project" 0
+else emit "TS10" "WARN" "No test names a class of the project (a placeholder such as assertTrue( true )): the tests pass and prove nothing" "$COUNT" "$TS10_MATCHES"; fi
+echo ""
 
 # TS09: the parent POM sets testFailureIgnore=true, so the test goal prints BUILD SUCCESS whatever the tests did.
 # The reports are the only evidence. No report means the tests were never run, which is not a pass.
