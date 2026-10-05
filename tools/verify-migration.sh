@@ -1326,7 +1326,7 @@ if [ -d src/sql ]; then
 fi
 COUNT=0; [ -n "$SQ07_MATCHES" ] && COUNT=$(echo "$SQ07_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "SQ07" "PASS" "No validCheckSum outside prerun_db_* scripts" 0
-else emit "SQ07" "WARN" "validCheckSum outside a prerun_db_* script: plugin-liquibase never replays these files on an existing site, the directive only hides a changed body (rules/sql-liquibase.md)" "$COUNT" "$SQ07_MATCHES"; fi
+else emit "SQ07" "WARN" "validCheckSum outside a prerun_db_* script: a shipped changeset body was edited. Keep the directive (a site that replays the file fails without it); change the script by appending a changeset (rules/sql-liquibase.md)" "$COUNT" "$SQ07_MATCHES"; fi
 echo ""
 # SQ08: an install script shipped in the war without the Liquibase header. The lutece-maven-plugin reports every
 # plugins/<p>/(plugin|core)/(create|init)_*.sql of WEB-INF/sql that is not a changeset; plugin-liquibase then refuses
@@ -1846,7 +1846,7 @@ if released:
         since = subprocess.run(["git", "diff", "--name-only", last[1], "HEAD", "--", "src/sql"], capture_output=True, text=True).stdout.split()
         upgrades = [f for f in since if re.search(r"/upgrades?/[^/]+\.sql$", f)]
         if upgrades:
-            print("PV02 pom.xml: version %s is not above the last release %s, and %d upgrade script(s) changed since (%s): a site on that release never runs them%s" % (pv, last[1], len(upgrades), ", ".join(os.path.basename(f) for f in upgrades[:3]), why))
+            print("PV02 pom.xml: version %s is not above the last release %s, and %d upgrade script(s) changed since (%s): a site on that release never runs them (a script ending at the installed version runs only with liquibase.accept.unstable.versions or accept.snapshot.versions and an upgrade as the last run, never after a fresh install): put the changes in a script ending above the release, and raise the version to it%s" % (pv, last[1], len(upgrades), ", ".join(os.path.basename(f) for f in upgrades[:3]), why))
         else:
             print("PV03 pom.xml: version %s is not above the last release %s: raise it before adding an upgrade script, or a site on that release never runs it%s" % (pv, last[1], why))
 PY
