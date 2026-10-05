@@ -91,9 +91,8 @@ def descriptor_text(xml):
 
 def in_build(path, root):
     """True for a file under a Maven target/ directory of the scanned tree (never for the tree itself, which may
-    be an exploded webapp living under target/)."""
+    be an exploded webapp living under target/), or under e2e/, the bench's configuration, which is not the artefact."""
     parts = path.relative_to(root).parts
-    # e2e/ holds the bench itself, including the v7 worktree of run.sh compare: none of it is the artefact.
     return "target" in parts or "e2e" in parts
 
 

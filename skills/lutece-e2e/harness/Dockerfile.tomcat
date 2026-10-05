@@ -1,15 +1,12 @@
-# Tomcat 9 on Java 11: the runtime a Lutece 7 site actually runs on. Used by the before/after comparison
-# (`run.sh compare`): the v7 site is assembled by tools/gen-site7.sh, its schema is created the v7 way — the Ant
-# build the lutece-maven-plugin ships under WEB-INF/sql — then the v8 site starts on the same database.
+# Tomcat 9 on Java 11: the runtime a Lutece 7 site actually runs on, for the database upgrade (lpe2e upgrade).
+# Generic: the v7 site (tools/gen-site7.sh) is mounted exploded at /usr/local/tomcat/webapps/<context> when the
+# container starts, its schema created the v7 way by the Ant build under WEB-INF/sql (tomcat/entrypoint.sh). Port 8081:
+# the container joins the bench runner's network namespace, where 8080 belongs to the OpenID Connect stand-in.
 FROM tomcat:9.0-jdk11-temurin
 RUN apt-get update && apt-get install -y --no-install-recommends ant unzip && rm -rf /var/lib/apt/lists/* \
- && rm -rf /usr/local/tomcat/webapps/* && mkdir -p /logs && chmod -R a+rwX /usr/local/tomcat /logs
+ && rm -rf /usr/local/tomcat/webapps/* && mkdir -p /logs && chmod -R a+rwX /usr/local/tomcat /logs \
+ && sed -i 's/port="8080"/port="8081"/' /usr/local/tomcat/conf/server.xml
 COPY --chmod=755 tomcat/entrypoint.sh /entrypoint.sh
-# Exploded, not dropped as a war: the Ant build reads WEB-INF/sql and WEB-INF/conf before Tomcat starts. The war is
-# mounted for the unzip and made writable in the same step: one layer holds the site, not three (copy, unzip, chmod).
-RUN --mount=type=bind,source=site7/target/lutece.war,target=/tmp/lutece.war \
-    mkdir -p /usr/local/tomcat/webapps/lutece && cd /usr/local/tomcat/webapps/lutece && unzip -q /tmp/lutece.war \
- && chmod -R a+rwX /usr/local/tomcat/webapps/lutece
 ENV CATALINA_OUT=/logs/catalina.out
-EXPOSE 8080
+EXPOSE 8081
 ENTRYPOINT ["/entrypoint.sh"]

@@ -7,6 +7,7 @@ material (coverage tables, performance, server errors) stays available under a f
 loading and the markdown summary; this file only renders."""
 import html
 import json
+import os
 import pathlib
 import re
 import urllib.parse
@@ -16,7 +17,7 @@ try:
 except ImportError:  # the report must still render where pyyaml is absent: steps are then not listed
     yaml = None
 
-E2E = pathlib.Path(__file__).resolve().parents[1]
+E2E = pathlib.Path(os.environ.get("E2E_DIR") or pathlib.Path(__file__).resolve().parents[1])
 A = E2E / "artifacts"
 
 SUITE_LABEL = {"scenarios": "Scénarios", "screens": "Écrans", "fo": "Pages publiques", "forms": "Formulaires", "harness": "Harnais"}

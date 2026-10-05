@@ -10,13 +10,13 @@ trap 'rm -rf "$T"' EXIT
 fail=0
 check() { if eval "$2"; then :; else echo "FAIL: $1"; fail=1; fi; }
 P="$T/p"; M="$T/m2"; export M2_REPO="$M"
-mkdir -p "$P/src/java" "$P/e2e/scenarios" "$P/e2e/artifacts" "$P/target" "$P/e2e/harness/site7" "$M/fr/paris/lutece/plugins/plugin-demo/1.0" "$M/fr/paris/lutece/plugins/library-x/1.0"
+mkdir -p "$P/src/java" "$P/e2e/scenarios" "$P/e2e/artifacts" "$P/target" "$M/fr/paris/lutece/plugins/plugin-demo/1.0" "$M/fr/paris/lutece/plugins/library-x/1.0"
 printf '<project><parent><artifactId>lutece-global-pom</artifactId></parent><artifactId>plugin-demo</artifactId></project>\n' > "$P/pom.xml"
 echo 'class A {}' > "$P/src/java/A.java"; echo 'id: a' > "$P/e2e/scenarios/a.yaml"
 echo 1 > "$M/fr/paris/lutece/plugins/plugin-demo/1.0/plugin-demo-1.0.jar"; echo 1 > "$M/fr/paris/lutece/plugins/library-x/1.0/library-x-1.0.jar"
 k0=$(python3 "$K" "$P")
-touch "$P/src/java/A.java"; echo x > "$P/target/B.class"; echo x > "$P/e2e/artifacts/summary.md"; echo x > "$P/e2e/harness/site7/pom.xml"
-check "touch, build output, artifacts and generated v7 site leave the key" '[ "$(python3 "$K" "$P")" = "$k0" ]'
+touch "$P/src/java/A.java"; echo x > "$P/target/B.class"; echo x > "$P/e2e/artifacts/summary.md"
+check "touch, build output and artifacts leave the key" '[ "$(python3 "$K" "$P")" = "$k0" ]'
 echo 22 > "$M/fr/paris/lutece/plugins/plugin-demo/1.0/plugin-demo-1.0.jar"
 check "the project's own jar reinstalled leaves the key" '[ "$(python3 "$K" "$P")" = "$k0" ]'
 echo 'class A { }' > "$P/src/java/A.java"; k1=$(python3 "$K" "$P")

@@ -4,9 +4,9 @@
 Usage: v7-portlet-types.py <v7 exploded webapp>
 
 A v7 site installs a plugin from the admin: Plugin.install( ) calls registerPortlets( ), which replaces the
-core_portlet_type row of every <portlets>/<portlet> of the plugin descriptor that names a portlet-class. The v7 leg of
-the bench enables its plugins through plugins.dat, which only runs init( ): those rows are missing and the v7 base
-handed to the v8 leg lacks portlet types a real site has. Prints, for each plugin enabled in plugins.dat, the DELETE
+core_portlet_type row of every <portlets>/<portlet> of the plugin descriptor that names a portlet-class. The v7 site of
+lpe2e upgrade enables its plugins through plugins.dat, which only runs init( ): those rows are missing and the v7 base
+taken over by the bench site lacks portlet types a real site has. Prints, for each plugin enabled in plugins.dat, the DELETE
 and INSERT that registerPortlets( ) runs, with the columns of the v7 PortletTypeDAO.
 """
 import glob

@@ -16,9 +16,7 @@ scenarios:
   #   title: Entités — créer, retrouver, modifier, supprimer
   #   req: MYPLUGIN_MANAGEMENT
   #   steps:
-  #     # A step value may be {v7: ..., v8: ...} where the migration changed the url or the selector: run.sh compare
-  #     # then plays the same parcours on both legs (E2E_VERSION picks the value).
-  #     - goto: {v7: jsp/admin/plugins/myplugin/CreateMyEntity.jsp, v8: jsp/admin/plugins/myplugin/ManageMyEntities.jsp?view=createMyEntity}
+  #     - goto: jsp/admin/plugins/myplugin/ManageMyEntities.jsp?view=createMyEntity
   #     - fill_form:
   #         form: 'form[action*="ManageMyEntities.jsp"]'
   #         values: {title: 'E2E {{rand}}'}

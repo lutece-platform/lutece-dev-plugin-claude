@@ -7,7 +7,7 @@ import re
 import time
 import urllib.parse
 
-E2E = pathlib.Path(__file__).resolve().parents[1]
+E2E = pathlib.Path(os.environ.get("E2E_DIR") or pathlib.Path(__file__).resolve().parents[1])
 ARTIFACTS = E2E / "artifacts"
 BASE = os.environ.get("E2E_BASE", "http://localhost:18080/lutece").rstrip("/")
 BENCH_HOSTS = sorted({"localhost", urllib.parse.urlsplit(BASE).hostname,
@@ -434,7 +434,8 @@ def fill_form(page, form, values=None, seed="e2e"):
 def submit(page, form, button=None):
     """Submits a form (the given submit control, else its first one, else form.submit) and waits for the
     navigation. A missing form is an assertion failure, never a silent no-op. The MVC names the form carries are
-    noted for the navigation first: Chromium hands no body of a multipart POST with a file to the observer."""
+    noted for the navigation first: Chromium hands no body of a multipart POST with a file to the observer. A form
+    the browser's own validation refuses never navigates: its wait is short instead of the full navigation timeout."""
     loc = page.locator(form).first
     assert loc.count(), "no form matches %s on %s" % (form, normalize(page.url))
     if button:
@@ -447,8 +448,11 @@ def submit(page, form, button=None):
             if (m) names.unshift(m[1] + '=' + m[2]);
             if (b && (b.name === 'action' || b.name === 'view') && b.value) names.unshift(b.name + '=' + b.value);
             return names; }""", button)
+    valid = loc.evaluate("""(f, btn) => {
+        const b = btn ? f.querySelector(btn) : f.querySelector('button[type=submit], input[type=submit], button:not([type])');
+        return !f.checkValidity || f.noValidate || !!(b && b.formNoValidate) || f.checkValidity(); }""", button)
     try:
-        with page.expect_navigation(wait_until="domcontentloaded", timeout=30000):
+        with page.expect_navigation(wait_until="domcontentloaded", timeout=30000 if valid else 2000):
             loc.evaluate("""(f, btn) => {
                 const b = btn ? f.querySelector(btn) : f.querySelector('button[type=submit], input[type=submit], button:not([type])');
                 if (b) b.click(); else f.requestSubmit ? f.requestSubmit() : f.submit(); }""", button)
@@ -587,9 +591,8 @@ def console_allowed(text):
     return False
 
 
-# The v7 leg of run.sh compare runs the artefact inside a Lutece 7 site: its theme, its jQuery, its assets are
-# the environment of that run, not the artefact under test, and their console noise says nothing about the
-# migration. Failing a v7 screen on it turns every such screen into a false "corrigé" in the comparison.
+# With E2E_VERSION=v7 the artefact would run inside a Lutece 7 site, whose theme, jQuery and assets are not the
+# artefact under test.
 V7_ENV_NOISE = tuple(re.compile(p, re.I) for p in (
     r"Refused to apply style", r"MIME type \('text/html'\)", r"jquery", r"\$ is not defined",
     r"Failed to load resource", r"favicon",

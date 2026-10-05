@@ -28,14 +28,9 @@ params: []
 # visible instead of quietly disappearing from the coverage.
 # Never skip a screen because it is broken: a defect of the artefact is a red test, not an exclusion. A screen that
 # throws on load (a missing library, a dead script) is opened, fails, and is fixed or reported.
-# `versions` restricts the rule to the versions listed, for a screen only one leg of the comparison can open:
-# excluding it everywhere would drop a screen the other leg proves.
 #   skip:
 #     - match: 'page=myxpage'
 #       reason: 'step of the booking flow: needs starting_date_time from a real slot'
-#     - match: 'page=myotherxpage'
-#       versions: [v7]
-#       reason: 'v7 leg only: redirects to an external identity provider the bench cannot reach'
 skip: []
 
 # Rendering findings the bench accepts, as regexes, each with its reason in a comment. For a screen that shows a

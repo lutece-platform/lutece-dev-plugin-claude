@@ -1,6 +1,6 @@
 ---
 name: lutece-e2e
-description: "Use to give any Lutece 8 core, plugin, module or site an e2e/ bench that runs with one command: isolated Docker stack (Open Liberty HotSpot, MariaDB instrumented), synthetic volume, static + dynamic inventory of every back-office screen and action, Playwright suites (screens, YAML scenarios, forms) with a clean-console rule, server timings, SQL digests, JFR, k6, and a compact report. Also proves a migration's upgrade path: `run.sh compare` builds the artefact before its migration on a v7 site, then the v8 one on that same database, so a missing update_db script is caught instead of hidden by a fresh install. Triggers on 'e2e', 'tests de bout en bout', 'Playwright', 'tester tous les écrans', 'banc de test', 'non-régression BO', 'prouver la migration', 'chemin de mise à jour'."
+description: "Use to give a Lutece 8 plugin, module or site an e2e bench run with one command (lpe2e) on the machine's shared e2e server: the latest Lutece 8 snapshots, Open Liberty and MariaDB kept warm, static + dynamic inventory of every back-office screen and action, Playwright suites (screens, YAML scenarios, forms) with a clean-console rule on warm browsers, server timings, SQL digests, JFR, a compact report, a hot loop (lpe2e watch) that applies a template or Java change in the running application and replays the tests it can break in seconds, and the database upgrade (lpe2e upgrade) lived as an environment lives it. Triggers on 'e2e', 'tests de bout en bout', 'Playwright', 'tester tous les écrans', 'banc de test', 'non-régression BO', 'prouver la migration'."
 metadata:
   summary: "Give a project an e2e bench that tests every screen in one command."
 ---
@@ -9,10 +9,13 @@ metadata:
 
 ## What this produces, and who writes what
 
-A self-contained `e2e/` folder in the project under test, whose `./run.sh` builds the artefact, mounts an
-isolated stack (Open Liberty + MariaDB + a mail sink), lets the application's own Liquibase create the schema,
-seeds a synthetic volume, inventories **every** back-office screen and action, runs the suites in parallel,
-profiles the server and writes `artifacts/summary.md`.
+An `e2e/` folder in the project under test holding only its configuration (`e2e.conf`, the scenarios, the
+fixtures, the bench's own seeds and site files), and one command, `lpe2e`, run from the project. The bench code stays
+in this skill and runs from `~/.lutecepowers-e2e`, installed at its first use: one MariaDB, one mail sink and one
+generic Open Liberty image for every bench of the machine, the assembled sites cached by composition, warm test
+workers. A run packages the artefact, lays out its site from the cache, starts it on a fresh database (the
+application's own Liquibase creates the schema), seeds it, inventories **every** back-office screen and action, runs
+the suites, profiles the server and writes `artifacts/summary.md`: about 35 seconds for a plugin.
 
 The harness is a **starter kit and presumes nothing about the target**: it seeds no reference row, no account,
 no volume, and ships no scenario. Everything target-specific is **written by the agent** — the seed rows its
@@ -20,19 +23,28 @@ screens need, the accounts its rights tests require, the volume for the tables i
 On lutece-core that yields a core bench; on a FAQ plugin, FAQ rows and FAQ scenarios. Never hard-code either:
 the idioms live in `templates/scenarios-example.yaml` and `templates/scenarios-negative-example.yaml`.
 
-The agent writes only `e2e.conf` and the YAML scenarios. Everything else is a script shipped here.
+The agent writes only `e2e.conf`, the YAML scenarios and the bench's own seeds. Everything else is shipped here.
+
+Every Lutece artefact of the bench site (the core, plugin-liquibase, mylutece, the extra plugins) is the **latest
+Lutece 8 snapshot** of the repositories, read at build time (`tools/latest-lutece.py`); a new snapshot published since
+the last run reassembles the site. `e2e.conf` pins a version only to reproduce a case.
 
 **`e2e/` is never committed.** It is a local test tool, not a deliverable of the plugin: `init-e2e.sh` adds it
-to the project's `.gitignore`. Hand over what it produced (`summary.md`, `compare.md`, `review.md`) as
+to the project's `.gitignore`. Hand over what it produced (`summary.md`, `review.md`) as
 attachments to the report, never as files of the repository.
 
-Prerequisites: Docker + Compose v2, Maven 3.9.x (not 4) with the Lutece repositories, JDK 17+ on the host (to run `mvn` and
-`jar`), network access to Maven Central once. The artefact resolves a lutece-core at or above the level of
-`tools/v8-floor.conf`; `run.sh build` stops with rc=10 otherwise.
+Prerequisites: Docker, Maven 3.9.x (not 4) with the Lutece repositories, JDK 17+ on the host, network access to the
+Lutece repositories and Maven Central at the first run. The artefact resolves the latest published lutece-core
+(`tools/v8-floor.conf`); `lpe2e build` stops with rc=10 otherwise.
 
-**`run.sh build` installs the artefact under test in `~/.m2`**, where it shadows the published snapshot for every
-other project on the machine. After a bench on `lutece-core`, delete its local snapshot directory (jar and
-`-webapp.zip`) so the next `mvn -U` build takes the published one again.
+**The first assembly of a site installs the artefact under test in `~/.m2`**, where it shadows the published snapshot
+for every other project on the machine.
+
+Run it as `bash ${LUTECEPOWERS_ROOT}/skills/lutece-e2e/lpe2e <command>` from the project (an alias `lpe2e` is
+convenient). Supported: a plugin or module (`E2E_TARGET=plugin`) and a site (`E2E_TARGET=site`: assembled with
+its own pom and `E2E_SITE_PROFILE`, the latest Lutece 8 core and plugin-liquibase forced over its BOM, every screen
+of the site tested), with the stand-ins of external systems (`E2E_FAKES=1`) and the real search engines
+(`E2E_SEARCH=1`) beside the application. The core is not supported: `lpe2e` refuses it (rc=2).
 
 ## Additional resources
 
@@ -41,64 +53,58 @@ Read these only when the case applies — none is needed for a plain bench.
 - **The traps that fake a green run** — screens opened without their parameters, a front-office assertion that
   passes on the site menu, a seed that lands after the cache froze, REST endpoints, scenario ordering:
   [reference/traps.md](reference/traps.md). Read at PHASE 2.
-- **External systems** — CAS, OIDC, identity store, notifygru, ANTS, CRM, TIPI, and the real Solr and
-  Elasticsearch: [reference/external-systems.md](reference/external-systems.md). Only if the artefact calls one.
-- **Proving a migration** (`compare`) and **running against a deployed instance** (`external`):
-  [reference/compare.md](reference/compare.md). An artefact written for v8 never runs `compare`.
+- **Proving the database upgrade** of a migration or an update (`lpe2e upgrade`): the previous version's database
+  (a v7 site installed and seeded, a recette dump, or the previous v8 version), brought under Liquibase as the
+  environments will, taken over by the bench site, then the suites on it: [reference/upgrade.md](reference/upgrade.md).
+- **External systems** (CAS, OIDC, identity store, notifygru, ANTS, CRM, TIPI, Solr, Elasticsearch) and **running
+  against a deployed instance** (`external`): [reference/external-systems.md](reference/external-systems.md).
 - **Scope of a plugin bench** — what extra artefacts to assemble (`E2E_PLUGINS`, `E2E_ENABLE`), front-office
   coverage, how the mechanics measure: [reference/scope.md](reference/scope.md). Read at PHASE 1.
-- **Why each tool was chosen, and what was rejected**: [reference/DESIGN.md](reference/DESIGN.md). Read before
-  changing a tool choice. Its § Traps lists the platform traps the scripts already work around (Liberty image
-  and JFR, OpenJ9, JDBC driver location, `/logs` ownership, `form.action` shadowing, session-killing public
-  forms) — do not re-diagnose them; fix the script if one resurfaces.
+- **How the shared bench works and why each choice**: [reference/DESIGN.md](reference/DESIGN.md).
+  Read before changing the bench. Its § Traps lists the platform traps the bench already works around — do not
+  re-diagnose them; fix the bench if one resurfaces.
 
 ## What you can run, and when
 
-`./e2e/run.sh` with no argument runs the whole chain and ends on `artifacts/summary.md`. That is the command
-for almost every bench. The others are the same steps taken one at a time, to iterate without paying for a
-full run.
+`lpe2e` with no argument runs the whole chain and ends on `artifacts/summary.md`. That is the command for the first
+run and for the last one. In between, a fix is applied and checked by `lpe2e watch`, in seconds.
 
 | Command | What it does | When |
 |---|---|---|
-| *(none)*, `all` | build, stack, inventory, crawl, smoke, suites, perf, report, visual review | every bench |
-| `build` | assembles the artefact and the site into a war | after a source change |
-| `up` | starts the stack on an empty database, waits for health, seeds | to work step by step |
+| *(none)*, `all` | build if needed, start, inventory, crawl, smoke, suites, perf, report, visual review, stop | first and last run |
+| `watch` | the hot loop on a running bench (`KEEP=1 lpe2e` first): a web file is served at once, a Java method body is redefined in the running JVM, anything else rebuilds the jar and restarts the JVM; then the tests the change can break, then every suite | while fixing |
+| `selftest` | proves on a running bench that `watch` misses no bug: a baseline verdict, then a template bug and a Java bug injected through `watch`'s own path right after a render, each required red, reverted and required green; the sources are restored; `SELFTEST PASSED` or exit 1 | after changing the hot loop, or before trusting it on a new project |
+| `build` | packages the artefact and lays out the bench site (the assembled site is cached) | after a source change, to work step by step |
+| `up` | starts the bench on a fresh database, waits for the application, seeds | to work step by step |
 | `inventory` | reads the sources: every screen, action, right and REST endpoint | to see what there is to cover |
 | `discover` | crawls the running site and completes the inventory | after `up` |
-| `test` | every suite against the running stack | after `up` |
-| `test <pytest args>` | one pytest call, e.g. `test tests/test_scenarios.py -k <id>` (seconds) | while writing or fixing |
-| `deploy` | copies `webapp/` into the running site at once; rebuilds and swaps the jar, then restarts, when Java or resources changed | after each fix |
-| `perf` | server timings, SQL digests; `E2E_PERF=1` adds k6, `E2E_JFR=1` JFR hot methods | after the suites |
+| `test` | every suite against the running bench | after `up` |
+| `test <pytest args>` | one pytest call, e.g. `test /bench/tests/test_scenarios.py -k <id>` (seconds) | while writing a scenario |
+| `perf` | server timings, SQL digests; `E2E_JFR=1` adds the JFR hot methods | after the suites |
 | `report` | rebuilds `summary.md` and `report.html` from the artefacts already there | free, anytime |
 | `review` | the screen-by-screen visual gate | before handing over |
-| `logs`, `status`, `sh` | the application log, the containers, a shell inside the application | while diagnosing |
-| `down` | stops the stack, drops its volumes and the images earlier builds left untagged | when done |
-| `clean` | `down`, then removes the images of this bench (about 2 GB each; the next run builds them again) | the bench is no longer needed |
-| `compare` | the artefact **before** its migration on a v7 site, then the v8 one on that same database | migration only |
-| `upgrade` | `E2E_BEFORE_WAR` (the previous Lutece 8 version) on a fresh database, then the war under test on that database: changesets run, plugins left disabled, orphan status keys, settings lost, then the suites | update of a v8 artefact or site |
-| `external` | the suites against a site deployed elsewhere, from `E2E_BASE_URL` | recette, preprod |
+| `key` | the key a green run stamps (`artifacts/pass-*`): sources, configuration, bench code, Lutece artefacts | read by `final-gate.sh` |
+| `logs`, `status`, `port`, `sh`, `py` | the application log, the containers, the host port, a shell, a script in the runner | while diagnosing |
+| `upgrade` | the previous version's database taken over by the bench site, then the suites on it ([reference/upgrade.md](reference/upgrade.md)) | a migration or an update, before handing over |
+| `down` | removes the bench's containers and database; the shared server stays for the other benches | when done |
 
-The last two are conditional and documented apart: [reference/compare.md](reference/compare.md). Everything
-above them applies to any artefact.
-
-## PHASE 1 — Materialise the bench (2 minutes)
+## PHASE 1 — Write the bench configuration (1 minute)
 
 ```bash
-bash ${LUTECEPOWERS_ROOT}/skills/lutece-e2e/scripts/init-e2e.sh <project-dir>      # infers core|plugin from the pom
+bash ${LUTECEPOWERS_ROOT}/skills/lutece-e2e/scripts/init-e2e.sh <project-dir>
 ```
 
-Then edit `e2e/e2e.conf`:
-- `E2E_TARGET` core | plugin. A **site** builds with its own pom: set `E2E_TARGET=site` and keep `tools/gen-site.sh`
-  out of the flow: `${LUTECEPOWERS_ROOT}/tools/site-assemble.sh <site> --out <dir>`, then
-  `${LUTECEPOWERS_ROOT}/tools/site-bench-war.sh <dir> e2e/harness/site/target/lutece.war`, which adds the configuration
-  probe `lutece-update-site` reads (it prints the token).
-- `E2E_PLUGINS` extra artefacts to assemble (`groupId:artifactId:version:type`, comma-separated) — the
-  plugin's runtime dependencies that are not pulled transitively (mylutece, workflow, genericattributes…).
+It writes `e2e/e2e.conf`, the scenario skeletons, the fixtures, `harness/app.env` and `harness/server-errors-allow.txt`,
+and adds `e2e/` to the project's `.gitignore`; no bench code is copied. Then edit `e2e/e2e.conf`:
+- `E2E_PLUGINS` extra artefacts to assemble (`groupId:artifactId`, comma-separated; a version only to pin one) — the
+  plugin's runtime dependencies that are not pulled transitively (workflow, genericattributes…).
 - `E2E_ENABLE` plugin names to mark installed in `plugins.dat` (v8 default is *not installed*).
-- Ports when several benches run on the same machine.
+
+No port, no container name, no version to choose: the shared server gives the bench its own database and host port
+(`lpe2e port`), and the site takes the latest Lutece 8 snapshots.
 
 **Front-office authentication comes with the bench.** `plugin-mylutece` and `module-mylutece-database` are
-assembled and enabled by default (`E2E_MYLUTECE=1`; the v7 side of `compare` gets the last v7 releases), the plugin's own `mylutece.properties` turns authentication on without making the
+assembled and enabled by default (`E2E_MYLUTECE=1`; the v7 site of `upgrade` gets the last v7 releases), the plugin's own `mylutece.properties` turns authentication on without making the
 site private, and `harness/db/post-init-mylutece.sql` seeds the account **test / testtest** (role `e2e_user`).
 A scenario signs in with one step, `login_fo: {user: test, password: testtest, provider: mylutece-database}`
 (it fails when the login form is still there afterwards), under `anonymous: true`. A bench that needs another
@@ -112,7 +118,7 @@ under `skip` with that reason, it is the module's behaviour and not the artefact
 no error wording), `confirmation`, `error`, `warning`, `info`, `auth` (session lost), `login`, `error-page`,
 `fo`, `fragment`, `http-NNN`. A screen test passes only when the kind matches what that screen must show.
 `tests/test_harness.py` checks the classifier on a real screen, a confirmation, a lost session, a login form
-and a 404 before anything else; when it fails no other suite runs and `run.sh` ends with code 3. Never weaken it: the absence of an
+and a 404 before anything else; when it fails no other suite runs and `lpe2e` ends with code 3. Never weaken it: the absence of an
 error marker is not a success — "please authenticate" and "Internal error" render in HTTP 200.
 
 `summary.md` carries three guardrails to read on every run: the count of kinds among **passed** tests
@@ -123,17 +129,27 @@ three random screenshots in `report.html` before calling a run green.
 ## PHASE 2 — First run, read the summary (5–8 minutes)
 
 ```bash
-KEEP=1 ./e2e/run.sh                                  # full run, stack kept up
+KEEP=1 lpe2e                                         # full run, bench kept up
 cat e2e/artifacts/summary.md
-./e2e/run.sh deploy                                  # after each fix
-./e2e/run.sh test tests/test_scenarios.py -k <id>    # replay what the fix touches
-./e2e/run.sh                                         # once at the end, then the review
-./e2e/run.sh compare                                 # once, last, when every suite is green
+lpe2e watch                                          # in the background: every fix applied and tested in seconds
+lpe2e test /bench/tests/test_scenarios.py -k <id>    # replay one scenario while writing it
+lpe2e                                                # once at the end, then the review
 ```
 
-Never a full run per fix, never a second compare on the same sources. A green run and a green compare leave the key
-of their sources (`artifacts/pass-all`, `pass-compare`), and `final-gate.sh` reuses them instead of playing them
-again. Stacks on one machine share its cores: run one bench at a time.
+`lpe2e watch` is the loop to fix in: run it in the background and follow its lines as events. Each batch of changes
+prints how it was applied (a template served at once, a method body redefined in the running JVM, or a jar rebuilt
+and the JVM restarted), the tests related to the change (the JSP screens or the front-office application that reach
+it) with their verdict, then the verdict of every suite. A compile error is printed and nothing runs until the next
+save. The classes `watch` keeps for a Java change stay in the bench site until the jar is packaged again: the next
+`lpe2e up` packages it first, so the bench starts on the current sources.
+
+`lpe2e selftest` proves that loop on the project: it breaks a template the first front-office XPage cites (else the
+manage template of the first JspBean), then that class's display method, through the same hot path, and requires each
+bug red and each revert green against the failures already there. One `SELFTEST` line per step, then `SELFTEST
+PASSED` or `SELFTEST FAILED` (exit 1).
+
+Never a full run per fix. A green run leaves the key of what it judged (`artifacts/pass-all`, `lpe2e key`), and
+`final-gate.sh` reuses it instead of playing it again. Benches on one machine share its cores: run one at a time.
 
 Read in this order: the suite table, the failures, the console section, the server errors, the slowest
 paths. **A failing test is a finding, not a harness bug, until proven otherwise**: the core itself shows
@@ -176,7 +192,7 @@ screen).
 
 **The artefact's own actions are the point of the bench, and a run does not end green without them.** A plugin
 exists for one or two workflows — an import plugin imports files, a form plugin submits a form — and a bench that opens its
-listings and stops has proved the menu, not the plugin. `run.sh all` fails with **rc=9** while an action of the
+listings and stops has proved the menu, not the plugin. `lpe2e all` fails with **rc=9** while an action of the
 artefact (`Do*`, an MVC `action=`, an upload endpoint) is neither proven by a green scenario, tested red, nor
 excluded with a written reason; `COVERAGE=skip` bypasses it to iterate, never to hand over. Start the scenarios
 from the artefact's main workflow, played end to end the way a user plays it (upload a real file from
@@ -184,9 +200,9 @@ from the artefact's main workflow, played end to end the way a user plays it (up
 
 Work the "à couvrir" list of `summary.md` down to zero: every inventory element ends up covered by a test, or
 listed in `scenarios/coverage-exclusions.yaml` with a written reason (a defect found by the suites, a plugin
-not on the bench, a dead template). Exclusions stay visible in the report as debt; they never lower the totals. **A defect of the artefact itself is never an exclusion**, in `coverage-exclusions.yaml` or under `skip` in `screens.yaml`: a screen that dies on load ("jQuery is not defined") is opened and fails red, and the defect is fixed or reported, not written down as a reason to look away. `bash tools/py.sh tools/coverage.py` prints the to-do list; `bash tools/py.sh tools/causes.py`
-prints the server exception behind each failure; `bash tools/forms.sh <src> <feature>` prints the forms and
-field names of a feature's templates. When a real defect blocks the middle of a lifecycle, split the scenario
+not on the bench, a dead template). Exclusions stay visible in the report as debt; they never lower the totals. **A defect of the artefact itself is never an exclusion**, in `coverage-exclusions.yaml` or under `skip` in `screens.yaml`: a screen that dies on load ("jQuery is not defined") is opened and fails red, and the defect is fixed or reported, not written down as a reason to look away. `lpe2e report` prints the to-do list; `artifacts/causes.json` holds the server exception behind each failure;
+`bash ${LUTECEPOWERS_ROOT}/skills/lutece-e2e/tools/forms.sh <src> <feature>` prints the forms and field names of a
+feature's templates. When a real defect blocks the middle of a lifecycle, split the scenario
 so the actions after the defect stay covered. `sql_exec` arranges data the UI cannot create (a broken create screen), never asserts.
 
 One YAML per feature in `e2e/scenarios/`. Aim for one CRUD lifecycle per admin feature of the artefact
@@ -233,12 +249,11 @@ the screen, `fill`, `submit` the form — that is the user's path, and it is the
 
 ## PHASE 4 — Volume and bottlenecks
 
-**The k6 load is off by default** (`E2E_PERF=1` turns it on). It costs minutes on every run and a migration is
-judged on behaviour; performance is this phase's question, not every run's. The rest of the perf step still runs:
-it writes `artifacts/perf.json`, which the server-error gate reads.
+The perf step of every run writes `artifacts/perf.json` (server timings, SQL digests), which the server-error gate
+reads.
 
 ```bash
-E2E_VOLUME=large ./e2e/run.sh down && E2E_VOLUME=large E2E_JFR=1 KEEP=1 ./e2e/run.sh
+E2E_VOLUME=large E2E_JFR=1 KEEP=1 lpe2e
 ```
 
 **The generic harness seeds nothing.** Bottlenecks are hunted in the tables *the artefact under test* actually
@@ -257,13 +272,13 @@ The suites prove behaviour and `lutece.render_check` catches what a machine can 
 untranslated label, a fragment with no design system applied. Only eyes catch those, so the run does not end
 until the agent has looked at every screen.
 
-`./run.sh all` runs `tools/review.py todo`, which deduplicates the captures into groups — one group per
+`lpe2e all` runs `tools/review.py todo`, which deduplicates the captures into groups — one group per
 (url path, DOM kind), whatever the data, plus one per explicit `shot:` step of a scenario (the way to get a screen
 only a signed-in user reaches, such as a front-office page behind a login, into the review) — and writes
 `artifacts/review-todo.md`. The gate then calls
 `tools/review.py check` and **fails with rc=7** until `artifacts/review.md` carries a verdict for every group.
-`REVIEW=skip ./run.sh all` bypasses it; use that only to iterate, never to hand over. The first full run ends rc=7:
-the review is written after it, on its captures, and `./run.sh review` then gives rc=0 and marks that run as passed:
+`REVIEW=skip lpe2e all` bypasses it; use that only to iterate, never to hand over. The first full run ends rc=7:
+the review is written after it, on its captures, and `lpe2e review` then gives rc=0 and marks that run as passed:
 never run the bench again only for the review. The review stays valid for every later run of the same sources, and
 while its captures are unchanged. The failure capture of a `core_defect` scenario is not a group.
 
@@ -285,7 +300,7 @@ exposes, are in [reference/traps.md](reference/traps.md) § Naming a rendering d
 
 ## PHASE 5 — Freeze and hand over
 
-- `baselines/aria/` is seeded from the first run at delivery scope (`run.sh report` copies the aria snapshots
+- `baselines/aria/` is seeded from the first run at delivery scope (`lpe2e report` copies the aria snapshots
   when it is empty and `E2E_SCOPE` is not `all`), so later runs on the same workstation diff against it. The
   visual review (`review.py`) judges the artefact's own screen families; a widened run's core screens are the
   environment's and are not listed.

@@ -20,5 +20,8 @@ e2e_lock() {
   fi
   echo "$$" > "$dir/pid"; date '+%F %T' > "$dir/started"; echo "${E2E_LOCK_CMD:-$0 $*}" > "$dir/cmd"
   export E2E_LOCK_OWNER=$$
-  trap 'rm -rf "'"$dir"'"' EXIT
+  trap 'e2e_on_exit; rm -rf "'"$dir"'"' EXIT
 }
+
+# Runs when the lock holder exits, however it exits; a script that has something to undo redefines it.
+declare -F e2e_on_exit >/dev/null || e2e_on_exit() { :; }

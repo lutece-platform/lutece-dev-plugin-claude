@@ -1,0 +1,16 @@
+# Generic Open Liberty of every bench of the machine, built once: no application inside, the bench site is mounted at
+# /site and its server.xml, jvm.options and server.env next to it (server.py up). Temurin (HotSpot) for a complete JFR
+# and jcmd; the MariaDB driver the bench's dataSource names is installed once here. A shell loop restarts the server
+# after a `server stop`, so the bench can restart the JVM without losing the network namespace it shares.
+FROM eclipse-temurin:21-jdk-noble
+ARG LIBERTY_VERSION=26.0.0.9
+ARG MARIADB_VERSION=3.5.10
+RUN curl -fsSL -o /tmp/ol.zip "https://repo1.maven.org/maven2/io/openliberty/openliberty-runtime/${LIBERTY_VERSION}/openliberty-runtime-${LIBERTY_VERSION}.zip" \
+ && cd /opt && jar xf /tmp/ol.zip && rm /tmp/ol.zip && chmod -R a+x /opt/wlp/bin \
+ && /opt/wlp/bin/server create defaultServer && mkdir -p /logs /opt/wlp/output /opt/wlp/usr/shared/resources/jdbc \
+ && curl -fsSL -o /opt/wlp/usr/shared/resources/jdbc/mariadb-java-client-${MARIADB_VERSION}.jar \
+    "https://repo1.maven.org/maven2/org/mariadb/jdbc/mariadb-java-client/${MARIADB_VERSION}/mariadb-java-client-${MARIADB_VERSION}.jar" \
+ && chmod -R a+rwX /opt/wlp/usr/servers /opt/wlp/output /logs
+ENV WLP_OUTPUT_DIR=/opt/wlp/output LOG_DIR=/logs PATH="/opt/wlp/bin:${PATH}"
+EXPOSE 9090 5005
+CMD ["sh", "-c", "while :; do /opt/wlp/bin/server run defaultServer; sleep 0.2; done"]

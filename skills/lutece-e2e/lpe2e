@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# lpe2e — the e2e bench of the Lutece project in the current directory (or the one given with -C <dir>).
+# The bench code is copied into ~/.lutecepowers-e2e/bench when it changed (a stable place the shared server and the
+# runners mount), then run.sh runs on the project's e2e/ folder. Commands: see run.sh, `lpe2e help`.
+set -euo pipefail
+export LC_ALL=C
+SKILL=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
+HOME_E2E=${LUTECEPOWERS_E2E_HOME:-$HOME/.lutecepowers-e2e}
+PROJECT=$PWD
+if [ "${1:-}" = -C ]; then PROJECT=$(cd "$2" && pwd); shift 2; fi
+while [ ! -f "$PROJECT/e2e/e2e.conf" ] && [ "$PROJECT" != / ]; do PROJECT=$(dirname "$PROJECT"); done
+[ -f "$PROJECT/e2e/e2e.conf" ] || { echo "lpe2e: no e2e/e2e.conf in this project or above it: run scripts/init-e2e.sh on the project first" >&2; exit 2; }
+[ "${1:-}" = help ] && exec sed -n '2,/^set -euo/{/^set -euo/!p}' "$SKILL/run.sh"
+mkdir -p "$HOME_E2E/bench"
+SHARED=(python.sh py.sh check-v8-floor.sh v8-floor.conf latest-lutece.py site-assemble.sh site-config-dump.jsp)
+VERSION=$( { cd "$SKILL" && find run.sh lpe2e server tools tests harness -type f ! -path '*/__pycache__/*' -print0 | sort -z | xargs -0 sha1sum;
+             cd "$SKILL/../../tools" && sha1sum "${SHARED[@]}"; } | sha1sum | cut -c1-12)
+if [ "$(cat "$HOME_E2E/bench/.version" 2>/dev/null)" != "$VERSION" ]; then
+  for d in server tools tests harness; do
+    mkdir -p "$HOME_E2E/bench/$d"
+    cp -a "$SKILL/$d/." "$HOME_E2E/bench/$d/"
+  done
+  cp "$SKILL/run.sh" "$SKILL/lpe2e" "$HOME_E2E/bench/"
+  (cd "$SKILL/../../tools" && cp "${SHARED[@]}" "$HOME_E2E/bench/tools/")
+  { (cd "$SKILL" && find server tools tests harness -type f ! -path '*/__pycache__/*'); printf 'tools/%s\n' "${SHARED[@]}"; } | sort > "$HOME_E2E/bench/.files.new"
+  if [ -f "$HOME_E2E/bench/.files" ]; then
+    comm -23 <(sort "$HOME_E2E/bench/.files") <(sort "$HOME_E2E/bench/.files.new") | while read -r f; do rm -f "$HOME_E2E/bench/$f"; done
+  fi
+  mv "$HOME_E2E/bench/.files.new" "$HOME_E2E/bench/.files"
+  echo "$VERSION" > "$HOME_E2E/bench/.version"
+fi
+export E2E_DIR="$PROJECT/e2e" LPE2E_VERSION="$VERSION"
+exec bash "$HOME_E2E/bench/run.sh" "$@"

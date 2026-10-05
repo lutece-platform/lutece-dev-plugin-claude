@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks the portlet types the v7 leg registers: those of an installed plugin's descriptor, as Plugin.install( ) does;
+# Checks the portlet types the v7 site registers: those of an installed plugin's descriptor, as Plugin.install( ) does;
 # none for a plugin plugins.dat leaves off, none for a portlet without a home class.
 set -u
 . "$(dirname "$0")/../../tools/python.sh"
@@ -16,4 +16,4 @@ out=$(python3 "$E/tools/v7-portlet-types.py" "$T")
 check "the installed plugin's portlet type is replaced, with its plugin name" 'echo "$out" | grep -q "^DELETE FROM core_portlet_type WHERE id_portlet_type = '"'"'DEMO_PORTLET'"'"';" && echo "$out" | grep -q "'"'"'x.DemoPortletHome'"'"', '"'"'demo'"'"'"'
 check "a portlet without home class is skipped" '! echo "$out" | grep -q NO_HOME'
 check "a plugin plugins.dat leaves off registers nothing" '! echo "$out" | grep -q OTHER_PORTLET'
-if [ $fail = 0 ]; then echo "PASS: the v7 leg registers the portlet types of its installed plugins"; else echo "$out"; exit 1; fi
+if [ $fail = 0 ]; then echo "PASS: the v7 site registers the portlet types of its installed plugins"; else echo "$out"; exit 1; fi

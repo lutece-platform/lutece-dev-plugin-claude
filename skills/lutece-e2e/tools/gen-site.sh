@@ -1,20 +1,46 @@
 #!/usr/bin/env bash
-# Materialises harness/site from the templates and e2e.conf, then assembles target/lutece.war.
+# Materialises the bench site project from the bench templates and e2e.conf, then assembles it (target/e2e-site-*).
 # The artefact under test (core or plugin) is installed to ~/.m2 first so the site picks the local build.
+#   gen-site.sh [--no-install | --pom-only]
+# --pom-only writes the site pom and plugins.dat and stops: their content is the key of the assembled-site cache.
+# E2E_DIR is the project's e2e folder (configuration), E2E_SITE_BUILD the directory the site is built in.
 set -euo pipefail
-E2E=$(cd "$(dirname "$0")/.." && pwd)
+BENCH=$(cd "$(dirname "$0")/.." && pwd)
+E2E=${E2E_DIR:-$PWD}
 # The environment wins over e2e.conf, as in run.sh: a caller that exported E2E_… (E2E_MYLUTECE=0 for one run, for
 # instance) must not have its choice overwritten by the file.
 _e2e_env=$(export -p | grep -E "^(declare -x |export )E2E_" || true)
 . "$E2E/e2e.conf"
 eval "$_e2e_env"
 SRC=$(cd "$E2E/$E2E_SRC" && pwd)
-SITE="$E2E/harness/site"
+SITE=${E2E_SITE_BUILD:-$E2E/harness/site}
 MVN=${MVN:-mvn}
+mkdir -p "$SITE"
+cp "$BENCH/harness/site/pom.xml.tpl" "$BENCH/harness/site/plugins.dat.tpl" "$SITE/"
+mkdir -p "$SITE/webapp" && cp -a "$BENCH/harness/site/webapp/." "$SITE/webapp/"
 
-eval_pom() { $MVN -q -f "$1" help:evaluate -Dexpression="$2" -DforceStdout 2>/dev/null; }
+# What Maven resolves from the project's pom (inherited groupId, the lutece-core version), asked once per content of
+# that pom: five Maven starts cost seconds on every build otherwise.
+POMKEY=$(sha1sum "$SRC/pom.xml" | cut -c1-12)
+POMINFO="$SITE/.pominfo-$POMKEY"
+eval_pom() {
+  local k; k=$(echo "$2" | tr . _)
+  grep -sq "^$k=" "$POMINFO" || echo "$k=$($MVN -q -f "$1" help:evaluate -Dexpression="$2" -DforceStdout 2>/dev/null)" >> "$POMINFO"
+  sed -n "s/^$k=//p" "$POMINFO" | head -1
+}
 
-if [ "${1:-}" != "--no-install" ]; then
+# Every Lutece version of the site is the latest Lutece 8 one the repositories carry (tools/latest-lutece.py), unless
+# e2e.conf pins one: the bench tests against what is available now, never against a version written down once.
+LATEST="$BENCH/tools/latest-lutece.py"; [ -f "$LATEST" ] || LATEST="$BENCH/../../tools/latest-lutece.py"
+BUILDS="$SITE/.builds"; : > "$BUILDS"
+latest() {
+  local line; line=$(python3 "$LATEST" snapshot "$1") || return 1
+  echo "$line" >> "$BUILDS"
+  echo "$line" | cut -d: -f3
+}
+need() { [ -n "$2" ] || { echo "no Lutece 8 snapshot of $1 found (repositories and local Maven repository); pin one in e2e.conf" >&2; exit 2; }; }
+
+if [ "${1:-}" != "--no-install" ] && [ "${1:-}" != "--pom-only" ]; then
   echo ">> mvn install ($E2E_TARGET) $SRC"
   $MVN -B -q -f "$SRC/pom.xml" clean install -Dmaven.test.skip=true
 fi
@@ -24,10 +50,7 @@ case "$E2E_TARGET" in
   core)
     CORE_VERSION=$(eval_pom "$SRC/pom.xml" project.version) ;;
   plugin)
-    DL=$(mktemp)
-    [ -n "${E2E_CORE_VERSION:-}" ] || $MVN -q -B -f "$SRC/pom.xml" dependency:list -DincludeArtifactIds=lutece-core -DoutputFile="$DL" >/dev/null 2>&1 || true
-    CORE_VERSION=${E2E_CORE_VERSION:-$(grep -oE 'lutece-core:[^:]+:[^:]+:' "$DL" | head -1 | awk -F: '{print $3}')}
-    rm -f "$DL"
+    CORE_VERSION=${E2E_CORE_VERSION:-$(latest fr.paris.lutece:lutece-core)}; need lutece-core "$CORE_VERSION"
     [ -n "$CORE_VERSION" ] || { echo "cannot resolve the lutece-core version the plugin depends on; set E2E_CORE_VERSION in e2e.conf" >&2; exit 2; }
     G=$(eval_pom "$SRC/pom.xml" project.groupId); A=$(eval_pom "$SRC/pom.xml" project.artifactId)
     V=$(eval_pom "$SRC/pom.xml" project.version); T=$(eval_pom "$SRC/pom.xml" project.packaging)
@@ -45,32 +68,35 @@ case "$E2E_TARGET" in
 esac
 # Front-office authentication comes with the bench: plugin-mylutece and its database module, enabled, with the
 # account harness/db/post-init-mylutece.sql seeds (test / testtest). E2E_MYLUTECE=0 leaves them out; a bench
-# that names another version in E2E_PLUGINS keeps its own. Default: the latest v8 snapshots.
+# that names them in E2E_PLUGINS keeps its own entry. Default: the latest Lutece 8 snapshots.
 if [ "${E2E_MYLUTECE:-1}" != 0 ]; then
-  case ",${E2E_PLUGINS:-}," in *plugin-mylutece:*) ;; *) E2E_PLUGINS="${E2E_PLUGINS:+$E2E_PLUGINS,}fr.paris.lutece.plugins:plugin-mylutece:${E2E_MYLUTECE_VERSION:-5.0.1-SNAPSHOT}:lutece-plugin" ;; esac
-  case ",${E2E_PLUGINS:-}," in *module-mylutece-database:*) ;; *) E2E_PLUGINS="$E2E_PLUGINS,fr.paris.lutece.plugins:module-mylutece-database:${E2E_MYLUTECE_DATABASE_VERSION:-7.0.1-SNAPSHOT}:lutece-plugin" ;; esac
+  case ",${E2E_PLUGINS:-}," in *plugin-mylutece:*) ;; *) E2E_PLUGINS="${E2E_PLUGINS:+$E2E_PLUGINS,}fr.paris.lutece.plugins:plugin-mylutece:${E2E_MYLUTECE_VERSION:-}:lutece-plugin" ;; esac
+  case ",${E2E_PLUGINS:-}," in *module-mylutece-database:*) ;; *) E2E_PLUGINS="$E2E_PLUGINS,fr.paris.lutece.plugins:module-mylutece-database:${E2E_MYLUTECE_DATABASE_VERSION:-}:lutece-plugin" ;; esac
   for n in mylutece mylutece-database; do case ",${E2E_ENABLE:-}," in *,"$n",*) ;; *) E2E_ENABLE="${E2E_ENABLE:+$E2E_ENABLE,}$n" ;; esac; done
 fi
 IFS=',' read -ra EXTRA <<< "${E2E_PLUGINS:-}"
 for p in "${EXTRA[@]}"; do
   [ -n "$p" ] || continue
   IFS=':' read -r G A V T <<< "$p"
+  case "$V" in ""|latest|LATEST) V=$(latest "$G:$A"); need "$A" "$V" ;; esac
   DEPS="$DEPS
         <dependency><groupId>$G</groupId><artifactId>$A</artifactId><version>$V</version><type>${T:-lutece-plugin}</type></dependency>"
 done
-echo ">> core $CORE_VERSION ; liquibase ${E2E_LIQUIBASE_VERSION:-2.0.2-SNAPSHOT} ; extra deps: ${E2E_PLUGINS:-none} ; enabled: ${E2E_ENABLE:-none}"
-
-# plugin-liquibase 2.0.2-SNAPSHOT honours the `-- lutece runAfter:<plugin>` directive a plugin whose init_db
-# depends on another plugin's tables carries. Override with E2E_LIQUIBASE_VERSION in e2e.conf.
-LIQUIBASE_VERSION=${E2E_LIQUIBASE_VERSION:-2.0.2-SNAPSHOT}
+LIQUIBASE_VERSION=${E2E_LIQUIBASE_VERSION:-$(latest fr.paris.lutece.plugins:plugin-liquibase)}; need plugin-liquibase "$LIQUIBASE_VERSION"
+echo ">> core $CORE_VERSION ; liquibase $LIQUIBASE_VERSION ; extra deps: ${E2E_PLUGINS:-none} ; enabled: ${E2E_ENABLE:-none}"
 awk -v core="$CORE_VERSION" -v deps="$DEPS" -v liquibase="$LIQUIBASE_VERSION" '{gsub(/@@CORE_VERSION@@/, core); gsub(/@@LIQUIBASE_VERSION@@/, liquibase); if ($0 ~ /^[[:space:]]*@@DEPENDENCIES@@[[:space:]]*$/) print deps; else print}' \
     "$SITE/pom.xml.tpl" > "$SITE/pom.xml"
+# The snapshot builds the site was resolved against: a new build published since changes the pom, so the cached
+# assembled site is not reused and the assembly below fetches it (-U).
+echo "<!-- lutece snapshot builds: $(sort -u "$BUILDS" | tr '\n' ' ')-->" >> "$SITE/pom.xml"
+mkdir -p "$SITE/webapp/WEB-INF/plugins"
 ENABLED=$(echo "${E2E_ENABLE:-}" | tr ',' '\n' | sed '/^$/d; s/[[:space:]]//g; s/$/.installed=1/' | sort -u)
 awk -v repl="$ENABLED" '{if ($0 ~ /@@PLUGINS_ENABLED@@/) print repl; else print}' \
     "$SITE/plugins.dat.tpl" > "$SITE/webapp/WEB-INF/plugins/plugins.dat"
+[ "${1:-}" = "--pom-only" ] && exit 0
 
-echo ">> assemble war"
-( cd "$SITE" && $MVN -B -q -Pcontainer-runtime clean package lutece:site-assembly )
+echo ">> assemble the site"
+( cd "$SITE" && $MVN -B -q -U -Pcontainer-runtime clean package lutece:site-assembly )
 FINAL=$(find "$SITE/target" -maxdepth 1 -type d -name "e2e-site-*" | head -1)
 [ -n "$FINAL" ] || { echo "site-assembly produced no exploded directory under $SITE/target" >&2; exit 1; }
 # A search plugin ships a properties file pointing at a local engine (localhost:8983 for solr, localhost:9200 for
@@ -92,5 +118,4 @@ if [ -f "$FINAL/WEB-INF/conf/plugins/elasticdata.properties" ] \
     > "$FINAL/WEB-INF/conf/override/plugins/elasticdata.properties"
   echo ">> elasticsearch address overridden: http://elastic:9200"
 fi
-( cd "$FINAL" && jar -cf ../lutece.war . )
-echo ">> $(du -h "$SITE/target/lutece.war" | cut -f1) $SITE/target/lutece.war"
+echo ">> site assembled: $FINAL"

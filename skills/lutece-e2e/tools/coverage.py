@@ -7,6 +7,7 @@ With --gate, exits 1 when an action of the artefact is not proven by a green sce
 with a written reason), or a screen of the artefact is reached by no test at all: the report names the gap, the gate
 refuses to call the bench delivered with it."""
 import json
+import os
 import pathlib
 import re
 import sys
@@ -17,7 +18,7 @@ import yaml
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "tests"))
 import lutece  # noqa: E402
 
-E2E = pathlib.Path(__file__).resolve().parents[1]
+E2E = pathlib.Path(os.environ.get("E2E_DIR") or pathlib.Path(__file__).resolve().parents[1])
 A = E2E / "artifacts"
 
 

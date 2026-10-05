@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
-# Assembles harness/site7/target/lutece.war: the artefact BEFORE its migration, on a Lutece 7 site, for the
-# before/after comparison (run.sh compare). A site target (E2E_TARGET=site) brings its own v7 war (E2E_V7_WAR). The v7 sources are the git ref the clone still carries — HEAD while
+# Assembles the v7 bench site (target/e2e-site7-* under E2E_SITE7_BUILD, with versions.properties beside it): the
+# artefact BEFORE its migration, on a Lutece 7 site, for the database upgrade (lpe2e upgrade). A site target (E2E_TARGET=site) brings its own v7 war (E2E_V7_WAR). The v7 sources are the git ref the clone still carries — HEAD while
 # the migration is staged and not committed — checked out in a worktree and
 # built with plain mvn (the site pom declares the Lutece repositories), or with E2E_MVN7 when a developer keeps separate settings.
 set -euo pipefail
 . "$(dirname "$0")/python.sh"
-E2E=$(cd "$(dirname "$0")/.." && pwd)
+BENCH=$(cd "$(dirname "$0")/.." && pwd)
+E2E=${E2E_DIR:-$PWD}
 # The environment wins over e2e.conf, as in run.sh: a caller that exported E2E_… (E2E_MYLUTECE=0 for one run, for
 # instance) must not have its choice overwritten by the file.
 _e2e_env=$(export -p | grep -E "^(declare -x |export )E2E_" || true)
 . "$E2E/e2e.conf"
 eval "$_e2e_env"
 SRC=$(cd "$E2E/$E2E_SRC" && pwd)
-SITE="$E2E/harness/site7"
-WT="$E2E/harness/src7"
+SITE=${E2E_SITE7_BUILD:?the directory the v7 site is built in}
+WT="$SITE/../src7"
+mkdir -p "$SITE"
+cp "$BENCH/harness/site7/pom.xml.tpl" "$SITE/"
+mkdir -p "$SITE/webapp" && cp -a "$BENCH/harness/site7/webapp/." "$SITE/webapp/"
 # Plain mvn by default: the site pom declares its repositories. A developer keeping separate v7 settings sets
 # E2E_MVN7="mvn -s <path>" in e2e.conf; nothing here depends on one workstation.
 MVN7="${E2E_MVN7:-${MVN:-mvn}}"
@@ -47,7 +51,7 @@ fi
 # A v7 tree does not always compile against the v7 core the bench runs: an artefact left on an older core keeps a
 # call the 7.x line removed (a constructor, a method), and no choice of E2E_V7_CORE fixes it — the code never
 # compiled against that core. `harness/src7-overlay` is copied over the disposable worktree, same paths as the
-# sources, so the leg builds and the comparison can happen. It holds v7 code, never migrated code, and the
+# sources, so the v7 site builds. It holds v7 code, never migrated code, and the
 # migrated tree is never touched. Each file deserves a comment saying which core release broke it.
 if [ -d "$E2E/harness/src7-overlay" ]; then
   cp -a "$E2E/harness/src7-overlay/." "$WT/"
@@ -58,7 +62,7 @@ V7_PARENT=$(grep -A4 '<parent>' "$WT/pom.xml" | grep -oE '<version>[^<]+' | head
 case "$V7_PARENT" in 7.*|6.*|5.*) ;; *) echo "gen-site7.sh: $REF has parent $V7_PARENT, not a v7 tree (set E2E_V7_REF)" >&2; exit 2 ;; esac
 
 # A v7 pom often declares its dependencies as ranges, and the top of the range has moved on since: the sources
-# no longer compile against what Maven resolves today, and the leg cannot be built at all. E2E_V7_DEP_PINS
+# no longer compile against what Maven resolves today, and the v7 site cannot be built at all. E2E_V7_DEP_PINS
 # ("groupId:artifactId:version,...") replaces those versions in the worktree pom — the worktree is disposable,
 # the migrated tree is never touched. The pin belongs to the bench, beside E2E_V7_PLUGINS in e2e.conf.
 _PINS="${E2E_V7_DEP_PINS:-}"
@@ -126,11 +130,10 @@ awk -v core="$CORE" -v sp="$SITE_POM" -v deps="$DEPS" '{gsub(/@@CORE_VERSION@@/,
     "$SITE/pom.xml.tpl" > "$SITE/pom.xml"
 mkdir -p "$SITE/webapp/WEB-INF/plugins"
 # A bench whose artefact has no screen proves it through a probe JSP under harness/site/webapp/jsp/e2e. The v7
-# site needs the same probe, or every probe scenario fails on the v7 leg and the comparison reads "corrigé"
-# where only the v7 site was missing the page. The probe is the bench's, not the artefact's: it is copied as is.
-# The bench's own property overrides belong to both legs: the v8 site gets them from
+# site needs the same probe. The probe is the bench's, not the artefact's: it is copied as is.
+# The bench's own property overrides belong to both sites: the v8 site gets them from
 # harness/site/webapp/WEB-INF/conf/override, and Lutece 7 reads the same directory. Without them the v7 artefact
-# calls the real outside systems instead of the bench's stand-ins, and every such scenario reads as "corrigé".
+# calls the real outside systems instead of the bench's stand-ins.
 if [ -d "$E2E/harness/site/webapp/WEB-INF/conf/override" ]; then
   mkdir -p "$SITE/webapp/WEB-INF/conf/override"
   cp -a "$E2E/harness/site/webapp/WEB-INF/conf/override/." "$SITE/webapp/WEB-INF/conf/override/"
@@ -142,7 +145,7 @@ if [ -d "$E2E/harness/site/webapp/jsp/e2e" ]; then
 fi
 ENABLED=$(echo "$ENABLE" | tr ',' '\n' | sed '/^$/d; s/[[:space:]]//g; s/$/.installed=1/' | sort -u)
 awk -v repl="$ENABLED" '{if ($0 ~ /@@PLUGINS_ENABLED@@/) print repl; else print}' \
-    "$E2E/harness/site/plugins.dat.tpl" > "$SITE/webapp/WEB-INF/plugins/plugins.dat"
+    "$BENCH/harness/site/plugins.dat.tpl" > "$SITE/webapp/WEB-INF/plugins/plugins.dat"
 
 echo ">> assemble v7 war"
 ( cd "$SITE" && $MVN7 -B -q clean package lutece:site-assembly )
@@ -151,7 +154,7 @@ FINAL=$(find "$SITE/target" -maxdepth 1 -type d -name "e2e-site7-*" | head -1)
 else
   # A site is its own v7 before: the war tools/site-assemble.sh exploded, without an environment profile so that no
   # value of a real environment (its database, its identity provider, its search cluster) comes into the bench. The
-  # bench's database settings, property overrides and probe pages are laid over it, as on the plugin leg.
+  # bench's database settings, property overrides and probe pages are laid over it, as for a plugin.
   rm -rf "$SITE/target"; mkdir -p "$SITE/target"
   FINAL="$SITE/target/e2e-site7-site"
   cp -a "$E2E_V7_WAR" "$FINAL"
@@ -166,20 +169,19 @@ else
   echo ">> v7 site: $E2E_V7_WAR, core $CORE, database settings of the bench"
 fi
 # The v7 core reads its .properties through MicroProfile Config, so the environment reaches them; a literal in a
-# Spring context XML reads nothing. The v7 leg then calls the real outside system while the v8 leg calls the
-# stand-in, and the comparison reads the difference as "corrigé". `harness/v7-overlay` is laid over the assembled
+# Spring context XML reads nothing: the v7 site would call the real outside system. `harness/v7-overlay` is laid over the assembled
 # v7 webapp, after assembly so the artefact's own files are already there, for what only a file can change.
 if [ -d "$E2E/harness/v7-overlay" ]; then
   cp -a "$E2E/harness/v7-overlay/." "$FINAL/"
   echo ">> v7 overlay applied: $(cd "$E2E/harness/v7-overlay" && find . -type f | sed 's|^\./||' | tr '\n' ' ')"
 fi
-# Same as the v8 leg: a search plugin points at a local engine by default, the bench reaches containers by name.
+# Same as the v8 site: a search plugin points at a local engine by default, the bench reaches containers by name.
 # Written after the overlay so a bench that ships its own file still wins.
 if [ -f "$FINAL/WEB-INF/conf/plugins/search-solr.properties" ] && [ ! -f "$FINAL/WEB-INF/conf/override/plugins/search-solr.properties" ]; then
   mkdir -p "$FINAL/WEB-INF/conf/override/plugins"
   printf '# e2e bench: reach the real Solr container (reference/external-systems.md, Search engines)\nsolr.server.address=http://solr:8983/solr/%s\nsolr.indexer.commit.size=10000\n' \
     "${E2E_SOLR_CORE:-lutece}" > "$FINAL/WEB-INF/conf/override/plugins/search-solr.properties"
-  echo ">> solr address overridden on the v7 leg: http://solr:8983/solr/${E2E_SOLR_CORE:-lutece}"
+  echo ">> solr address overridden on the v7 site: http://solr:8983/solr/${E2E_SOLR_CORE:-lutece}"
 fi
 # The v7 image runs Java 11 (class files up to version 55). A version range of the v7 artefact can resolve to a v8
 # release built for Java 17: the site then fails to start on UnsupportedClassVersionError, far from the cause. Named
@@ -204,12 +206,10 @@ if [ -n "$NEWER" ]; then
   echo "  pin their v7 versions in e2e.conf, E2E_V7_DEP_PINS=groupId:artifactId:version,... (the versions the v7 site of the parent plugin runs)" >&2
   exit 1
 fi
-( cd "$FINAL" && jar -cf ../lutece.war . )
-echo ">> $(du -h "$SITE/target/lutece.war" | cut -f1) $SITE/target/lutece.war"
-# What run.sh compare needs to hand the v7 database to the v8 site: the component names and versions the v7 site
-# ran with, in the form plugin-liquibase records them (core.plugins.status.<name>.version) — every plugin the site
-# assembled, the transitive ones included: a dependency left out keeps the version the v8 start recorded, and its
-# own v7→v8 upgrades never run on the taken-over base. The names and versions are those of the plugin descriptors.
+echo ">> v7 site: $FINAL"
+# The component names and versions the v7 site ships, in the form plugin-liquibase records them
+# (core.plugins.status.<name>.version), from the plugin descriptors: lpe2e upgrade reports those its v7 start recorded
+# no version for.
 { echo "core=$CORE"
   python3 - "$FINAL/WEB-INF/plugins" <<'PYVER'
 import glob, os, re, sys

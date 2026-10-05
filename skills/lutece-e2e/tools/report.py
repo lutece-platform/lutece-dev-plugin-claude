@@ -8,6 +8,7 @@ Inputs: artifacts/results/*.jsonl (tests), perf.json, discovered.json, inventory
 import datetime
 import html
 import json
+import os
 import pathlib
 import re
 import statistics
@@ -28,7 +29,7 @@ def skip_reason(reason):
     """The written reason of a skip, without pytest's prefix nor the declared-exclusion marker."""
     return str(reason or "").replace("Skipped: ", "", 1).replace(DECLARED_SKIP, "", 1)
 
-E2E = pathlib.Path(__file__).resolve().parents[1]
+E2E = pathlib.Path(os.environ.get("E2E_DIR") or pathlib.Path(__file__).resolve().parents[1])
 A = E2E / "artifacts"
 BUDGET_MS = 1500
 """Per-screen navigation budget (browser-measured, small volume) flagged in the summary."""
@@ -80,6 +81,45 @@ def target_matcher(cov, inv):
     return is_target
 
 
+def upgrade_section():
+    """The lines of summary.md on the database upgrade of this run (artifacts/logs/upgrade.json, written by
+    lpe2e upgrade); none when the run played no upgrade."""
+    f = A / "logs" / "upgrade.json"
+    if not f.exists():
+        return []
+    u = json.loads(f.read_text())
+    src = {"v7": "un site v7 installé et alimenté", "dump": "un dump de recette", "before": "la version v8 précédente"}.get(u.get("mode"), u.get("mode"))
+    L = ["## Reprise de la base (lpe2e upgrade)", ""]
+    if u.get("status") == "failed":
+        L += ["> **MISE À JOUR DE LA BASE ÉCHOUÉE** (préparation v7 ou reprise, rc=11) : " + (u.get("failure") or "?").replace("\n", " "), ""]
+    else:
+        L += ["Le site du banc a repris la base de %s." % src, ""]
+    by = ", ".join("%s %d" % kv for kv in (u.get("by_type") or {}).items())
+    L.append("- Changesets joués : %d%s (`artifacts/liquibase-changesets.txt`)" % (u.get("changesets", 0), " (%s)" % by if by else ""))
+    for key, label, name in (("settings_lost", "Réglages du datastore changés ou perdus", "datastore-lost.txt"),
+                             ("components_without_version", "Composants sans version enregistrée par le démarrage v7", "components-without-version.txt"),
+                             ("unmanaged", "Fichiers SQL v7 hors Liquibase", "v7-liquibase-unmanaged.txt"),
+                             ("hand_applied", "Scripts d'upgrade appliqués à la main", "liquibase-invisible.txt"),
+                             ("disabled", "Plugins du site laissés désactivés", "upgrade-disabled.txt"),
+                             ("orphans", "Clés de statut orphelines", "upgrade-orphans.txt")):
+        v = u.get(key) or []
+        if v or key in ("settings_lost", "components_without_version"):
+            shown = ", ".join("`%s`" % x for x in v[:8]) + (" …" if len(v) > 8 else "")
+            L.append("- %s : %d%s (`artifacts/%s`)" % (label, len(v), " — " + shown if v else "", name))
+    return L + [""]
+
+
+def failed_upgrade():
+    """summary.md of an upgrade that stopped before the suites: the upgrade section only, so no older verdict is read
+    as this run's."""
+    L = ["# Rapport e2e — %s" % datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), ""]
+    L += upgrade_section() or ["> **MISE À JOUR DE LA BASE ÉCHOUÉE** avant tout rapport : voir la sortie de `lpe2e upgrade`.", ""]
+    L.append("Aucune suite n'a tourné : la base n'a pas été reprise.")
+    (A / "summary.md").write_text("\n".join(L) + "\n")
+    (A / "report.html").unlink(missing_ok=True)
+    print("summary.md : mise à jour de la base échouée")
+
+
 def summary(rows, perf, disc, inv):
     by_suite = {}
     for r in rows:
@@ -113,6 +153,7 @@ def summary(rows, perf, disc, inv):
         L.append("Inventaire : %d fonctionnalités, %d écrans, %d actions (statique) ; %d écrans concrets découverts, %d formulaires."
                  % (inv.get("stats", {}).get("features", 0), inv.get("stats", {}).get("screens", 0), inv.get("stats", {}).get("actions", 0),
                     disc.get("stats", {}).get("screens", 0), disc.get("stats", {}).get("forms", 0)))
+    L += [""] + upgrade_section()
     L += ["", "| Suite | Tests | OK | Échecs | Durée |", "|---|---|---|---|---|"]
     for s, rs in by_suite.items():
         ko = [r for r in rs if r["status"] not in ("passed", "skipped")]
@@ -381,6 +422,11 @@ def md_html(md):
 
 
 def main():
+    """Entry point: summary.md and report.html of the run, or the summary of a failed upgrade (argument
+    upgrade-failed)."""
+    if sys.argv[1:] == ["upgrade-failed"]:
+        failed_upgrade()
+        return
     rows = load_results()
     perf, disc, inv = js("perf.json"), js("discovered.json"), js("inventory.json")
     cov, causes = js("coverage.json"), js("causes.json")

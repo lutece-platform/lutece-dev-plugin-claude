@@ -1,9 +1,10 @@
 #!/bin/sh
 # First start of this container: create the schema the v7 way, with the Ant build assembled under WEB-INF/sql
 # (`ant all` = core scripts, then every plugin's create/init scripts). A marker keeps a `docker restart` from
-# running it again — `drop_and_create_db` is the first thing that build does.
+# running it again — `drop_and_create_db` is the first thing that build does. With the argument `init`, the container
+# stops once the schema is created, before Tomcat starts.
 set -eu
-APP=/usr/local/tomcat/webapps/lutece
+APP=/usr/local/tomcat/webapps/${E2E_CONTEXT:-lutece}
 MARK=/usr/local/tomcat/.dbinit-done
 if [ "${E2E_V7_INIT_DB:-1}" = 1 ] && [ ! -f "$MARK" ]; then
   JAR=$(ls "$APP"/WEB-INF/lib/mysql-connector-*.jar 2>/dev/null | head -1)
@@ -42,4 +43,5 @@ XML
   fi
   touch "$MARK"
 fi
+[ "${1:-}" != init ] || exit 0
 exec catalina.sh run

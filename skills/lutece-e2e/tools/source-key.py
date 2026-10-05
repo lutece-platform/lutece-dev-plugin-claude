@@ -16,7 +16,7 @@ import sys
 
 SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".migration", "logs", "java.io.tmpdir", ".run.lock",
              ".pytest_cache"}
-SKIP_PATHS = ("e2e/artifacts", "e2e/harness/site/target", "e2e/harness/site7", "e2e/harness/src7")
+SKIP_PATHS = ("e2e/artifacts", "e2e/harness/site/target")
 
 
 def walk(root, h):
@@ -45,8 +45,11 @@ def own_artifact(project):
 
 
 def site_artifacts(project):
-    """The artifactIds of the jars the last assembled bench site carries, None when no site was assembled."""
-    libs = list((pathlib.Path(project) / "e2e" / "harness" / "site" / "target").glob("*/WEB-INF/lib/*.jar"))
+    """The artifactIds of the jars the last assembled bench site carries (LPE2E_SITE, the shared bench's site), None
+    when no site was assembled."""
+    site = os.environ.get("LPE2E_SITE")
+    libs = list(pathlib.Path(site).glob("WEB-INF/lib/*.jar")) if site else \
+        list((pathlib.Path(project) / "e2e" / "harness" / "site" / "target").glob("*/WEB-INF/lib/*.jar"))
     if not libs:
         return None
     return {re.sub(r"-\d[^/]*\.jar$", "", p.name) for p in libs}

@@ -56,12 +56,9 @@ Read when deciding what a plugin's bench must cover, and when interpreting what 
 - **Library plugins (no screen, no XPage)**: ship a probe JSP in `harness/site/webapp/jsp/e2e/` (it lands in the
   assembled war): EL static calls on the service (`${ Service.method(param.id) }`), admin session required,
   result in elements with ids so `expect_dom` can read it. `templates/probe.jsp.example` is the model. **Never
-  import a servlet class in a probe** (`javax` in v7, `jakarta` in v8): the same page is copied to the v7 site by
-  `run.sh compare` and must compile there too — JSP already provides `request`, `response` and `pageContext`.
-  Rebuild (`run.sh build`) after adding or editing a probe. When the probe needs a v8 API the older version does
-  not have, the scenarios that go through it stop on the v7 leg with a written reason instead of failing: a probe
-  is bench code, and a bench tool that cannot run says nothing about the artefact. On the version the bench
-  targets the same broken probe stays red — there it is a defect of the bench, to fix before reading anything.
+  import a servlet class in a probe** (`javax` in v7, `jakarta` in v8): the same page is copied to the v7 site of
+  `lpe2e upgrade` — JSP already provides `request`, `response` and `pageContext`. Rebuild (`lpe2e build`) after
+  adding or editing a probe.
 - **Rich text**: `fill` on a textarea driven by TinyMCE sets the editor content too (otherwise the editor's
   empty content overwrites the value at submit).
 - **Front office**: `expect_kind: fo` after a `goto`. Two different URLs, do not mix them: an

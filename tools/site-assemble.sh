@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # site-assemble.sh — assembles a Lutece site the way its war is built, into a directory site_check.py can read.
 #
-#   site-assemble.sh <site_dir> --out DIR [--ref GIT_REF] [--profile ENV] [--repo M2_DIR] [--settings FILE] [--pin G:A:V]...
+#   site-assemble.sh <site_dir> --out DIR [--ref GIT_REF] [--profile ENV] [--repo M2_DIR] [--settings FILE] [--pin G:A:V]... [--update]
 #
 # Always from a clean target (a stale target/<finalName> makes lutece:site-assembly skip the core and the plugins),
 # from a disposable git worktree when --ref is given (the working tree is never touched), with the Maven profile ENV
 # of a v7 site (-P<env> copies src/conf/<env>), into a local repository given with --repo so nothing lands in ~/.m2.
 # --pin (with --ref) fixes the version of an artefact in the worktree pom only: a v7 pom whose ranges resolve today to a
 # Lutece 8 artefact (a Java 17 jar) does not rebuild what the environments run; pin it to the v7 version they run.
+# --update checks every snapshot against the remote repositories (-U), so the latest published builds are assembled.
 # The exploded site is copied to --out, the dependency list and tree of the build next to it (<out>.deps, <out>.tree).
 set -euo pipefail
-SITE=""; OUT=""; REF=""; PROFILE=""; REPO=""; SETTINGS=""; PINS=()
+SITE=""; OUT=""; REF=""; PROFILE=""; REPO=""; SETTINGS=""; PINS=(); UPDATE=""
 while [ $# -gt 0 ]; do case "$1" in
   --out) OUT="$2"; shift 2;;
   --ref) REF="$2"; shift 2;;
@@ -18,6 +19,7 @@ while [ $# -gt 0 ]; do case "$1" in
   --repo) REPO="$2"; shift 2;;
   --settings) SETTINGS="$2"; shift 2;;
   --pin) PINS+=("$2"); shift 2;;
+  --update) UPDATE=1; shift;;
   -*) echo "unknown option $1" >&2; exit 2;;
   *) SITE="$1"; shift;;
 esac; done
@@ -52,6 +54,7 @@ MVN=(mvn -B -q -Daether.enhancedLocalRepository.trackingFilename=_qa_none)
 [ -n "$REPO" ] && MVN+=(-Dmaven.repo.local="$REPO")
 [ -n "$SETTINGS" ] && MVN+=(-s "$SETTINGS")
 [ -n "$PROFILE" ] && MVN+=(-P"$PROFILE")
+[ -n "$UPDATE" ] && MVN+=(-U)
 cd "$WORK"
 "${MVN[@]}" clean lutece:site-assembly > "$OUT.log" 2>&1 || { echo "site-assemble: the build failed, see $OUT.log" >&2; tail -20 "$OUT.log" >&2; exit 1; }
 "${MVN[@]}" dependency:list -DoutputFile="$OUT.deps" >> "$OUT.log" 2>&1 || true

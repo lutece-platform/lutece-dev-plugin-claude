@@ -1,14 +1,14 @@
 #!/bin/bash
 # final-gate.sh — the postcondition of a migration. Run it after EVERY batch of fixes, never once at the end.
 #
-#   final-gate.sh [project_dir] [--no-e2e] [--no-compare] [--force]
+#   final-gate.sh [project_dir] [--no-e2e] [--no-upgrade] [--force]
 #
 # Re-measures the three things a fix can silently invalidate, and fails on the first one that is not clean:
 #   1. build and unit tests         — 0 compiler warning, 0 failures and 0 errors read from surefire, NOT from
 #                                     BUILD SUCCESS (the 8.x parent sets testFailureIgnore)
 #   2. verify-migration.sh          — 0 FAIL
-#   3. e2e bench, when e2e/ exists  — every suite green, then compare; a green run or compare of the same sources
-#                                     (e2e/artifacts/pass-all, pass-compare) is reused, --force plays it again
+#   3. e2e bench, when e2e/ exists  — every suite green, then upgrade; a green run or upgrade of the same sources
+#                                     (e2e/artifacts/pass-all, pass-upgrade) is reused, --force plays it again
 #
 # Why a script and not a rule: a rule is skipped by whoever is convinced their last edit was harmless. A fix to a
 # portlet invalidates the unit tests that asserted on its rendering, and a fix to a defect turns the scenario that
@@ -24,12 +24,12 @@ esac
 
 PROJECT="."
 RUN_E2E=true
-RUN_COMPARE=true
+RUN_UPGRADE=true
 FORCE=false
 for a in "$@"; do
   case "$a" in
     --no-e2e) RUN_E2E=false ;;
-    --no-compare) RUN_COMPARE=false ;;
+    --no-upgrade) RUN_UPGRADE=false ;;
     --force) FORCE=true ;;
     *) PROJECT="$a" ;;
   esac
@@ -38,13 +38,14 @@ done
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SETTINGS="${E2E_MVN_SETTINGS:-$HOME/.m2/settings.xml}"
 cd "$PROJECT" || { echo "no such directory: $PROJECT"; exit 2; }
-[ -f e2e/tools/lock.sh ] && { . e2e/tools/lock.sh; E2E_LOCK_CMD="final-gate.sh" e2e_lock "$(pwd)/e2e"; }
+LPE2E="$SKILL_DIR/../skills/lutece-e2e/lpe2e"
+[ -f e2e/e2e.conf ] && { . "$SKILL_DIR/../skills/lutece-e2e/tools/lock.sh"; E2E_LOCK_CMD="final-gate.sh" e2e_lock "$(pwd)/e2e"; }
 
 # A full pass records the key of what it judged (tools/source-key.py of lutece-e2e): the project, its bench and these
 # scripts. Nothing changed since, nothing to re-measure.
 KEYTOOL="$SKILL_DIR/../skills/lutece-e2e/tools/source-key.py"
 source_key( ) { [ -f "$KEYTOOL" ] && python3 "$KEYTOOL" . "$SKILL_DIR" 2>/dev/null; }
-if ! $FORCE && $RUN_E2E && $RUN_COMPARE && [ -s .migration/gate-passed ] && [ "$(source_key)" = "$(cat .migration/gate-passed)" ]; then
+if ! $FORCE && $RUN_E2E && $RUN_UPGRADE && [ -s .migration/gate-passed ] && [ "$(source_key)" = "$(cat .migration/gate-passed)" ]; then
     printf '\033[0;32mGATE PASSED\033[0m — nothing changed since the last full pass (key %s; --force re-measures)\n' "$(cat .migration/gate-passed)"
     rm -f .migration/gate-required .migration/.gate-ran
     exit 0
@@ -130,19 +131,19 @@ if [ -n "$WARNS" ]; then
 fi
 
 step "3/3 e2e bench"
-BENCH_KEY=$([ -f e2e/tools/source-key.py ] && (cd e2e && python3 tools/source-key.py .. 2>/dev/null) || true)
-# A green run of the bench leaves the key of the sources it played (e2e/artifacts/pass-all, pass-compare): the same
+BENCH_KEY=$([ -f e2e/e2e.conf ] && "$LPE2E" key 2>/dev/null || true)
+# A green run of the bench leaves the key of the sources it played (e2e/artifacts/pass-all, pass-upgrade): the same
 # sources give the same result, so the gate reuses it rather than playing it again (--force plays it again).
 reused( ) { ! $FORCE && [ -n "$BENCH_KEY" ] && [ -s "e2e/artifacts/pass-$1" ] && [ "$(cat "e2e/artifacts/pass-$1")" = "$BENCH_KEY" ]; }
 if ! $RUN_E2E; then
     good "e2e: skipped on request"
-elif [ -x e2e/run.sh ]; then
+elif [ -f e2e/e2e.conf ]; then
     # A run whose suites passed and only lacked the visual review counts once the review is written for its captures.
-    reused all || { [ -s e2e/artifacts/pass-tests ] && (cd e2e && ./run.sh review > /dev/null 2>&1); }
+    reused all || { [ -s e2e/artifacts/pass-tests ] && "$LPE2E" review > /dev/null 2>&1; }
     if reused all; then
         good "e2e bench: rc=0 (the green run of these sources, key $BENCH_KEY, reused)"
         E2E_DONE=true
-    elif KEEP=1 ./e2e/run.sh > $LOGS-e2e.log 2>&1; then
+    elif KEEP=1 "$LPE2E" > $LOGS-e2e.log 2>&1; then
         grep -E "passed|failed" $LOGS-e2e.log | tail -4
         good "e2e bench: rc=0"
         E2E_DONE=true
@@ -158,21 +159,21 @@ elif [ -x e2e/run.sh ]; then
     # A fresh install proves the v8 site; it says nothing about the site every real deployment is: a database the
     # previous version built, that the new one has to take over. The upgrade scripts only run there, and a script
     # that stops there stops the whole Liquibase update, the core's own upgrade included. When the bench knows a
-    # v7 ancestor, the gate plays that hand-over too (--no-compare to skip while iterating).
+    # v7 ancestor, the gate plays that hand-over too (--no-upgrade to skip while iterating).
     V7REF=$(sed -n 's/^E2E_V7_REF=//p' e2e/e2e.conf 2>/dev/null | head -1)
     V7PARENT=$(git show "${V7REF:-HEAD}:pom.xml" 2>/dev/null | grep -A4 '<parent>' | grep -oE '<version>[^<]+' | head -1 | sed 's/<version>//')
-    if ! $RUN_COMPARE; then
-        good "compare: skipped on request"
+    if ! $RUN_UPGRADE; then
+        good "upgrade: skipped on request"
     elif [ -z "$V7REF" ] || ! echo "$V7PARENT" | grep -qE '^[567]\.'; then
-        good "compare: no v7 ancestor at E2E_V7_REF (${V7REF:-unset}, parent ${V7PARENT:-?}), nothing to take over"
-    elif reused compare; then
-        good "compare: the v8 site takes over the v7 database, rc=0 (the green compare of these sources reused)"
-    elif ./e2e/run.sh compare > $LOGS-compare.log 2>&1; then
-        grep -E "^compare:|compare done" $LOGS-compare.log | tail -2
-        good "compare: the v8 site takes over the v7 database, rc=0"
+        good "upgrade: no v7 ancestor at E2E_V7_REF (${V7REF:-unset}, parent ${V7PARENT:-?}), nothing to take over"
+    elif reused upgrade; then
+        good "upgrade: the v8 site takes over the v7 database, rc=0 (the green upgrade of these sources reused)"
+    elif "$LPE2E" upgrade > $LOGS-upgrade.log 2>&1; then
+        grep -E "^upgrade: Liquibase ran|upgrade done" $LOGS-upgrade.log | tail -2
+        good "upgrade: the v8 site takes over the v7 database, rc=0"
     else
-        grep -E "LIQUIBASE STOPPED|Reason:|unhealthy|régression|compare done" $LOGS-compare.log | tail -6
-        bad "compare failed: the migration does not take over a v7 database (full log: $LOGS-compare.log)"
+        grep -E "UPGRADE FAILED|LIQUIBASE FAILED|Reason:|unhealthy|upgrade done|upgrade failed" $LOGS-upgrade.log | tail -6
+        bad "upgrade failed: the migration does not take over a v7 database (full log: $LOGS-upgrade.log)"
     fi
 elif [ ! -d webapp ] && grep -q "<packaging>jar</packaging>" pom.xml 2>/dev/null; then
     # A library has no screen: a bench of its own would prove nothing. Its proof is that a plugin depending on it
@@ -198,7 +199,7 @@ printf '\n'
 if [ "$FAILED" -eq 0 ]; then
     printf '\033[0;32mGATE PASSED\033[0m — every check re-measured after the last edit\n'
     if [ "$E2E_DONE" = true ]; then rm -f .migration/gate-required .migration/.gate-ran; fi
-    if [ "$E2E_DONE" = true ] && $RUN_COMPARE; then mkdir -p .migration && source_key > .migration/gate-passed; fi
+    if [ "$E2E_DONE" = true ] && $RUN_UPGRADE; then mkdir -p .migration && source_key > .migration/gate-passed; fi
     if ! $RUN_E2E; then mkdir -p .migration && sed 's/\x1b\[[0-9;]*m//g' "$LOGS-out.txt" | grep -v '^GATE PASSED' > .migration/gate-no-e2e.txt && source_key > .migration/gate-passed-no-e2e; fi
     exit 0
 fi

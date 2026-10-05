@@ -96,9 +96,8 @@ Step vocabulary (one key per step):
 File keys: scenarios, and fragments (name: [steps]) that a step `use: <name>` inlines, for a parcours several
 scenarios share. Fragments are visible from every file of scenarios/ (the file's own win on a name clash), may use
 fragments, and the mechanical oracle rule applies to the expanded steps.
-Scenario keys: id, title (shown by the report), description (optional, `>-` block), req (Lutece right), anonymous, versions (optional, e.g. [v8]: skipped on the v7 leg of run.sh compare), locale (an Accept-Language such as de-DE, sent on every request of the scenario, http steps included: a locale-dependent defect is proven through the UI), viewport_shots (true: captures of the viewport only, for a scenario driving a responsive widget that a full-page capture resizes), ends_on (blank | error-page | truncated: the last screen is that on purpose, say why in description; otherwise such an ending fails the scenario), server_log_allow (regexes of server log errors the scenario provokes on purpose, reason in a comment: any other error the server logs during the scenario fails it), core_defect (the defect of the core the scenario proves, which the plugin must not work around: a failure is reported as a core defect not handled and keeps the run green, a pass says the core fixed it), steps.
-Any step value may be a per-version mapping, {v7: ..., v8: ...}: the value for E2E_VERSION is used. Preferred over
-`versions:` when the function exists on both sides and only its url or selector changed (a JSP turned MVC view).
+Scenario keys: id, title (shown by the report), description (optional, `>-` block), req (Lutece right), anonymous, versions (optional: the suites run on the v8 site only, so a scenario whose list leaves v8 out is skipped as declared), locale (an Accept-Language such as de-DE, sent on every request of the scenario, http steps included: a locale-dependent defect is proven through the UI), viewport_shots (true: captures of the viewport only, for a scenario driving a responsive widget that a full-page capture resizes), ends_on (blank | error-page | truncated: the last screen is that on purpose, say why in description; otherwise such an ending fails the scenario), server_log_allow (regexes of server log errors the scenario provokes on purpose, reason in a comment: any other error the server logs during the scenario fails it), core_defect (the defect of the core the scenario proves, which the plugin must not work around: a failure is reported as a core defect not handled and keeps the run green, a pass says the core fixed it), steps.
+A step value written as a per-version mapping, {v7: ..., v8: ...}, resolves to its v8 value.
 Variables: {{rand}} (6 lowercase alphanumerics), {{rand_int}} (5-6 digits, for numeric keys), {{base}} and anything set by set/sql_set/dom_set.
 A scenario with `serial: true` changes global settings and runs alone after the parallel pass; a scenario declaring `server_log_allow` runs there too, so the errors it provokes cannot fail its neighbours. A scenario with `anonymous: true` runs without any session (public screens). A scenario with `isolated: true` logs in on its own session (mandatory when it logs out or changes the password),
 so it never invalidates the session shared by the other tests of the worker.
@@ -230,8 +229,7 @@ VERSIONS = ("v7", "v8")
 
 def _expand(value, vars_):
     """Substitutes {{vars}} and resolves per-version values: a mapping whose keys are all versions
-    ({v7: <url>, v8: <url>}) becomes the value for E2E_VERSION, so one scenario plays the same functional
-    path on both legs of run.sh compare even where the migration changed the urls or the selectors."""
+    ({v7: <url>, v8: <url>}) becomes the value for E2E_VERSION (v8: the suites never run on a v7 site)."""
     if isinstance(value, str):
         return re.sub(r"\{\{(\w+)\}\}", lambda m: str(vars_.get(m.group(1), m.group(0))), value)
     if isinstance(value, dict):
@@ -721,6 +719,8 @@ def _params():
 
 @pytest.mark.parametrize("sc", _params())
 def test_scenario(bo, browser, request, record, sc):
+    """Play one scenario and photograph every page it lands on. Coverage counts only the pages an oracle stood behind:
+    the navigations since the last oracle are credited when the next one passes, those after the last never are."""
     if sc.get("isolated") or sc.get("anonymous"):
         ctx = browser.new_context(viewport={"width": 1440, "height": 1000}, locale="fr-FR")
         bo = ctx.new_page()
@@ -728,9 +728,6 @@ def test_scenario(bo, browser, request, record, sc):
         request.node.page = bo
         if not sc.get("anonymous"):
             assert lutece.bo_login(bo), "login failed"
-    # `versions: [v8]` on a scenario written against screens the migration introduced (MVC views, new urls): on
-    # the v7 leg of `run.sh compare` it is skipped and reported as such, instead of failing at its first step
-    # and reading as a regression fixed by v8.
     record["scenario"] = sc["id"]
     record["title"] = sc.get("title", sc["id"])
     record["requirement"] = sc.get("req", "")
@@ -741,10 +738,6 @@ def test_scenario(bo, browser, request, record, sc):
     assert not sc.get("_invalid"), "scenario rejected by the oracle rule: " + "; ".join(sc["_invalid"])
     vars_ = {"rand": "".join(random.choices(string.ascii_lowercase + string.digits, k=6)), "rand_int": str(random.randint(10000, 999999)),
              "base": lutece.BASE, "__locale": sc.get("locale") or ""}
-    # Every page the scenario lands on is photographed: the before/after report puts the v7 and v8 pictures of
-    # the same parcours side by side, and a green scenario without a picture proves nothing to a reader.
-    # Coverage counts as proven only the pages an oracle stood behind: the navigations made since the last
-    # oracle are credited when the next one passes, the ones after the last oracle never are.
     if sc.get("locale"):
         bo.set_extra_http_headers({"Accept-Language": sc["locale"]})
     mark = lutece.server_log_mark()

@@ -12,7 +12,7 @@
     <packaging>lutece-site</packaging>
     <name>e2e-site7</name>
     <version>1.0.0-SNAPSHOT</version>
-    <description>Disposable Lutece 7 site assembling the artefact before its migration, for the before/after comparison.</description>
+    <description>Disposable Lutece 7 site assembling the artefact before its migration, for the database upgrade (lpe2e upgrade).</description>
 
     <repositories>
         <repository>

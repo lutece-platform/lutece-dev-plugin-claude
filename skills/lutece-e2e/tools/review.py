@@ -15,25 +15,16 @@ import collections
 import glob
 import hashlib
 import json
+import os
 import pathlib
 import re
 import sys
 
-E2E = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(E2E / "tests"))
+E2E = pathlib.Path(os.environ.get("E2E_DIR") or pathlib.Path(__file__).resolve().parents[1])
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "tests"))
 import lutece  # noqa: E402
 A = E2E / "artifacts"
 
-
-def _run_dir():
-    """Directory holding the last run's results and captures: artifacts/, or artifacts/v8/ once `run.sh compare` moved them."""
-    for d in (A, A / "v8"):
-        if (d / "results").is_dir():
-            return d
-    return A
-
-
-RUN = _run_dir()
 
 CHECKLIST = """Pour chaque groupe, ouvrir la capture et répondre :
 1. **Charte** — thème attendu appliqué (en-tête, menu, pied), typographie et composants du design system, aucune
@@ -48,7 +39,7 @@ CHECKLIST = """Pour chaque groupe, ouvrir la capture et répondre :
 
 def rows():
     out = []
-    for f in sorted((RUN / "results").glob("*.jsonl")):
+    for f in sorted((A / "results").glob("*.jsonl")):
         out += [json.loads(l) for l in f.read_text().splitlines() if l.strip()]
     return out
 
@@ -84,7 +75,7 @@ def _findings(r):
 
 def _digest(shot):
     """Content hash of a capture, or None when the file is gone."""
-    f = RUN / shot
+    f = A / shot
     return hashlib.md5(f.read_bytes()).hexdigest() if f.exists() else None
 
 
@@ -92,8 +83,6 @@ def _in_scope():
     """The bench's scope predicate (tests/lutece.py): the review judges the artefact's own screens, never the
     hundreds of core screens a widened crawl (E2E_SCOPE=all) also captured — those are the environment's."""
     try:
-        sys.path.insert(0, str(E2E / "tests"))
-        import lutece  # noqa: E402
         return lutece.scope()
     except Exception:  # noqa: BLE001 - no inventory, no scope: judge everything
         return lambda u: True
@@ -204,7 +193,7 @@ def todo():
             notes = ("%s — capture changée depuis la dernière revue" % ("" if notes == "—" else notes)).strip(" —")
         L.append("| %s | `%s`%s | %s | %s | `%s` |" % (
             e["id"], e["path"], (" (+%d variantes)" % (len(e["urls"]) - 1)) if len(e["urls"]) > 1 else "",
-            e["kind"], notes, (RUN / e["shot"]).relative_to(A)))
+            e["kind"], notes, (A / e["shot"]).relative_to(A)))
     (A / "review-todo.md").write_text("\n".join(L) + "\n")
     flagged = sum(1 for e in gs if e["render"])
     print("review-todo.md : %d groupes (%d avec un constat mécanique), %d captures couvertes"
