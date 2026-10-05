@@ -168,7 +168,10 @@ target. The port is four moves:
 `getHtmlContent` abstract, neutralises `getXml`/`getXmlDocument` (both return `null`) and
 returns `false` from `isContentGeneratedByXmlAndXsl()`. Never override that method by hand.
 `createPortletModel( )` and `renderTemplate( )` below are in the core `tools/v8-floor.conf` names (`V8_FLOOR_CORE`),
-which `check-v8-floor.sh` proves the build resolves: keep `lutece-core` on `[8.0.0,)`, never raise its lower bound.
+which `check-v8-floor.sh` proves the build resolves. They are on the core's `develop` only until a release carries
+them (DP06 says so): the lower bound of `lutece-core` is the first release that carries the API the plugin uses; while
+none does, keep `[8.0.0,)` and say in the hand-over that the plugin needs the next core (a site on the published core
+fails on the missing table).
 Build the model with `createPortletModel( )` (the portlet, its id, its device display classes, its
 name when the title is shown) and render with `renderTemplate( request, TEMPLATE_DEFAULT, model )`:
 it applies the template chosen for the portlet in the back office, and the default template of the

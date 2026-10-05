@@ -41,6 +41,7 @@ bash tests/scripts/test-v8-floor.sh
 bash tests/scripts/test-doctor.sh
 bash tests/scripts/test-i18n-keys.sh
 bash tests/scripts/test-version-tags.sh
+bash tests/scripts/test-i18n-languages.sh
 bash tests/scripts/test-sql-literal.sh
 bash tests/scripts/test-structure-checks.sh
 bash tests/scripts/test-grep-checks.sh
@@ -50,22 +51,28 @@ bash tests/scripts/test-custom-checks-b.sh
 bash tests/scripts/test-custom-checks-c.sh
 bash tests/scripts/test-custom-checks-d.sh
 bash tests/scripts/test-e2e-mvc-inheritance.sh
-bash tests/scripts/test-review-compare.sh
 bash tests/scripts/test-seed-protection.sh
 bash tests/scripts/test-v7-portlet-types.sh
 bash tests/scripts/test-doc-links.sh
-bash tests/scripts/test-compare-causes.sh
-bash tests/scripts/test-compare-verdict.sh
 bash tests/scripts/test-server-errors-allow.sh
 bash tests/scripts/test-sql-rights-checks.sh
 bash tests/scripts/test-java-checks.sh
 bash tests/scripts/test-python-resolver.sh
 bash tests/scripts/test-portable.sh
 bash tests/scripts/test-e2e-lock.sh
+bash tests/scripts/test-e2e-selftest.sh
+bash tests/scripts/test-e2e-hot-classes.sh
 bash tests/scripts/test-core-defect.sh
 bash tests/scripts/test-source-key.sh
 bash tests/scripts/test-site-checks.sh
 bash tests/scripts/test-site-v7-leg.sh
+bash tests/scripts/test-gen-site-fresh.sh
+bash tests/scripts/test-latest-lutece.sh
+bash tests/scripts/test-upgrade.sh
+bash tests/scripts/test-site-force.sh
+bash tests/scripts/test-e2e-site-cache.sh
+bash tests/scripts/test-e2e-src-digest.sh
+bash tests/scripts/test-run-all-down.sh
 claude plugin validate .
 ```
 

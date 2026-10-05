@@ -134,7 +134,7 @@ Rules that follow:
   version on both sides; only the destination is compared to the installed version, the source documents;
 - a major switch is named `<prev>.9.9-<new>`, as the core's `update_db_lutece_core-7.9.9-8.0.0.sql`: `<prev>.9.9` is no release, it only documents, since only the destination is compared (this is the one exception to a real version on both sides);
 - after `lutece:site-assembly`, compare `src/sql` with `WEB-INF/classes/sql`: a file missing there is a file
-  Liquibase will never see. `run.sh compare` (lutece-e2e) prints that difference.
+  Liquibase will never see. `lpe2e upgrade` (lutece-e2e) prints that difference.
 
 ## The failure mode is the whole webapp
 
@@ -194,8 +194,8 @@ ALTER TABLE my_table ADD COLUMN my_column varchar(255) default '';
 Do not trust an older upgrade that (re)creates the table: it created it as it was then, without the column
 (an older upgrade recreates a history table as it was then, the v8 DAO writes a new column into it, every v7
 base answers `Unknown column`). `verify-migration.sh` SQ02 diffs the
-creation scripts against the last commit and fails on an addition no upgrade script covers; `run.sh compare`
-of the e2e skill proves it on a real v7 base: the v7 site on a fresh database, then the v8 site taking it over. A
+creation scripts against the last commit and fails on an addition no upgrade script covers; `lpe2e upgrade`
+of the e2e skill proves it on a real v7 base: the v7 site installed and seeded, then the v8 site taking it over. A
 plugin proven only on a fresh database has not been proven where every deployment runs it.
 
 The symptom hides: `DAOUtil.free` throws `NullPointerException` (`results` is null) inside the error path of

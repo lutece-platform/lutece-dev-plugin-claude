@@ -97,6 +97,32 @@ MicroProfile Config is the single read path: `AppPropertiesService` reads `Confi
 - Injected: `@Inject @ConfigProperty(name = "key", defaultValue = "x")`
 - Datastore: `DatastoreService.getInstanceDataValue("key", "default")` is a database key-value store read explicitly by the caller. It is **not** a ConfigSource and does not override properties.
 
+## One-shot actions
+
+- Claim before writing anything: call the DAO's guarded `UPDATE` (`dao-patterns.md`, one-shot action). A lost claim
+  means another request is doing it: return an information message and stop.
+- No transaction spans the steps that follow (workflow state, history, e-mail): each one sits in a
+  `try { … } catch ( RuntimeException e ) { reopen( ); throw e; }` that releases the claim, so a failure does not lock
+  the resource for good. A history row a retry writes again uses a create-or-update, not a plain insert.
+- A back-office action without a table to claim (send a newsletter) is guarded by a single-use token for that action:
+  the confirmation page puts `getSecurityTokenService( ).getToken( request, "<action>" )` in a hidden field, the action
+  starts with `validate( request, "<action>" )` and stops when the token is spent. Disabling the button in JS is comfort only.
+
+## Signed links
+
+A link that acts without a session (a workflow action by e-mail) carries an HMAC of its values joined by a separator,
+compared in constant time:
+
+```java
+String strKey = CryptoService.hmacSHA256( String.join( ":", String.valueOf( nIdAction ), String.valueOf( nIdUser ),
+        String.valueOf( lTimestamp ), String.valueOf( nIdResource ) ) );
+boolean bValid = MessageDigest.isEqual( strKey.getBytes( StandardCharsets.UTF_8 ), strReceived.getBytes( StandardCharsets.UTF_8 ) );
+```
+
+Never `CryptoService.encrypt( nIdAction + nIdUser + … + strSecret, "SHA-256" )`: `int` and `long` operands are added
+before the concatenation, so two sets of values with the same sum carry the same key. Never `StringUtils.equals` on a
+signature, and check both values for null first. `hmacSHA256` keys with the application crypto key (core `CryptoService`).
+
 ## Cache Integration
 
 - Extend `AbstractCacheableService<K, V>` for cacheable services

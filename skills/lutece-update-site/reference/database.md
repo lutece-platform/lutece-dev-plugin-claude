@@ -30,9 +30,12 @@ The procedure that works, played on a copy of the production database before any
 1. `SHOW TABLES LIKE 'DATABASECHANGELOG%';`. The documented way to bring a v7 site under Liquibase is plugin-liquibase
    added alone to the v7 site, with `liquibase.enabled.at.startup=true`, started once: it creates `DATABASECHANGELOG`
    and records the installed versions, running nothing. A database that went through it skips step 3. It still
-   needs the two passes: the v8 start would run the components before the core, and a component whose v7 SQL
-   directory did not match its plugin name (the v7 log says `No plugin metadata for <dir>`) has no recorded
-   version, so a normal v8 start installs it as new over its existing rows.
+   needs the two passes: the v8 start would run the components before the core, and a component it recorded no
+   version for is installed as new by a normal v8 start, over its existing rows. Two causes: its SQL has no
+   `-- liquibase formatted sql` first line (`LiquibaseRunner files not managed by liquibase are …`, a start
+   plugin-liquibase refuses unless `liquibase.safeRun=false`), or its SQL directory does not match its plugin name
+   (plugin-liquibase 1.0.2: `resolves to component '<dir>' which is not declared by any plugin descriptor`, a refused
+   start under `liquibase.safeRun=true`; earlier: `No plugin metadata for <dir>`).
 2. Write the two scripts of the takeover from the before and after wars:
    `site_check.py takeover .migration/before .migration/after --out .migration/takeover` (MySQL / MariaDB).
 3. Without `DATABASECHANGELOG` only: start the v8 war once with `liquibase.migration.mode=true` (`LIQUIBASE_MIGRATION_MODE=true`): it creates
@@ -45,8 +48,8 @@ The procedure that works, played on a copy of the production database before any
 6. Check the tables of every plugin the site declares itself: a pack or a starter only knows its own plugins.
 
 A SI13 FAIL (a component script using a table the core upgrade drops) is a v7 upgrade the site never applied: apply
-it to the v7 database first. The `lutece-e2e` bench plays the same sequence in `run.sh compare` with `E2E_TAKEOVER`
-(`reference/compare.md` of that skill).
+it to the v7 database first. The `lutece-e2e` bench plays the same sequence, step 1 included, in `lpe2e upgrade` with
+`E2E_TAKEOVER` (`reference/upgrade.md` of that skill).
 
 ## 2. The core upgrade resets settings of the site
 

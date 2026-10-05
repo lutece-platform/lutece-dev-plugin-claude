@@ -137,11 +137,16 @@ site's `conf/override`), the environment, the Liberty variables.
 
 ## PHASE F — Run it
 
-Dispatch one subagent: "invoke the `lutece-e2e` skill on this site with `E2E_TARGET=site` and follow it; the war is
-the one `site-bench-war.sh .migration/after <bench>/harness/site/target/lutece.war` writes (keep the token it
-prints); report the startup exceptions, the back-office login, the front-office home, the screens of every plugin
-the site ships, and the configuration dump". While it runs, edit nothing. Then, with the dump and the container
-environment it brings back (`docker exec <app> env`):
+Dispatch one subagent: "invoke the `lutece-e2e` skill on this site (`init-e2e.sh <site> --target site`, then `lpe2e`)
+and follow it; report the startup exceptions, the back-office login, the front-office home, the screens of every
+plugin the site ships, the configuration dump and the Lutece versions the bench forced over the site's BOM". The
+bench assembles the site with its own pom (`E2E_SITE_PROFILE` names a profile without the environments' remote
+configuration source, Vault), with the latest Lutece 8 snapshots of the core and of plugin-liquibase forced over the
+BOM, and tests every screen of the site. It writes `artifacts/site-drift.txt` when the site ships an older core than
+the one tested: an older core in the BOM is a finding. The configuration probe is in the bench site:
+`curl "http://localhost:$(lpe2e port)/<context>/site-config-dump.jsp?token=$(cat e2e/artifacts/site-config-dump.token)"`
+on a running bench (`KEEP=1 lpe2e`). While it runs, edit nothing. Then, with the dump and the container environment
+it brings back (`docker exec <app> env`):
 
 ```bash
 python3 ${LUTECEPOWERS_ROOT}/tools/site_check.py config .migration/after --against <dump> --env <env file> [--profile <p>]
@@ -151,13 +156,13 @@ It must report no disagreement: the model of phase E is trusted only where the c
 runs without the profiles of the environments: it never reaches their systems (identity provider, search cluster,
 notification gateway). A fresh install proves nothing about an upgrade: a v7 site writes the scripts of its takeover
 (`site_check.py takeover .migration/before-default .migration/after --out .migration/takeover`, SI13-SI15), then runs
-`run.sh compare` with `E2E_V7_WAR` (its v7 war, assembled without profile), `E2E_V7_DUMP` (the recette dump of phase
-A) and `E2E_TAKEOVER` (`.migration/takeover`): the v7 site starts on the dump, the v8 site takes it over the way
+`lpe2e upgrade` with `E2E_V7_WAR` (its v7 war, assembled without profile, carrying plugin-liquibase of the v7 line), `E2E_V7_DUMP` (the recette dump of phase
+A) and `E2E_TAKEOVER` (`.migration/takeover`): the v7 site starts once on the dump with plugin-liquibase, the v8 site takes it over the way
 `reference/database.md` §1 describes (core first, then the components), and `artifacts/datastore-lost.txt` lists the
 settings the core upgrade removed, to set again (§2). The takeover scripts are not a bench device: they set what
 plugin-liquibase cannot read on a v7 database installed with Ant (the version of a component it could not resolve,
 the former identity of a renamed one), and an environment that starts without them can lose tables. Hand them over;
-`E2E_TAKEOVER` on a directory of two empty files shows the start without them (`reference/compare.md`). A v8 site runs `run.sh upgrade` with `E2E_BEFORE_WAR` (the war
+`E2E_TAKEOVER` on a directory of two empty files shows the start without them (`reference/upgrade.md` of lutece-e2e). A v8 site runs `lpe2e upgrade` with `E2E_BEFORE_WAR` (the war
 `site-bench-war.sh .migration/before <file>` writes): the version the environments run creates its database, the
 new one takes it over; every plugin `artifacts/upgrade-disabled.txt` lists is disabled after the deployment (a
 renamed plugin still listed in `plugins.dat` under its former name, SI43), every name `upgrade-orphans.txt` lists

@@ -30,6 +30,11 @@ paths:
 public class TaskJspBean extends MVCAdminJspBean
 ```
 
+`@Named` without value names the bean `taskJspBean`, the name its JSPs call. All the plugins of a site share one bean
+namespace: a generic class name (`CommentJspBean`, `CategoryJspBean`, `AttachmentJspBean`) collides with another
+plugin's and the site does not deploy (`WELD-001414`, SI88). Give such a bean a value prefixed with the plugin,
+without a dot (EL reads a dot as a property): `@Named( "myPluginCommentJspBean" )`, and call that name from the JSPs.
+
 ## XPage (front-office site)
 
 - `@Named("plugin.xpage.id")` + `@Controller` + extend `MVCApplication`. The `@Named` value MUST be `<plugin name>.xpage.<application-id>`: the core resolves the CDI bean by that name (`XPageAppService.registerXPageApplication`).

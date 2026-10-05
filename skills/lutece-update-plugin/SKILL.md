@@ -92,8 +92,8 @@ When `final-gate.sh . --no-e2e` is green, dispatch a read-only subagent: instruc
 ## PHASE F — e2e bench
 
 Unit tests cover almost none of a plugin; the defects that hurt are on screen. Dispatch one subagent: "invoke the
-`lutece-e2e` skill on this project and follow it (it reuses an existing `e2e/`), then, on a `pre-v8` start,
-`run.sh compare`; fix in the plugin or in `e2e/` what the bench proves, and report each fix", with the literal
+`lutece-e2e` skill on this project and follow it (it reuses an existing `e2e/`), fixing with `lpe2e watch` running;
+fix in the plugin or in `e2e/` what the bench proves, and report each fix", with the literal
 `${LUTECEPOWERS_ROOT}`. While it runs you edit nothing: the project has one writer at a time. Every red scenario is
 attributed, to the plugin or to the core, with the evidence; a core defect the plugin must not work around (an
 `@Action` run on GET without its token) keeps its scenario with `core_defect:` and goes into the hand-over, never into
@@ -107,8 +107,8 @@ a guard of the plugin. A fix the bench forced inside `e2e/` is a defect of `lute
 bash ${LUTECEPOWERS_ROOT}/tools/final-gate.sh .
 ```
 
-It reuses a green bench run and compare of the same sources instead of playing them again, and plays compare only
-when the bench knows a pre-v8 ancestor. Read what is red, fix it at the source (never an allowlist entry, a deleted
+It reuses a green bench run and upgrade (`lpe2e upgrade`, the v7 database taken over) of the same sources instead of
+playing them again, and plays upgrade only when the bench knows a pre-v8 ancestor. Read what is red, fix it at the source (never an allowlist entry, a deleted
 assertion or a scenario rewritten to expect the defect), run the gate again in full. A WARN does not block the gate,
 and is fixed all the same: the gate lists each one; one stays only when its fix is impossible or outside the plugin (a
 core defect, a choice of the user), with that reason in the hand-over. The only other way out of a red is a defect

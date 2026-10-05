@@ -17,11 +17,11 @@ against the running site. What follows is what the model implements, each point 
 | 150 | `LuteceConfigSource` | `config`, `db`, `lutece`, `search`, `daemons`, `caches`, `editors`.properties, then `conf/plugins/*`, `conf/themes/*` |
 | 100 | `microprofile-config.properties` | `META-INF/` of the jars and of `WEB-INF/classes` |
 
-- **Inside one source**, files load in reverse alphabetical order of their path and the last one loaded wins:
-  `FileSorterUtil` tests prefixes starting with `/WEB-INF/conf/` against ClassGraph paths that do not start with
-  `/`, so every file gets the same priority (`AppInitPropertiesService`, `WebConfResourceLocator`,
-  `PropertiesService.loadFile`). The first file in alphabetical order wins: `override/lutece.properties` beats
-  `override/plugins/x.properties`, which beats `override/profiles-config.properties`. Two files of one source
+- **Inside one source**, files load in the order of `FileSorterUtil.sortByPropertiesPrecedence` and the last one
+  loaded wins (`AppInitPropertiesService`, `WebConfResourceLocator`, `PropertiesService.loadFile`): the seven root
+  files, then `conf/plugins/*`, then `conf/themes/*` in the base source; `conf/override/*`, then
+  `conf/override/plugins/*` in the override source; alphabetical order of the path inside each directory. So a theme
+  beats a plugin, and `override/plugins/x.properties` beats `override/lutece.properties`. Two files of one source
   setting the same key differently is SI26.
 - **Profiles** resolve source by source (SmallRye Config 3.18, measured): in one source `%dev.key` wins over `key`;
   a source of higher ordinal wins whatever the profile, so a plain key at 250 beats `%dev.key` at 180. A key

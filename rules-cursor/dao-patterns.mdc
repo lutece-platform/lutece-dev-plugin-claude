@@ -28,12 +28,20 @@ alwaysApply: false
 
 ## Portlet Home — CDI bean
 
-A class extending `PortletHome` is an object (the core calls `getDAO( )`, `getPortletTypeId( )` on it), in the form of
-`lutece-cms-plugin-document` `DocumentPortletHome` (HM01):
+A class extending `PortletHome` is an object (the core calls `getDAO( )`, `getPortletTypeId( )` on it), in the CDI form
+(HM02):
 
-- `@ApplicationScoped`, not `final`, a public no-arg constructor (the core creates it with `Class.forName( ).getDeclaredConstructor( ).newInstance( )`)
-- no static instance of itself
+- `@ApplicationScoped`, not `final`, no static instance of itself
 - `public static PortletHome getInstance( ) { return CDI.current( ).select( XPortletHome.class ).get( ); }`
+
+The core also creates it by reflection (`Class.forName( ).getDeclaredConstructor( ).newInstance( )`), so whatever its
+form (HM01, these break):
+
+- a public no-arg constructor
+- its DAO in a static field from `CDI.current( ).select( IXPortletDAO.class ).get( )`, never an `@Inject` field (the
+  instance the core creates is never injected)
+
+A hand-made singleton still works: HM02 asks for the CDI form.
 
 ## Interface
 
@@ -44,6 +52,27 @@ Every DAO has an `IEntityDAO` interface with `insert`, `load`, `store`, `delete`
 - `List<Entity>` for standard lists
 - `ReferenceList` for dropdowns (`<select>`)
 - `Optional<Entity>` for optional single results
+
+## One-shot action: the guard is in the WHERE
+
+An action that must run once (validate, pay, send) is claimed by the `UPDATE` itself, never by a `SELECT` then an
+`UPDATE`: two concurrent requests both read "not done" and both proceed. The DAO returns whether this call won:
+
+```java
+private static final String SQL_QUERY_MARK_AS_COMPLETE = "UPDATE x_response SET is_complete = 1 WHERE id_response = ? AND is_complete = 0";
+
+public boolean markAsComplete( int nIdResponse, Plugin plugin )
+{
+    try ( DAOUtil daoUtil = new DAOUtil( SQL_QUERY_MARK_AS_COMPLETE, plugin ) )
+    {
+        daoUtil.setInt( 1, nIdResponse );
+        daoUtil.executeUpdate( );
+        return daoUtil.getReturnedRowCount( ) > 0;
+    }
+}
+```
+
+The service side (claim first, compensate on failure) is in `service-layer.md`.
 
 ## Existing JPA Model
 

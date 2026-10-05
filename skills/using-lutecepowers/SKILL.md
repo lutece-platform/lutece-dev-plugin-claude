@@ -49,7 +49,7 @@ script reports is not repeated in the skills: fix what it says.
 | `lutece-brainstorming` | Use before any creative Lutece work: a new plugin, a new feature, a new screen, or a behaviour change. Explores intent, requirements and design with the user before any implementation. Triggers on 'I want to build', 'add a feature', 'new plugin', 'how should we design'. |
 | `lutece-cache` | Use when adding, fixing or reviewing a cache in a Lutece 8 plugin: AbstractCacheableService, CDI initialization, cache keys, invalidation through CDI events. Triggers on 'cache', 'cacheable', 'invalidate', 'CacheService'. |
 | `lutece-checkup` | Use when the user wants the mechanical state of a Lutece 8 project (core, plugin, module, site) without changing it: runs every check script of the toolkit in one pass (verify-migration, template scanner, i18n keys, template parse), summarises the blocking and the warning findings, then asks the user what to do. Triggers on 'checkup', 'bilan', 'état du plugin', 'lance les contrôles', 'vérifie le projet', 'mechanical check'. |
-| `lutece-e2e` | Use to give any Lutece 8 core, plugin, module or site an e2e/ bench that runs with one command: isolated Docker stack (Open Liberty HotSpot, MariaDB instrumented), synthetic volume, static + dynamic inventory of every back-office screen and action, Playwright suites (screens, YAML scenarios, forms) with a clean-console rule, server timings, SQL digests, JFR, k6, and a compact report. Also proves a migration's upgrade path: `run.sh compare` builds the artefact before its migration on a v7 site, then the v8 one on that same database, so a missing update_db script is caught instead of hidden by a fresh install. Triggers on 'e2e', 'tests de bout en bout', 'Playwright', 'tester tous les écrans', 'banc de test', 'non-régression BO', 'prouver la migration', 'chemin de mise à jour'. |
+| `lutece-e2e` | Use to give a Lutece 8 plugin, module or site an e2e bench run with one command (lpe2e) on the machine's shared e2e server: the latest Lutece 8 snapshots, Open Liberty and MariaDB kept warm, static + dynamic inventory of every back-office screen and action, Playwright suites (screens, YAML scenarios, forms) with a clean-console rule on warm browsers, server timings, SQL digests, JFR, a compact report, a hot loop (lpe2e watch) that applies a template or Java change in the running application and replays the tests it can break in seconds, and the database upgrade (lpe2e upgrade) lived as an environment lives it. Triggers on 'e2e', 'tests de bout en bout', 'Playwright', 'tester tous les écrans', 'banc de test', 'non-régression BO', 'prouver la migration'. |
 | `lutece-elasticdata` | Use when creating or modifying an Elasticsearch DataSource module for Lutece 8: DataSource and DataObject interfaces, CDI auto-discovery, @ConfigProperty injection, batch processing, two-daemon indexing, incremental updates through CDI events. Triggers on 'elasticdata', 'Elasticsearch', 'DataSource module'. |
 | `lutece-lucene-indexer` | Use when adding plugin-internal Lucene search to a Lutece 8 plugin: custom index, indexing daemon, CDI events, batch processing. Triggers on 'Lucene', 'full-text search inside the plugin', 'indexer'. |
 | `lutece-patterns` | Use before writing or reviewing any Lutece 8 code (CRUD, JspBean, XPage, service, DAO, daemon, template) and when answering questions about Lutece 8 architecture, layered design or coding conventions. Canonical patterns extracted from lutece-core. |
@@ -106,6 +106,21 @@ mvn clean lutece:exploded antrun:run -Dlutece-test-hsql test -q
 ```
 
 Never run plain `mvn test`. Lutece tests need the `lutece:exploded antrun:run` goals first.
+
+## Long-running commands
+
+Never wait on a command. Anything that may take more than about 30 seconds (a build, the e2e bench, a test suite, a
+series of measurements) starts in the background and is followed by events: one line per result as soon as it exists,
+one per failure signature (error, stack trace, unhealthy, a server start that fails), and a silence detector that
+reports a hang after a few seconds without output. Meanwhile, work on something else that does not touch what is
+running. Never poll with sleeps, never block the session on a foreground wait.
+
+- Split a series so each result streams on its own (one event per run), and stop the job at the first event that shows
+  it is lost, instead of letting it run to its timeout.
+- Stop a background job by its id or its pid, never by a name pattern (`pkill -f`): the pattern also matches the
+  command that runs it.
+- Prefer a tool that reports its outcome itself (the bench's `watch-boot.sh` ends on READY, FAIL or HANG) over a fixed
+  timeout.
 
 ## Subagents and teams
 
