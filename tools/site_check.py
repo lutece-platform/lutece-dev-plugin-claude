@@ -49,8 +49,8 @@ The effective configuration follows lutece-core and SmallRye Config as measured:
 META-INF/microprofile-config.properties at 100, LuteceConfigSource at 150 (the seven root files of WEB-INF/conf, then
 conf/plugins and conf/themes), a ConfigSource a jar ships at the constant its getOrdinal( ) returns (read in its
 bytecode) with the properties files at the root of that jar, and LuteceOverrideConfigSource at 250 (conf/override and conf/override/plugins). Inside a source the files load in
-reverse alphabetical order of their path and the last one loaded wins (FileSorterUtil compares paths that do not
-start with the prefixes it tests, so every file has the same priority). A profile resolves source by source: in one
+the order of FileSorterUtil.sortByPropertiesPrecedence (plugins, themes, override, override/plugins, then the path in
+alphabetical order) and the last one loaded wins. A profile resolves source by source: in one
 source %<profile>.key wins over key, and a source of higher ordinal wins over a lower one whatever the profile. An
 empty value masks the key: the property is absent, the caller's default applies. In v7 there is one source: the
 seven root files, then plugins/, themes/, override/, override/plugins/, each directory in file system order.
@@ -61,6 +61,7 @@ import os
 import pathlib
 import re
 import struct
+import subprocess
 import sys
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -186,6 +187,16 @@ def escape_value(value):
     return "".join(c if ord(c) < 128 else f"\\u{ord(c):04x}" for c in out)
 
 
+def properties_precedence(path):
+    """Loading rank of a properties file inside its source, as FileSorterUtil.sortByPropertiesPrecedence sorts it:
+    plugins, themes, override, override/plugins, then the path; the last one loaded wins."""
+    path = "/" + path.lstrip("/")
+    for rank, segment in ((4, "/conf/override/plugins/"), (3, "/conf/override/"), (2, "/conf/themes/"), (1, "/conf/plugins/")):
+        if segment in path:
+            return rank, path
+    return 0, path
+
+
 def read_properties(path):
     """Reads a properties file as ISO-8859-1, the encoding java.util.Properties.load uses."""
     return parse_properties(pathlib.Path(path).read_text(encoding="latin-1"))
@@ -211,6 +222,82 @@ def utf8_constants(data):
     except (KeyError, IndexError, struct.error):
         return out
     return out
+
+
+def class_bean_name(data):
+    """(class name, CDI bean name, plain bean) of a class annotated @Named, the bean name being the annotation's value
+    or the simple class name with a lower-case first letter, plain meaning scoped, neither an alternative (CDI prefers
+    it to a plain bean of the same name) nor vetoed; None for any other class or an unreadable one."""
+    u2 = lambda at: struct.unpack(">H", data[at:at + 2])[0]
+    u4 = lambda at: struct.unpack(">I", data[at:at + 4])[0]
+    try:
+        if data[:4] != b"\xca\xfe\xba\xbe":
+            return None
+        count, pos, index, pool, refs = u2(8), 10, 1, {}, {}
+        sizes = {3: 4, 4: 4, 5: 8, 6: 8, 7: 2, 8: 2, 9: 4, 10: 4, 11: 4, 12: 4, 15: 3, 16: 2, 17: 4, 18: 4, 19: 2, 20: 2}
+        while index < count:
+            tag = data[pos]
+            if tag == 1:
+                pool[index] = data[pos + 3:pos + 3 + u2(pos + 1)].decode("utf-8", "replace")
+                pos += 3 + u2(pos + 1)
+            else:
+                if tag == 7:
+                    refs[index] = u2(pos + 1)
+                pos += 1 + sizes[tag]
+            index += 2 if tag in (5, 6) else 1
+        this = pool.get(refs.get(u2(pos + 2)), "").replace("/", ".")
+        pos += 6
+        pos += 2 + 2 * u2(pos)
+        for _ in ("field", "method"):
+            n, pos = u2(pos), pos + 2
+            for _ in range(n):
+                attrs, pos = u2(pos + 6), pos + 8
+                for _ in range(attrs):
+                    pos += 6 + u4(pos + 2)
+
+        def skip_value(at):
+            tag = chr(data[at])
+            if tag in "BCDFIJSZsc":
+                return at + 3
+            if tag == "e":
+                return at + 5
+            if tag == "@":
+                return skip_annotation(at + 1)[0]
+            if tag == "[":
+                n, at = u2(at + 1), at + 3
+                for _ in range(n):
+                    at = skip_value(at)
+                return at
+            raise ValueError(tag)
+
+        def skip_annotation(at):
+            kind, n, at, values = pool.get(u2(at)), u2(at + 2), at + 4, {}
+            for _ in range(n):
+                name = pool.get(u2(at))
+                if chr(data[at + 2]) == "s":
+                    values[name] = pool.get(u2(at + 3))
+                at = skip_value(at + 2)
+            return at, kind, values
+
+        annotations = {}
+        n, pos = u2(pos), pos + 2
+        for _ in range(n):
+            aname, alen = pool.get(u2(pos)), u4(pos + 2)
+            if aname == "RuntimeVisibleAnnotations":
+                at = pos + 8
+                for _ in range(u2(pos + 6)):
+                    at, kind, values = skip_annotation(at)
+                    annotations[kind] = values
+            pos += 6 + alen
+    except (KeyError, IndexError, ValueError, struct.error):
+        return None
+    if "Ljakarta/inject/Named;" not in annotations:
+        return None
+    simple = this.rsplit(".", 1)[-1].split("$")[-1]
+    name = annotations["Ljakarta/inject/Named;"].get("value") or (simple[:1].lower() + simple[1:])
+    plain = any(k.startswith("Ljakarta/enterprise/context/") for k in annotations) and not (
+        {"Ljakarta/enterprise/inject/Alternative;", "Ljakarta/enterprise/inject/Vetoed;"} & annotations.keys())
+    return this, name, plain
 
 
 def class_ordinal(data):
@@ -341,6 +428,26 @@ class War:
             self._scan_jars()
         return self._strings
 
+    def bean_names(self):
+        """CDI bean name -> sorted (class, jar) of the plain named beans of the jars and of WEB-INF/classes."""
+        names = {}
+        for jar in self.jars():
+            try:
+                with zipfile.ZipFile(jar) as z:
+                    for n in z.namelist():
+                        if n.endswith(".class"):
+                            bean = class_bean_name(z.read(n))
+                            if bean and bean[2]:
+                                names.setdefault(bean[1], set()).add((bean[0], jar.name))
+            except zipfile.BadZipFile:
+                continue
+        cls = self.path / "WEB-INF/classes"
+        for f in cls.rglob("*.class") if cls.exists() else []:
+            bean = class_bean_name(f.read_bytes())
+            if bean and bean[2]:
+                names.setdefault(bean[1], set()).add((bean[0], "WEB-INF/classes"))
+        return {k: sorted(v) for k, v in names.items()}
+
     def jar_sources(self):
         """Configuration shipped in jars: (ordinal, name, pairs) for microprofile-config.properties and ConfigSources."""
         out = []
@@ -385,8 +492,8 @@ class War:
             files = root + [(rel(p), read_properties(p)) for d in ("plugins", "themes", "override", "override/plugins")
                             for p in self.conf_files(d)]
             return [(100, "LuteceConfigSource", files)]
-        base = sorted(self.conf_files("plugins") + self.conf_files("themes"), key=rel, reverse=True)
-        over = sorted(self.conf_files("override") + self.conf_files("override/plugins"), key=rel, reverse=True)
+        base = sorted(self.conf_files("plugins") + self.conf_files("themes"), key=lambda p: properties_precedence(rel(p)))
+        over = sorted(self.conf_files("override") + self.conf_files("override/plugins"), key=lambda p: properties_precedence(rel(p)))
         out = [(o, n, [(n, p)]) for o, n, p in self.jar_sources()]
         out.append((150, "LuteceConfigSource", root + [(rel(p), read_properties(p)) for p in base]))
         out.append((250, "LuteceOverrideConfigSource", [(rel(p), read_properties(p)) for p in over]))
@@ -453,6 +560,11 @@ class Site:
         return [{t: self.text(d, t) for t in ("groupId", "artifactId", "version", "type", "scope")}
                 for d in self.find("m:dependencies/m:dependency")]
 
+    def profile_dependencies(self):
+        """The dependencies declared inside the Maven profiles: (profile id, dict of groupId, artifactId, version, type, scope)."""
+        return [(self.text(p, "id"), {t: self.text(d, t) for t in ("groupId", "artifactId", "version", "type", "scope")})
+                for p in self.find("m:profiles/m:profile") for d in p.findall("m:dependencies/m:dependency", POM_NS)]
+
     def managed_imports(self):
         """The poms imported in dependencyManagement."""
         return [{t: self.text(d, t) for t in ("groupId", "artifactId", "version")}
@@ -498,6 +610,22 @@ def bom_versions(pom_path):
     return out
 
 
+def parent_managed(pom_path, m2):
+    """artifactIds the parent chain of a pom manages, read from the local Maven repository; None when a parent of the
+    chain is not there."""
+    managed, pom = set(), ET.parse(pom_path).getroot()
+    while (parent := pom.find("m:parent", POM_NS)) is not None:
+        get = lambda t: (parent.find(f"m:{t}", POM_NS).text or "").strip() if parent.find(f"m:{t}", POM_NS) is not None else ""
+        g, a, v = get("groupId"), get("artifactId"), get("version")
+        f = pathlib.Path(m2) / g.replace(".", "/") / a / v / f"{a}-{v}.pom"
+        if not f.is_file():
+            return None
+        pom = ET.parse(f).getroot()
+        managed.update((d.find("m:artifactId", POM_NS).text or "").strip()
+                       for d in pom.findall("m:dependencyManagement/m:dependencies/m:dependency", POM_NS))
+    return managed
+
+
 def latest_local_bom(m2):
     """The newest lutece-bom 8 pom found in a local Maven repository, or None."""
     base = pathlib.Path(m2) / "fr/paris/lutece/starters/lutece-bom"
@@ -505,11 +633,22 @@ def latest_local_bom(m2):
     return max(poms, key=lambda p: version_key(p.parent.name)) if poms else None
 
 
-def check_pom(site, bom, out):
+def floor_parent():
+    """The lowest Lutece 8 parent lutecepowers supports: V8_FLOOR_PARENT when pinned, else the latest released
+    lutece-global-pom 8.x (latest-lutece.py, as tools/v8-floor.conf reads it)."""
+    if os.environ.get("V8_FLOOR_PARENT"):
+        return os.environ["V8_FLOOR_PARENT"]
+    r = subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name("latest-lutece.py")), "release",
+                        "fr.paris.lutece.tools:lutece-global-pom"], capture_output=True, text=True)
+    return r.stdout.strip().split(":")[2] if r.stdout.count(":") >= 2 else "8.0.0"
+
+
+def check_pom(site, bom, out, m2=None):
     """SI01-SI09: the pom of a v8 site against the layer model (parent, BOM, starter, versions)."""
     aid, ver = site.parent()
-    if aid != "lutece-site-pom" or version_key(ver) < version_key(os.environ.get("V8_FLOOR_PARENT", "8.0.2")):
-        out.add("FAIL", "SI01", f"pom.xml: parent {aid} {ver}; a v8 site has lutece-site-pom 8.0.2 or later")
+    floor = floor_parent()
+    if aid != "lutece-site-pom" or version_key(ver) < version_key(floor):
+        out.add("FAIL", "SI01", f"pom.xml: parent {aid} {ver}; a v8 site has lutece-site-pom {floor} or later (the latest released 8.x)")
     else:
         out.passed("SI01", f"parent lutece-site-pom {ver}")
     boms = [i for i in site.managed_imports() if i["artifactId"] == "lutece-bom"]
@@ -532,10 +671,17 @@ def check_pom(site, bom, out):
             out.add("WARN", "SI04", f"pom.xml: {a} {v} while lutece-bom manages it ({managed[a][0]}): drop the version")
         if a in managed and t != managed[a][1]:
             out.add("FAIL", "SI05", f"pom.xml: {a} declared as type {t}, lutece-bom manages it as {managed[a][1]}: the version is not found")
-        if managed and a not in managed and not v and d["scope"] not in ("provided", "test"):
-            out.add("FAIL", "SI06", f"pom.xml: {a} has no version and lutece-bom does not manage it")
         if v and v[0] in "[(":
             out.add("WARN", "SI07", f"pom.xml: {a} {v}: a range; a v8 site pins what the BOM does not manage")
+    inherited = parent_managed(site.path / "pom.xml", m2) if m2 else None
+    for where, d in [("", d) for d in site.dependencies()] + [(f" (profile {i})", d) for i, d in site.profile_dependencies()]:
+        a = d["artifactId"]
+        if not managed or d["version"] or a in managed or (inherited is not None and a in inherited):
+            continue
+        if inherited is not None or d["scope"] not in ("provided", "test"):
+            out.add("FAIL", "SI06", f"pom.xml{where}: {a} has no version and neither lutece-bom nor the parent poms manage it: the pom does not load")
+        else:
+            out.add("WARN", "SI06", f"pom.xml{where}: {a} has no version and lutece-bom does not manage it; the parent poms are not in the local repository to tell")
     dead = [k for k in site.properties() if re.fullmatch(r"lutece\.[\w.\-]+\.version", k)]
     if dead:
         out.add("WARN", "SI08", "pom.xml: " + ", ".join(dead) + ": a lutece.*.version property of the site does not change the version the imported BOM manages")
@@ -654,6 +800,26 @@ DS_DELETE = re.compile(r"DELETE FROM core_datastore WHERE entity_key\s*(=|LIKE)\
 def like(pattern):
     """The regular expression of a SQL LIKE pattern."""
     return re.compile("".join(".*" if c == "%" else "." if c == "_" else re.escape(c) for c in pattern))
+
+
+def check_fresh_datastore(war, out):
+    """SI89: an install script of the war (a theme, a site, a pack) inserting a datastore key the core's own install
+    already inserts, with no DELETE before it: on a new database the core goes first and the insert hits a duplicate key."""
+    sql = war.path / "WEB-INF/classes/sql"
+    core = sql / "init_db_lutece_core.sql"
+    if not core.is_file():
+        return
+    inserted = set(DS_INSERT.findall(core.read_text(encoding="utf-8", errors="replace")))
+    for f in sorted(sql.rglob("init_*.sql")):
+        if f == core:
+            continue
+        text = f.read_text(encoding="utf-8", errors="replace")
+        dels = [(op.upper(), k) for op, k in DS_DELETE.findall(text)]
+        keys = [m.group(1) for m in DS_INSERT.finditer(text) if not re.match(r"[^;]*ON\s+DUPLICATE\s+KEY", text[m.start():], re.I)]
+        dup = sorted({k for k in keys if k in inserted and not any(k == d if op == "=" else like(d).fullmatch(k) for op, d in dels)})
+        if dup:
+            out.add("FAIL", "SI89", f"{f.relative_to(war.path)}: inserts " + ", ".join(dup) + " that the core install already inserts: "
+                    "a new database fails on the duplicate key; DELETE the key first, or UPDATE it")
 
 
 def duplicate_keys(before, after):
@@ -852,6 +1018,8 @@ def check_conf(site, war, out):
         check_server_variables(site, war, out)
         check_override_keys(site, war, out)
         check_class_values(war, out)
+        check_bean_names(war, out)
+        check_fresh_datastore(war, out)
         check_profiles(site, war, out)
 
 
@@ -890,9 +1058,9 @@ def check_override_keys(site, war, out):
     for k, defs in sorted(seen.items()):
         values = {v for _, v in defs}
         if len({f for f, _ in defs}) > 1 and len(values) > 1:
-            winner = sorted(f for f, _ in defs)[0]
+            winner = max((f for f, _ in defs), key=properties_precedence)
             out.add("WARN", "SI26", f"{k} set to different values in " + ", ".join(sorted({f for f, _ in defs})) +
-                    f": in v8 the first file in alphabetical order wins ({winner}); keep one definition")
+                    f": in v8 the last file loaded wins ({winner}); keep one definition")
     defaults = set()
     for ordinal, _, files in war.sources():
         if ordinal < 250:
@@ -927,6 +1095,15 @@ def check_override_keys(site, war, out):
             out.add("WARN", "SI27", f"{keys[0]}: no default of the core or of a plugin declares it and no class of the war names it; a key read by nothing (a typo, a renamed key, a removed plugin)")
         else:
             out.add("WARN", "SI27", f"{len(keys)} keys {head}.* read by nothing (no default declares them, no class of the war names them: a plugin the war no longer ships, or renamed keys): " + ", ".join(keys[:4]) + (", …" if len(keys) > 4 else ""))
+
+
+def check_bean_names(war, out):
+    """SI88: two plain CDI beans of the war under one name stop the deployment (WELD-001414, ambiguous bean name)."""
+    for name, beans in sorted(war.bean_names().items()):
+        if len({c for c, _ in beans}) > 1:
+            out.add("FAIL", "SI88", f"CDI bean name {name} carried by " + ", ".join(f"{c} ({j})" for c, j in beans) +
+                    ": the site does not deploy (WELD-001414); give the bean a @Named value prefixed with its plugin "
+                    "(myPluginCommentJspBean) and call that name from its JSPs")
 
 
 def check_class_values(war, out):
@@ -1632,7 +1809,7 @@ def main():
     war = War(a.war) if a.war else None
     bom = a.bom or latest_local_bom(a.m2)
     out = Findings()
-    check_pom(site, bom, out)
+    check_pom(site, bom, out, a.m2)
     check_build(site, out)
     check_secrets(site, out)
     check_conf(site, war, out)

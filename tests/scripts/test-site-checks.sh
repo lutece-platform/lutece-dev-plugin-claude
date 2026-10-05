@@ -102,16 +102,18 @@ BOM = ROOT / "bom.pom"
 
 w = war("order", extra={"WEB-INF/conf/override/lutece.properties": "k=from-lutece\n",
                         "WEB-INF/conf/override/plugins/x.properties": "k=from-plugins\n",
-                        "WEB-INF/conf/plugins/b.properties": "p=b\n", "WEB-INF/conf/plugins/a.properties": "p=a\n",
+                        "WEB-INF/conf/plugins/b.properties": "p=b\nq=plugin\n", "WEB-INF/conf/plugins/a.properties": "p=a\n",
+                        "WEB-INF/conf/themes/t.properties": "q=theme\n",
                         "WEB-INF/conf/override/profiles.properties": "e=\n%dev.d=dev\n",
                         "WEB-INF/conf/plugins/z.properties": "e=default\nd=plain\n"})
 rc, out = run("config", w)
-expect("v8: inside a source the first file in alphabetical order wins", "k=from-lutece" in out and "p=a" in out, out)
+expect("v8: inside a source the last file loaded wins: override/plugins after override/, themes after plugins, then alphabetical",
+       "k=from-plugins" in out and "q=theme" in out and "p=b" in out, out)
 expect("an empty value masks the key of a lower source", "e=<masked: empty value>" in out, out)
 org_config_jar(w / "WEB-INF/lib/library-orgconfig-1.0.0.jar", "d=env\n%dev.k=env-dev\nmylutece.authentication.class=fr.paris.lutece.plugins.x.Missing\n")
 rc, out = run("config", w, "--profile", "dev")
 expect("profiles resolve source by source: %dev in the override source wins over the ConfigSource", "d=dev" in out, out)
-expect("a plain key of a higher source wins over a %dev key of a lower one", "k=from-lutece" in out, out)
+expect("a plain key of a higher source wins over a %dev key of a lower one", "k=from-plugins" in out, out)
 rc, out = run("config", war("v7", core="7.1.8", extra={"WEB-INF/conf/override/plugins/x.properties": "k=from-plugins\n",
                                                           "WEB-INF/conf/override/lutece.properties": "k=from-lutece\n"}))
 expect("v7: override/plugins is loaded last and wins", "k=from-plugins" in out, out)
@@ -320,6 +322,61 @@ expect("the components pass restores v7 versions, removes new ones and moves a r
        and "REPLACE(entity_key, 'core.plugins.status.workflow-oldpdf.', 'core.plugins.status.workflow-newpdf.')" in comp_sql
        and "'core.plugins.status.workflow-newpdf.version', '1.1.0'" in comp_sql
        and "DELETE FROM core_datastore WHERE entity_key = 'core.theme.status.mytheme.version';" in comp_sql, comp_sql)
+
+
+def compiled_jar(path, sources):
+    """A jar of the classes javac compiles from the given name -> source entries, against stubs of the CDI annotations."""
+    src, out = ROOT / ("src-" + path.stem), ROOT / ("cls-" + path.stem)
+    stubs = {"jakarta/inject/Named.java": "package jakarta.inject; import java.lang.annotation.*; "
+             "@Retention(RetentionPolicy.RUNTIME) public @interface Named { String value() default \"\"; }",
+             "jakarta/enterprise/context/RequestScoped.java": "package jakarta.enterprise.context; import java.lang.annotation.*; "
+             "@Retention(RetentionPolicy.RUNTIME) public @interface RequestScoped { }",
+             "jakarta/enterprise/inject/Alternative.java": "package jakarta.enterprise.inject; import java.lang.annotation.*; "
+             "@Retention(RetentionPolicy.RUNTIME) public @interface Alternative { }"}
+    for rel, text in {**stubs, **sources}.items():
+        write(src / rel, text)
+    subprocess.run(["javac", "-d", str(out), *map(str, src.rglob("*.java"))], check=True)
+    jar(path, {str(f.relative_to(out)): f.read_bytes() for f in out.rglob("*.class") if "jakarta" not in f.parts})
+
+
+bean = lambda pkg, ann: {f"{pkg.replace('.', '/')}/CommentJspBean.java": f"package {pkg}; {ann} public class CommentJspBean {{ }}"}
+cdi = war("cdi")
+compiled_jar(cdi / "WEB-INF/lib/plugin-a-1.0.0.jar", bean("org.wf", "@jakarta.enterprise.context.RequestScoped @jakarta.inject.Named"))
+compiled_jar(cdi / "WEB-INF/lib/module-b-1.0.0.jar", bean("org.ext", "@jakarta.enterprise.context.RequestScoped @jakarta.inject.Named"))
+compiled_jar(cdi / "WEB-INF/lib/plugin-alt-1.0.0.jar", bean("org.alt", "@jakarta.enterprise.context.RequestScoped @jakarta.enterprise.inject.Alternative @jakarta.inject.Named( \"x\" )")
+             | {"org/plain/X.java": "package org.plain; @jakarta.enterprise.context.RequestScoped @jakarta.inject.Named( \"x\" ) public class X { }"})
+rc, out = run("check", site("cdi-site"), "--war", cdi)
+expect("SI88 fails two plain beans named alike by default in two plugins (WELD-001414)",
+       "FAIL [SI88] CDI bean name commentJspBean carried by org.ext.CommentJspBean" in out and "org.wf.CommentJspBean" in out, out)
+expect("SI88 leaves an alternative sharing the name of a plain bean", "bean name x " not in out, out)
+
+pm = ROOT / "m2-parents"
+write(pm / "fr/paris/lutece/tools/lutece-site-pom/8.0.2/lutece-site-pom-8.0.2.pom", """<project xmlns="http://maven.apache.org/POM/4.0.0">
+<parent><groupId>fr.paris.lutece.tools</groupId><artifactId>lutece-global-pom</artifactId><version>8.0.2</version></parent></project>""")
+write(pm / "fr/paris/lutece/tools/lutece-global-pom/8.0.2/lutece-global-pom-8.0.2.pom", """<project xmlns="http://maven.apache.org/POM/4.0.0">
+<dependencyManagement><dependencies><dependency><groupId>org.apache.logging.log4j</groupId><artifactId>log4j-core</artifactId>
+<version>2.25.0</version></dependency></dependencies></dependencyManagement></project>""")
+profiled = site("profiled", pom_extra="""</dependencies><profiles><profile><id>local</id><dependencies>
+<dependency><groupId>org.example</groupId><artifactId>local-only</artifactId><scope>provided</scope></dependency>
+<dependency><groupId>org.apache.logging.log4j</groupId><artifactId>log4j-core</artifactId><scope>provided</scope></dependency>
+</dependencies></profile></profiles><dependencies>""")
+rc, out = run("check", profiled, "--bom", BOM, "--m2", pm)
+expect("SI06 fails a profile dependency without a version nobody manages, whatever its scope",
+       "FAIL [SI06] pom.xml (profile local): local-only has no version" in out, out)
+expect("SI06 leaves a neutralised dependency the parent poms manage", "log4j-core" not in out, out)
+rc, out = run("check", profiled, "--bom", BOM, "--m2", ROOT / "no-m2")
+expect("SI06 only warns on a provided dependency when the parent poms cannot be read",
+       "WARN [SI06] pom.xml (profile local): local-only" in out and "FAIL [SI06]" not in out, out)
+
+ds = war("fresh-ds", extra={"WEB-INF/classes/sql/init_db_lutece_core.sql": "INSERT INTO core_datastore VALUES ('portal.a', '1');\nINSERT INTO core_datastore VALUES ('portal.b', '1');\nINSERT INTO core_datastore VALUES ('portal.c', '1');\n",
+    "WEB-INF/classes/sql/themes/t/init_db_theme_t.sql": "INSERT INTO core_datastore VALUES ('portal.a', '2');\n"
+        "DELETE FROM core_datastore WHERE entity_key='portal.b';\nINSERT INTO core_datastore VALUES ('portal.b', '2');\n"
+        "INSERT INTO core_datastore VALUES ('portal.c', '2') ON DUPLICATE KEY UPDATE entity_value='2';\n"
+        "INSERT INTO core_datastore VALUES ('theme.t.own', '2');\n"})
+rc, out = run("check", site("fresh-ds-site"), "--war", ds)
+expect("SI89 fails a theme install inserting a datastore key the core install inserts, without DELETE",
+       "FAIL [SI89] WEB-INF/classes/sql/themes/t/init_db_theme_t.sql: inserts portal.a that" in out, out)
+expect("SI89 leaves a key deleted first, an upsert and a key of the theme's own", "portal.b" not in out and "portal.c" not in out and "theme.t.own" not in out, out)
 
 sys.exit(1 if failures else 0)
 PY
