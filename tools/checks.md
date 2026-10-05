@@ -234,6 +234,7 @@ after the gate.
 | SQ10 | FAIL | Liquibase changeset without any SQL statement: validation fails (`'sql' is required`) and no changeset of the site runs, whatever `failOnError` | changeset header followed by comments or blank lines only | src/sql |
 | SQ11 | FAIL | Changeset identity (`author:id`) declared twice in one upgrade script: Liquibase refuses the changelog | changeset headers | src/sql/**/update_*.sql |
 | SQ12 | WARN | Changeset of an upgrade script whose body differs from the last tag or the last commit (an id taken over in a rebase, an edited release): a base that ran it never gets the new body, a replay fails its checksum; allowed only for damage that cannot be undone afterwards, said in the changeset comment | `git show <tag>:` / `HEAD:` | src/sql/**/update_*.sql |
+| SQ13 | WARN | `prerun_db_*` script missing from `WEB-INF/classes/sql` of the assembled webapp: the lutece-maven-plugin of the build copies only the names `SqlPathInfo` parses, so plugin-liquibase never runs it until the site is built with a release that copies the prerun scripts | `WEB-INF/classes/sql` of `target/` | src/sql |
 
 **SQ02** — a fresh install runs the creation script and is green; an existing site runs only the
 `update_db_*` scripts newer than its recorded version. An older upgrade that (re)creates the table

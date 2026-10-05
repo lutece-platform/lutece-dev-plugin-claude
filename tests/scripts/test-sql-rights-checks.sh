@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks SQ01, SQ04, SQ07, WB09, PM13, XT03 and PT01 both ways, then the inventory resolving a constant defined as another constant and
+# Checks SQ01, SQ04, SQ06, SQ07, SQ13, WB09, PM13, XT03 and PT01 both ways, then the inventory resolving a constant defined as another constant and
 # the error markers of an artefact living in the core namespace.
 set -u
 . "$(dirname "$0")/../../tools/python.sh"
@@ -26,6 +26,11 @@ printf -- '-- liquibase formatted sql\n-- changeset myplugin:prerun_db_myplugin.
 printf -- '-- liquibase formatted sql\n-- changeset myplugin:update_db_myplugin-1.0.0-1.0.1.sql\n-- validCheckSum: 9:abc\nSELECT 1;\n' > "$T/sq-upgrade/src/sql/plugins/myplugin/plugin/update_db_myplugin-1.0.0-1.0.1.sql"
 expect sq-prerun SQ07 PASS
 expect sq-upgrade SQ07 WARN
+for k in prerun upgrade; do mkdir -p "$T/sq-$k/target/lutece/WEB-INF/classes/sql" "$T/sq-$k/target/lutece/WEB-INF/templates"; done
+expect sq-prerun SQ06 PASS
+expect sq-prerun SQ13 WARN
+expect sq-upgrade SQ06 FAIL
+expect sq-upgrade SQ13 PASS
 for k in released fresh; do mkdir -p "$T/sq4-$k/src/sql/plugins/myplugin/upgrade"; printf "INSERT INTO core_admin_right VALUES ('X','x',1,'jsp/x.jsp','x',0,'myplugin',NULL,NULL,NULL,1);\n" > "$T/sq4-$k/src/sql/plugins/myplugin/upgrade/update_db_myplugin-1.0.0-1.0.1.sql"; done
 (cd "$T/sq4-released" && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm init)
 expect sq4-released SQ04 PASS
@@ -90,5 +95,5 @@ import json,sys
 m=json.load(sys.stdin)['surface']['markers']
 sys.exit(0 if 'fr.paris.lutece.portal.web.thing.ThingJspBean' in m and 'fr.paris.lutece.portal' not in m else 1)" || { echo "FAIL: an artefact in the core namespace is not marked by its own classes"; fails=$((fails + 1)); }
 
-[ "$fails" -eq 0 ] && echo "PASS: SQ01, SQ04 (a committed upgrade script left alone), SQ07, WB09, PM13, XT03, PT01 both ways, constant aliases resolved, core-namespace artefact marked by its classes"
+[ "$fails" -eq 0 ] && echo "PASS: SQ01, SQ04 (a committed upgrade script left alone), SQ06 and SQ13 (a prerun script the build left out warns), SQ07, WB09, PM13, XT03, PT01 both ways, constant aliases resolved, core-namespace artefact marked by its classes"
 exit "$fails"
