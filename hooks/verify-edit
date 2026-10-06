@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# verify-edit — PostToolUse hook: after an edit of a file of a Lutece project, reports what verify-file.sh finds on it.
+# verify-edit — PostToolUse hook: after an edit of a file of a Lutece project, reports the Lutece 8 checks the edit
+# breaks.
 #
-# Silent on a clean file, on a file of another kind, outside a Lutece project, and when Python is missing. Exit 2 hands
-# the FAIL and WARN lines of that file back to the agent while the edit is fresh (the edit itself stays).
+# Only what the edit adds comes back as an error (exit 2), measured against the file before the edit (the harness's
+# original content, else the committed version) checked at the same path. A project below Lutece 8, or a file or a
+# project already carrying Lutece 7 code, gets one non-blocking note per session instead: leave it unless the user asks,
+# ask once the task is done whether to run the update skill. During an update (a .migration directory), every finding
+# of the file comes back. Silent on a file of another kind, outside a Lutece project and when Python is missing.
 set -uo pipefail
 
 IN=$(cat)
@@ -11,18 +15,32 @@ T="${CLAUDE_PLUGIN_ROOT:-}/tools"
 . "$T/python.sh" 2>/dev/null || exit 0
 [ -n "${LP_PYTHON:-}" ] || exit 0
 
-F=$(printf '%s' "$IN" | python3 -c 'import json, sys; print((json.load(sys.stdin).get("tool_input") or {}).get("file_path", ""))' 2>/dev/null)
+# Prints one field of the hook input: file_path from tool_input, originalFile from tool_response, else a top-level one.
+input() {
+    printf '%s' "$IN" | python3 -c '
+import json, sys
+d, k = json.load(sys.stdin), sys.argv[1]
+v = (d.get("tool_input") or {}).get(k) if k == "file_path" else (d.get("tool_response") or {}).get(k) if k == "originalFile" else d.get(k)
+sys.exit(1) if v is None else sys.stdout.write(str(v))' "$1" 2>/dev/null
+}
+
+F=$(input file_path)
 [ -n "$F" ] && [ -f "$F" ] || exit 0
 case "$F" in *.java|*.html|*.jsp|*.sql|*.xml|*.properties) ;; *) exit 0 ;; esac
+F=$(cd "$(dirname "$F")" && pwd)/$(basename "$F")
 
-D=$(cd "$(dirname "$F")" && pwd); ROOT=""
+D=$(dirname "$F"); ROOT=""; MIGRATING=false
 while [ -n "$D" ] && [ "$D" != "/" ]; do
-    [ -f "$D/pom.xml" ] && { ROOT="$D"; break; }
+    [ -d "$D/.migration" ] && MIGRATING=true
+    [ -z "$ROOT" ] && [ -f "$D/pom.xml" ] && ROOT="$D"
     D=$(dirname "$D")
 done
 [ -n "$ROOT" ] && grep -qE "fr\.paris\.lutece|lutece-global-pom" "$ROOT/pom.xml" 2>/dev/null || exit 0
+STAMP="${TMPDIR:-/tmp}/lutecepowers-note-$(printf '%s|%s' "$(input session_id)" "$ROOT" | cksum | cut -d' ' -f1)"
 
-FOUND=$(cd "$ROOT" && bash "$T/verify-file.sh" "$F" 2>/dev/null | python3 -c '
+# Prints "STATUS ID COUNT DESCRIPTION" for every FAIL and WARN verify-file.sh finds on a file, run from a directory.
+findings() {
+    (cd "$1" && bash "$T/verify-file.sh" "$2" 2>/dev/null) | python3 -c '
 import json, sys
 try:
     d = json.load(sys.stdin)
@@ -30,13 +48,77 @@ except ValueError:
     sys.exit(0)
 for x in d.get("details", []):
     if x.get("status") in ("FAIL", "WARN"):
-        print("  %s %s: %s%s" % (x["status"], x["id"], x.get("description", ""), " (%s)" % x["count"] if x.get("count") else ""))
-' 2>/dev/null)
-[ -n "$FOUND" ] || exit 0
+        print(x["status"], x["id"], x.get("count") or 1, x.get("description", ""))
+' 2>/dev/null
+}
 
-{
-    echo "lutecepowers: $(basename "$F") breaks a Lutece 8 check:"
-    echo "$FOUND"
-    echo "  what it means and how to fix it: bash \${LUTECEPOWERS_ROOT}/tools/lutece-check.sh --explain CODE"
-} >&2
-exit 2
+# Hands the agent a non-blocking note, once per session and project, and ends the hook.
+note() {
+    [ -e "$STAMP" ] && exit 0
+    : > "$STAMP"
+    printf '%s' "lutecepowers: $1 Leave it as it is unless the user asks or the task needs it to pass. End your answer by asking, in the user's language, whether to run the lutece-update-$KIND skill on the whole project; load it only when the user says yes." \
+        | python3 -c 'import json, sys; print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": sys.stdin.read()}}))'
+    exit 0
+}
+
+# Notes a clean file of a project whose other sources still carry Lutece 7 code, else ends the hook silently.
+project_debt() {
+    [ -e "$STAMP" ] && exit 0
+    local re='import javax\.(servlet|inject|enterprise|ws\.rs|validation|annotation\.(PostConstruct|PreDestroy))|import org\.junit\.(Test|Assert|Before|After)\b|SpringContextService|import org\.springframework'
+    local n
+    n=$(git -C "$ROOT" grep -lE "$re" -- 'src/*.java' 2>/dev/null | wc -l)
+    [ "$n" -gt 0 ] 2>/dev/null || n=$(grep -rlE "$re" --include='*.java' "$ROOT/src" 2>/dev/null | wc -l)
+    [ "$n" -gt 0 ] || exit 0
+    note "$n Java files of this project still carry Lutece 7 code (javax, JUnit 4, Spring)."
+}
+
+# Prints "  STATUS ID: DESCRIPTION (N)" for each finding of the first list counted more often than in the second.
+added() {
+    python3 -c '
+import sys
+base = {}
+for line in sys.argv[2].splitlines():
+    s, i, c, _ = (line.split(" ", 3) + [""])[:4]
+    base[i] = int(c)
+for line in sys.argv[1].splitlines():
+    s, i, c, d = (line.split(" ", 3) + [""])[:4]
+    if int(c) > base.get(i, 0):
+        print("  %s %s: %s (%s)" % (s, i, d, int(c) - base.get(i, 0)))
+' "$1" "$2"
+}
+
+read -r KIND LEVEL <<< "$(python3 "$T/lutece-level.py" "$F" 2>/dev/null)"
+KIND=${KIND:-plugin}
+$MIGRATING || [ "$LEVEL" != old ] || note "this project is below Lutece 8: the Lutece 8 checks do not apply to its files."
+
+NOW=$(findings "$ROOT" "$F")
+if [ -z "$NOW" ]; then
+    $MIGRATING && exit 0
+    project_debt
+fi
+
+BASE=""
+if ! $MIGRATING; then
+    TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+    REL=${F#"$ROOT"/}
+    mkdir -p "$TMP$ROOT"
+    cp -rs "$ROOT/src" "$TMP$ROOT/" 2>/dev/null
+    cp "$ROOT/pom.xml" "$TMP$ROOT/pom.xml" 2>/dev/null
+    mkdir -p "$(dirname "$TMP$F")" && rm -f "$TMP$F"
+    if input originalFile > "$TMP$F" || git -C "$ROOT" show "HEAD:./$REL" > "$TMP$F" 2>/dev/null; then
+        BASE=$(findings "$TMP$ROOT" "$TMP$F")
+    fi
+fi
+
+NEW=$(added "$NOW" "$BASE")
+if [ -n "$NEW" ]; then
+    {
+        echo "lutecepowers: this edit of $(basename "$F") breaks a Lutece 8 check:"
+        echo "$NEW"
+        $MIGRATING || echo "  fix what this edit added, nothing else."
+        echo "  what it means: bash \${LUTECEPOWERS_ROOT}/tools/lutece-check.sh --explain CODE"
+    } >&2
+    exit 2
+fi
+
+note "$(basename "$F") already breaks Lutece 8 checks the edit did not add ($(echo "$NOW" | awk '{print $2}' | sort -u | paste -sd, -))."

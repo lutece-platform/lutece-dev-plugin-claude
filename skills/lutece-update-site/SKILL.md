@@ -1,6 +1,6 @@
 ---
 name: lutece-update-site
-description: "Use when bringing a Lutece site (packaging lutece-site: a site, a pack or a theme) to the Lutece 8 level lutecepowers supports, whatever its starting point: migrating a v7 or older site, or updating a v8 site (parent, BOM, starter, pack). Checks first that every artefact the site ships has a Lutece 8 version and hands the missing ones to lutece-update-plugin; then proves that nothing the site configured, shipped or overrode is lost, by comparing the assembled site before and after and by running it. Triggers on 'migrer un site', 'passer le site en v8', 'mettre à jour le site', 'monter le pack', 'site v8', 'migrate site', 'update site'."
+description: "Use when bringing a Lutece site (packaging lutece-site: a site, a pack or a theme) to the Lutece 8 level lutecepowers supports, whatever its starting point: migrating a v7 or older site, or updating a v8 site (parent, BOM, starter, pack). Checks first that every artefact the site ships has a Lutece 8 version and hands the missing ones to lutece-update-plugin; then proves that nothing the site configured, shipped or overrode is lost, by comparing the assembled site before and after and by running it. Triggers when the user asks to migrate or update the whole site: 'migrer un site', 'passer le site en v8', 'mettre à jour le site', 'montée de version du site', 'monter le pack', 'site v8', 'migrate site', 'update site'."
 metadata:
   summary: "Update a site, pack or theme to Lutece 8, from any version."
 ---

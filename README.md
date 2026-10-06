@@ -32,7 +32,9 @@ and scripts that check everything a machine can check. Claude Code, Codex, Curso
 ## How it works
 
 - Open the agent **in your project** (plugin, module, library, site) and say what you want, in your own words.
-- The agent picks the matching skill and follows it. Scripts check each step; the agent fixes what they report.
+- The agent does that task and what it needs to pass, nothing wider. It picks the matching skill and follows it.
+- Scripts check the work; on Claude Code every edit is checked at once. The agent fixes what its edit breaks and leaves
+  the rest of the project as it is.
 - **Nothing is committed.** You read the result and commit.
 
 ## Updating to Lutece 8 — from any version
@@ -40,10 +42,12 @@ and scripts that check everything a machine can check. Claude Code, Codex, Curso
 - `lutece-update-plugin`: a plugin, a module or a library.
 - `lutece-update-site`: a site, a pack or a theme.
 
-The starting version does not matter: Lutece 3, 5, 7 or an older 8. The skills do not climb version after
-version. The checks describe the Lutece 8 target, so every gap is reported whatever the starting point, and the
-database follows the plugin's own upgrade scripts from the version the site recorded. A migration is proven on an
-e2e bench: the artefact before, then after, on the same database.
+Ask for it (*"migrate this plugin to v8"*), or say yes when the agent offers it at the end of another task. It never
+starts on its own.
+
+The starting version does not matter: Lutece 3, 5, 7 or an older 8. The checks describe the Lutece 8 target, so every
+gap is reported whatever the starting point, and the database follows the plugin's own upgrade scripts from the
+version the site recorded. An update is proven on an e2e bench: the artefact before, then after, on the same database.
 
 ## Skills
 

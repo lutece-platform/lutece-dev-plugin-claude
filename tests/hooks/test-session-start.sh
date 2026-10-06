@@ -91,6 +91,14 @@ grep -q local-edit "$TMP/proj/.claude/rules/dao-patterns.md" && pass "newer loca
 rm -rf "$TMP/proj/.claude"
 run_hook '{}' CURSOR_PROJECT_DIR="$TMP/proj" >/dev/null
 [ -d "$TMP/proj/.claude" ] && fail "Cursor must not copy rules" || pass "Cursor does not copy rules"
+mkdir -p "$TMP/v7" && echo '<project><parent><artifactId>lutece-global-pom</artifactId><version>7.0.5</version></parent><packaging>lutece-plugin</packaging></project>' > "$TMP/v7/pom.xml"
+run_hook "$CLAUDE_IN" CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_PROJECT_DIR="$TMP/v7" >/dev/null
+[ -d "$TMP/v7/.claude" ] && fail "a project below Lutece 8 must not get the rules" || pass "a project below Lutece 8 gets no Lutece 8 rule"
+mkdir -p "$TMP/v7/.claude/rules" && cp "$ROOT/rules/dao-patterns.md" "$TMP/v7/.claude/rules/" && printf '*\n' > "$TMP/v7/.claude/rules/.gitignore" && echo mine > "$TMP/v7/.claude/rules/own.md"
+run_hook "$CLAUDE_IN" CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_PROJECT_DIR="$TMP/v7" >/dev/null
+[ ! -f "$TMP/v7/.claude/rules/dao-patterns.md" ] && [ -f "$TMP/v7/.claude/rules/own.md" ] && pass "a project below Lutece 8 loses the copied rules, keeps its own" || fail "copied rules left in a project below Lutece 8"
+mkdir -p "$TMP/v7/.migration"; run_hook "$CLAUDE_IN" CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_PROJECT_DIR="$TMP/v7" >/dev/null
+[ -f "$TMP/v7/.claude/rules/dao-patterns.md" ] && pass "a project being updated gets the rules whatever its version" || fail "rules missing during an update"
 
 echo "reference sync"
 for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$LUTECE_REFERENCES_DIR/.last-sync" ] && break; sleep 0.3; done

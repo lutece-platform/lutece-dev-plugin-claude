@@ -1,6 +1,6 @@
 ---
 name: lutece-update-plugin
-description: "Use when bringing a Lutece plugin, module or library to the Lutece level lutecepowers supports, whatever its starting point: migrating from v7 or older (Spring to CDI, javax to jakarta, XML context, templates, tests), or updating a v8 project to the current level (parent, deprecated API, checks, bench). The scripts report every checkable finding with what to do, one agent makes every change, a read-only reviewer and the e2e bench prove the result. Triggers on 'migrate to v8', 'migration v7 v8', 'CDI migration', 'update', 'mettre à jour', 'mise à niveau', 'remettre au niveau'."
+description: "Use when bringing a Lutece plugin, module or library to the Lutece level lutecepowers supports, whatever its starting point: migrating from v7 or older (Spring to CDI, javax to jakarta, XML context, templates, tests), or updating a v8 project to the current level (parent, deprecated API, checks, bench). The scripts report every checkable finding with what to do, one agent makes every change, a read-only reviewer and the e2e bench prove the result. Triggers when the user asks to migrate or update the whole plugin, module or library: 'migrate to v8', 'upgrade to Lutece 8', 'migration v7 v8', 'CDI migration', 'passer en v8', 'montée de version', 'mise à niveau v8', 'migrer le plugin', 'mettre à jour le plugin'."
 metadata:
   summary: "Update a plugin, module or library to Lutece 8, from any version."
 ---
@@ -18,10 +18,14 @@ Two subagents only, one after the other: the reviewer (Phase E) and the e2e benc
 
 ```bash
 mkdir -p .migration
+bash ${LUTECEPOWERS_ROOT}/hooks/setup-rules . >/dev/null
 bash ${LUTECEPOWERS_ROOT}/tools/scan-project.sh . > .migration/scan.json
 [ -s .gitignore ] && [ -n "$(tail -c1 .gitignore)" ] && echo >> .gitignore
 for p in 'target/' 'logs/' 'java.io.tmpdir/' '.migration/' '*.log' 'e2e/'; do grep -qxF "$p" .gitignore 2>/dev/null || echo "$p" >> .gitignore; done
 ```
+
+From here on the Lutece 8 rules apply, whatever the starting version: before editing a file, read the rule of
+`${LUTECEPOWERS_ROOT}/rules/` that matches it (`.claude/rules/` holds them on Claude Code from the next session).
 
 `project.type` `site` (packaging `lutece-site`: a site, a pack, a theme) is not updated here: follow the
 `lutece-update-site` skill, which checks what the site ships and hands its plugins back to this one when they need an

@@ -12,6 +12,17 @@ RULES_DST="${PROJECT_DIR}/.claude/rules"
 [ -f "${PROJECT_DIR}/pom.xml" ] || exit 0
 grep -q "lutece-plugin\|lutece-module\|lutece-library\|lutece-site\|lutece-global-pom" "${PROJECT_DIR}/pom.xml" 2>/dev/null || exit 0
 
+# A project below Lutece 8 that is not being updated gets no Lutece 8 rule, and loses the copies an earlier
+# session made: they would rewrite its code.
+. "$(cd "${SCRIPT_DIR}/.." && pwd)/tools/python.sh" 2>/dev/null
+if [ ! -d "${PROJECT_DIR}/.migration" ] && [ -n "${LP_PYTHON:-}" ] && python3 "$(cd "${SCRIPT_DIR}/.." && pwd)/tools/lutece-level.py" "$PROJECT_DIR" 2>/dev/null | grep -q ' old$'; then
+    if [ -f "$RULES_DST/.gitignore" ]; then
+        for f in "$RULES_SRC"/*.md; do rm -f "$RULES_DST/$(basename "$f")"; done
+        rm -f "$RULES_DST/.gitignore"; rmdir "$RULES_DST" 2>/dev/null
+    fi
+    exit 0
+fi
+
 # The copies belong to the workstation, never to the project's repository: the folder ignores itself, so a
 # `git add -A` at the end of a migration does not ship the rule files with the plugin.
 mkdir -p "$RULES_DST" && cp -u "$RULES_SRC"/*.md "$RULES_DST/" 2>/dev/null && printf '*\n' > "$RULES_DST/.gitignore" && echo "Lutece project detected: rules copied to .claude/rules/"

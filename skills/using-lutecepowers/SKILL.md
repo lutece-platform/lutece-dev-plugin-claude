@@ -12,7 +12,19 @@ metadata:
 
 Lutecepowers is a set of skills, path-scoped rules, reference sources and scripts for **Lutece 8** development. The content is the same on every harness. Only the way you invoke a skill or dispatch a subagent changes, see [Harness adaptation](#harness-adaptation).
 
+## Scope
+
+- Do the task the user asked and what it needs to pass (a build or a test it is about), nothing wider.
+- The user asks to migrate or update the whole project: load `lutece-update-plugin` (a site: `lutece-update-site`).
+- Lutece 8 debt the task does not need (a project below Lutece 8, code the checks already reject): leave it unless the
+  user asks, never fix it piece by piece on your own. End your answer by asking, in the user's language, whether to run
+  `lutece-update-plugin` (a site: `lutece-update-site`) on the whole project; load it only when the user says yes.
+- A project's Lutece version is the one its poms declare (Lutece parent, lutece-core), never what its imports suggest.
+  Below 8 and not being updated, work in its own version: the reads, rules and checks below describe Lutece 8.
+
 ## Mandatory reads
+
+On a Lutece 8 project, and during an update to it:
 
 1. **Before writing any Lutece code** (bean, service, DAO, XPage, daemon, template): load the `lutece-patterns` skill.
 2. **Before editing a file matching a rule glob** (table below): read that rule file. On Claude Code the rules are also loaded automatically from `.claude/rules/`.
@@ -38,8 +50,8 @@ One command checks any Lutece project, a v7 one to migrate as a v8 one:
   `/mnt/c`, the Linux java and Maven 3.9, git line endings, Docker): run it when the user asks for the doctor, and
   before any work when a build or a bench fails for a reason outside the project.
 
-On Claude Code, every edit of a Lutece file is checked at once: what `verify-file.sh` finds comes back to you. What a
-script reports is not repeated in the skills: fix what it says.
+On Claude Code, every edit of a Lutece file is checked at once: what the edit breaks comes back to you, fix it; what
+the file or the project already broke comes as a note (see Scope). What a script reports is not repeated in the skills.
 
 ## Skills
 
@@ -56,8 +68,8 @@ script reports is not repeated in the skills: fix what it says.
 | `lutece-rbac` | Use when adding or reviewing permissions in a Lutece 8 plugin: RBAC entity permissions, ResourceIdService, plugin.xml declaration, JspBean authorization checks. Triggers on 'RBAC', 'permission', 'right', 'authorization', 'ResourceIdService'. |
 | `lutece-scalability-v8` | Use after a migration to v8 to make a Lutece plugin horizontally scalable and prove it: scans scalability anti-patterns, fixes them, deploys a real 3-instance cluster (Liberty, MariaDB, nginx, Hazelcast) and verifies through UI end-to-end tests. Triggers on 'scalability', 'cluster', 'multi-instance', 'horizontal scaling'. |
 | `lutece-solr-indexer` | Use when creating or modifying a Solr search module for Lutece 8: SolrIndexer interface, CDI auto-discovery, SolrItem dynamic fields, batch indexing, incremental updates through CDI events. Triggers on 'Solr', 'search module', 'SolrIndexer'. |
-| `lutece-update-plugin` | Use when bringing a Lutece plugin, module or library to the Lutece level lutecepowers supports, whatever its starting point: migrating from v7 or older (Spring to CDI, javax to jakarta, XML context, templates, tests), or updating a v8 project to the current level (parent, deprecated API, checks, bench). The scripts report every checkable finding with what to do, one agent makes every change, a read-only reviewer and the e2e bench prove the result. Triggers on 'migrate to v8', 'migration v7 v8', 'CDI migration', 'update', 'mettre à jour', 'mise à niveau', 'remettre au niveau'. |
-| `lutece-update-site` | Use when bringing a Lutece site (packaging lutece-site: a site, a pack or a theme) to the Lutece 8 level lutecepowers supports, whatever its starting point: migrating a v7 or older site, or updating a v8 site (parent, BOM, starter, pack). Checks first that every artefact the site ships has a Lutece 8 version and hands the missing ones to lutece-update-plugin; then proves that nothing the site configured, shipped or overrode is lost, by comparing the assembled site before and after and by running it. Triggers on 'migrer un site', 'passer le site en v8', 'mettre à jour le site', 'monter le pack', 'site v8', 'migrate site', 'update site'. |
+| `lutece-update-plugin` | Use when bringing a Lutece plugin, module or library to the Lutece level lutecepowers supports, whatever its starting point: migrating from v7 or older (Spring to CDI, javax to jakarta, XML context, templates, tests), or updating a v8 project to the current level (parent, deprecated API, checks, bench). The scripts report every checkable finding with what to do, one agent makes every change, a read-only reviewer and the e2e bench prove the result. Triggers when the user asks to migrate or update the whole plugin, module or library: 'migrate to v8', 'upgrade to Lutece 8', 'migration v7 v8', 'CDI migration', 'passer en v8', 'montée de version', 'mise à niveau v8', 'migrer le plugin', 'mettre à jour le plugin'. |
+| `lutece-update-site` | Use when bringing a Lutece site (packaging lutece-site: a site, a pack or a theme) to the Lutece 8 level lutecepowers supports, whatever its starting point: migrating a v7 or older site, or updating a v8 site (parent, BOM, starter, pack). Checks first that every artefact the site ships has a Lutece 8 version and hands the missing ones to lutece-update-plugin; then proves that nothing the site configured, shipped or overrode is lost, by comparing the assembled site before and after and by running it. Triggers when the user asks to migrate or update the whole site: 'migrer un site', 'passer le site en v8', 'mettre à jour le site', 'montée de version du site', 'monter le pack', 'site v8', 'migrate site', 'update site'. |
 | `lutece-update-template-bo` | Converts a Lutece Back Office (admin) template to the BO FreeMarker macros of lutece-core (Tabler theme). Discovers the macros from the core sources rather than from a fixed list, so it never goes stale, and applies the house rules that are not readable from the macro files: manageFeature versus table, the mandatory empty state, the page hierarchy, no offcanvas (a modal or a plain link), no inline form, and the e-mail templates that must never be converted. Takes the template path as argument. Triggers on 'migrer un template BO', 'convertir un template admin', 'macros BO', 'thème tabler', 'update back office template'. |
 | `lutece-update-template-fo` | Converts a Lutece Front Office (skin) template to the FO FreeMarker macros of lutece-core. Discovers the macros from the core sources rather than from a fixed list, so it never goes stale, and applies the rules that are not readable from the macro files: the FO macros are never the Back Office ones, the FreeMarker syntax to use, Bootstrap 5 classes, and the jQuery that must become vanilla JS. Takes the template path as argument. Triggers on 'migrer un template FO', 'convertir un template skin', 'macros FO', 'front office template', 'update skin template'. |
 | `lutece-v8-review` | Use when the user asks to review, audit, check or verify a Lutece plugin, module or library for v8 compliance or conformity, or after a migration to v8 before delivering. Read-only. Dispatches the lutece-v8-reviewer instructions as a subagent, or follows them inline on a harness without dispatch. |
