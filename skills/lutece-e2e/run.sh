@@ -107,6 +107,7 @@ cmd_build() {
   "${SERVER[@]}" build
   mkdir -p "$HOME/.lutecepowers-e2e/benches/$E2E_NAME"
   bash "$BENCH/tools/src-digest.sh" "$E2E_SRC" > "$HOME/.lutecepowers-e2e/benches/$E2E_NAME/built.src"
+  python3 "$BENCH/tools/dep-digest.py" "$LPE2E_SITE" "$(own_artifact)" > "$HOME/.lutecepowers-e2e/benches/$E2E_NAME/built.deps"
   bash "$BENCH/tools/liquibase-visibility.sh" "$HOME/.lutecepowers-e2e/benches/$E2E_NAME/site" || true
 }
 
@@ -241,17 +242,22 @@ invariants() {
 }
 
 # True when the bench site is missing, or anything that goes into it changed since it was laid out: the artefact's
-# sources, the bench's configuration of the site, the bench code, a Lutece artefact rebuilt in the local repository
-# (a dependency fixed locally). Prevents testing a stale build.
+# sources, the bench's configuration of the site, the bench code, a Lutece dependency rebuilt in the local repository
+# (a dependency fixed locally, judged by the content of its jar, tools/dep-digest.py, not by its date: an install can
+# keep an older date). Prevents testing a stale build.
 needs_build() {
   local stamp="$HOME/.lutecepowers-e2e/benches/$E2E_NAME/built"
   [ -f "$stamp" ] || return 0
   [ "$(cat "$stamp.src" 2>/dev/null)" = "$(bash "$BENCH/tools/src-digest.sh" "$E2E_SRC")" ] || return 0
   [ -n "$(find "$E2E_SRC/src" "$E2E_SRC/webapp" "$E2E_SRC/pom.xml" -type f -newer "$stamp" 2>/dev/null | head -1)" ] && return 0
   [ -n "$(find e2e.conf harness "$BENCH/harness" "$BENCH/tools/gen-site.sh" "$BENCH/server" -type f -newer "$stamp" 2>/dev/null | head -1)" ] && return 0
-  local own; own=$(grep -oE "<artifactId>[^<]+" "$E2E_SRC/pom.xml" 2>/dev/null | sed -n 2p | sed 's/<artifactId>//')
-  [ -n "$(find "${M2_REPO:-$HOME/.m2/repository}/fr/paris/lutece" \( -name '*.jar' -o -name '*-webapp.zip' \) -newer "$stamp" 2>/dev/null | grep -v "/${own:-none}/" | head -1)" ] && return 0
+  [ "$(cat "$stamp.deps" 2>/dev/null)" = "$(python3 "$BENCH/tools/dep-digest.py" "$LPE2E_SITE" "$(own_artifact)")" ] || return 0
   return 1
+}
+
+# The artifactId of the artefact under test: the second one of its pom, after the parent's.
+own_artifact() {
+  grep -oE "<artifactId>[^<]+" "$E2E_SRC/pom.xml" 2>/dev/null | sed -n 2p | sed 's/<artifactId>//'
 }
 
 # Fast fail before the full suite: log in and open a few of the artefact's own entry screens; if every one is an

@@ -175,12 +175,28 @@ def site_key(bench):
     return h.hexdigest()[:12]
 
 
+DEPS = ".lpe2e-deps"
+"""File of a cached site holding the digest of the Lutece dependencies it was assembled with (tools/dep-digest.py)."""
+
+
+def dep_digest(site, artifact_id):
+    """The digest of the content of the local repository copies of the Lutece jars a site carries, the artefact's own
+    left out: it changes when a dependency is rebuilt and installed locally, whatever the dates of its files."""
+    r = sh("python3", BENCH / "tools/dep-digest.py", site, artifact_id)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
 def base_site(bench, artifact_id):
     """The assembled site of the bench's composition without the artefact's own jar, cached by site_key. A miss
-    assembles it once with gen-site.sh, which installs the artefact first; a hit only packages the artefact."""
+    assembles it once with gen-site.sh, which installs the artefact first; a hit only packages the artefact. A cached
+    site whose Lutece dependencies were rebuilt locally since (their content, DEPS), or one cached without that record,
+    is assembled again."""
     gen_site(bench, "--pom-only")
     key = site_key(bench)
     base = HOME / "sites" / key
+    if base.exists() and (not (base / DEPS).is_file() or (base / DEPS).read_text().strip() != dep_digest(base, artifact_id)):
+        log("build: site %s may carry a Lutece dependency rebuilt since, assembled again" % key)
+        shutil.rmtree(base)
     if base.exists():
         mvn = os.environ.get("MVN", "mvn").split()
         r = subprocess.run(mvn + ["-B", "-q", "-o", "-f", str(bench.src / "pom.xml"), "package", "-Dmaven.test.skip=true"])
@@ -197,6 +213,7 @@ def base_site(bench, artifact_id):
     shutil.copytree(assembled, tmp)
     for jar in (tmp / "WEB-INF/lib").glob(artifact_id + "-*.jar"):
         jar.unlink()
+    (tmp / DEPS).write_text(dep_digest(tmp, artifact_id) + "\n")
     tmp.rename(base)
     log("build: site %s assembled and cached" % key)
     return base
