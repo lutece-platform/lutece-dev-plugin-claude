@@ -5,6 +5,7 @@ level, the command to run, one line with a mark per prerequisite of the machine,
 Usage: start-banner.py <project_dir> <color 0|1> < doctor.sh output ("  PASS|WARN|FAIL [ENVnn] message")
 Colour only when asked: the terminal renders ANSI, other surfaces print the codes as text.
 """
+import json
 import os
 import re
 import sys
@@ -19,6 +20,15 @@ ACCENT, DIM, RED, YELLOW = "1;38;2;30;136;229", "2", "31", "33"
 def paint(text, code, color):
     """Wraps a text in an ANSI style when colour is on."""
     return "\033[%sm%s\033[0m" % (code, text) if color else text
+
+
+def version():
+    """The version of this lutecepowers, from its plugin manifest."""
+    try:
+        with open(os.path.join(HERE, "..", ".claude-plugin", "plugin.json"), encoding="utf-8") as fh:
+            return json.load(fh).get("version", "")
+    except (OSError, ValueError):
+        return ""
 
 
 def name(root):
@@ -53,7 +63,7 @@ def lines(root, doctor, color):
     found = lutece_level.detect(root)
     kind, major = found if found else ("plugin", None)
     dot = paint(" · ", DIM, color)
-    out = [paint("lutecepowers", ACCENT, color) + dot + name(root) + dot + paint("lutece %s %s" % (major or "?", kind), DIM, color)]
+    out = [paint("lutecepowers", ACCENT, color) + (" " + paint(version(), DIM, color) if version() else "") + dot + name(root) + dot + paint("lutece %s %s" % (major or "?", kind), DIM, color)]
     if major is not None and major < 8:
         out.append("%s below lutece 8 %s" % (paint("▲", YELLOW, color), paint("· run /lutecepowers-v8:lutece-update-%s" % kind, DIM, color)))
     else:
