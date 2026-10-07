@@ -141,7 +141,7 @@ def main():
             continue
         print("%s:%s%s" % (ga, v, ":" + build if build else ""))
     CACHE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = CACHE.with_suffix(".tmp")
+    tmp = CACHE.with_suffix(".%d.tmp" % os.getpid())
     tmp.write_text(json.dumps(cache))
     os.replace(tmp, CACHE)
     sys.exit(rc)

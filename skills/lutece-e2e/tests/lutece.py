@@ -621,9 +621,12 @@ SERVER_ENTRY = re.compile(r"^\[\d+/\d+/\d+, [\d:]+ \w+\] \w+ \S+\s+([A-Z]) ")
 """Header line of a Liberty log entry; the group is its level (E is an error)."""
 
 # Log entries that are no failure of the application, logged on every bench whatever the artefact: the browser left
-# the page while the server was still writing it (the next step navigated), the client closed the connection.
+# the page while the server was still writing it (the next step navigated), the client closed the connection. A reset
+# counts only while Liberty serves a static file (FileServletWrapper): elsewhere it may be a call of the artefact to a
+# remote service, a failure to report.
 CORE_LOG_NOISE = tuple(re.compile(p) for p in (
     r"java\.io\.IOException: Broken pipe",
+    r"(?s)java\.io\.IOException: Connection reset by peer.*\bFileServletWrapper\b",
 ))
 
 
