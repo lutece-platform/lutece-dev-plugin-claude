@@ -122,6 +122,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from admin_rights import updates  # noqa: E402
 import template_rules  # noqa: E402
 
 ADMIN = "webapp/WEB-INF/templates/admin"
@@ -1069,6 +1070,34 @@ def sql_values(row):
     return [v.strip().strip("'") for v in re.findall(r"\s*('(?:[^']|'')*'|[^,]+)\s*(?:,|$)", row)]
 
 
+def iconed_later(text, after):
+    """The admin rights an update past `after` gives a CSS class icon (an appended changeset fixing the shipped INSERT),
+    under the id the INSERT gave them."""
+    out, alias = set(), {}
+    for offset, fid, sets in updates(text):
+        if offset < after:
+            continue
+        origin = alias.pop(fid, fid)
+        if "id_right" in sets:
+            alias[sets["id_right"]] = origin
+        icon = sets.get("icon_url")
+        if icon is not None and icon.upper() != "NULL" and icon and not icon.startswith("images/"):
+            out.add(origin)
+    return out
+
+
+def right_of(insert, at):
+    """The id_right of the INSERT row holding offset `at`: the column list names it, else it is the first value."""
+    cols = re.search(r"\(([^)]*)\)\s*VALUES", insert, flags=re.I)
+    names = [c.strip().lower() for c in cols.group(1).split(",")] if cols else []
+    index = names.index("id_right") if "id_right" in names else 0
+    for row in re.finditer(r"\(((?:'(?:[^']|'')*'|[^()'])*)\)", insert):
+        if row.start() <= at < row.end() and (not cols or row.start() > cols.end()):
+            values = sql_values(row.group(1))
+            return values[index] if index < len(values) else None
+    return None
+
+
 def check_sql(text, findings, know):
     """SQL rules: the admin feature icon is a CSS class, adminHeader.ftl renders <i class="${iconUrl}">; an entry
     type icon (genatt_entry_type.icon_name) is a name of the theme's icon macro."""
@@ -1081,11 +1110,14 @@ def check_sql(text, findings, know):
             if len(values) == len(cols) and values[cols.index("icon_name")] not in know.bo_icons:
                 add(findings, "TD62", "WARN", line_of(text, match.start(2) + row.start()), "entry type icon '%s' is neither a Tabler name nor an alias of the theme's icon macro: its button shows an empty glyph (fix existing sites with an upgrade script too)" % values[cols.index("icon_name")])
     for match in re.finditer(r"INSERT INTO core_admin_right.*?;", text, flags=re.S | re.I):
+        later = iconed_later(text, match.end())
         for icon in re.finditer(r"'(images/[^']*)'", match.group(0)):
+            if right_of(match.group(0), icon.start()) in later:
+                continue
             add(findings, "TD08", "WARN", line_of(text, match.start() + icon.start()), "core_admin_right icon_url '%s' is an image path: adminHeader.ftl renders it as a CSS class, use 'ti ti-<name>'" % icon.group(1))
         for row in re.finditer(r"\(([^()]*)\)", match.group(0)):
             cols = [c.strip() for c in row.group(1).split(",")]
-            if len(cols) >= 9 and cols[8].upper() in ("NULL", "''"):
+            if len(cols) >= 9 and cols[8].upper() in ("NULL", "''") and cols[0].strip("'") not in later:
                 add(findings, "TD08", "INFO", line_of(text, match.start() + row.start()), "core_admin_right row without icon_url: the feature shows no icon in the admin menu, give it 'ti ti-<name>'")
 
 

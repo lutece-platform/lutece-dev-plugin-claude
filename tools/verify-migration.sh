@@ -1849,19 +1849,31 @@ echo ""
 # WB14: an icon written as Tabler classes (ti ti-x) that tabler-icons.min.css of the core does not define: an empty glyph.
 WB13_MATCHES=""; WB14_MATCHES=""
 if [ -d webapp/WEB-INF/plugins ] || [ -d src/sql ]; then
-    WB1314=$(python3 - <<'EOF2'
-import glob, os, re
+    WB1314=$(SCRIPT_DIR="$SCRIPT_DIR" python3 - <<'EOF2'
+import glob, os, re, sys
+sys.path.insert(0, os.environ["SCRIPT_DIR"])
+from admin_rights import updates
 rows = {}
 for f in sorted(glob.glob("src/sql/**/*.sql", recursive=True)):
     if re.search(r"/upgrades?/", f):
         continue
     text = open(f, errors="replace").read()
+    steps = []
     for m in re.finditer(r"(?is)insert\s+into\s+core_admin_right\s*\(([^)]*)\)\s*values\s*(.*?);", text):
         cols = [c.strip().lower() for c in m.group(1).split(",")]
         for row in re.findall(r"\(((?:'(?:[^']|'')*'|[^()'])*)\)", m.group(2)):
             vals = [v.strip().strip("'") for v in re.findall(r"'(?:[^']|'')*'|[^,]+", row) if v.strip()]
             if len(vals) == len(cols) and "id_right" in cols:
-                rows[vals[cols.index("id_right")]] = (f, text[:m.start()].count("\n") + 1, dict(zip(cols, vals)))
+                steps.append((m.start(), vals[cols.index("id_right")], dict(zip(cols, vals)), None))
+    steps += [(offset, fid, None, sets) for offset, fid, sets in updates(text)]
+    for offset, fid, row, sets in sorted(steps, key=lambda s: s[0]):
+        line = text[:offset].count("\n") + 1
+        if row is not None:
+            rows[fid] = (f, line, row)
+        elif fid in rows:
+            row = rows.pop(fid)[2]
+            row.update({k: v for k, v in sets.items() if k != "id_right"})
+            rows[sets.get("id_right", fid)] = (f, line, row)
 css = os.path.expanduser(os.environ.get("LUTECE_REFERENCES", "~/.lutece-references")) + "/lutece-core/webapp/themes/shared/css/tabler-icons.min.css"
 icons = set(re.findall(r"\.ti-([a-z0-9-]+):before", open(css, errors="replace").read())) if os.path.isfile(css) else set()
 def unknown(value):
