@@ -4,6 +4,8 @@
 # target/.v8-floor verdict, so check-v8-floor.sh answers from its cache and never calls Maven.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
+# The fixtures are written for this parent floor; pinned so a new lutece-global-pom release does not move it.
+export V8_FLOOR_PARENT=8.0.2
 V="${VERIFY:-$HERE/../../tools/verify-migration.sh}"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
