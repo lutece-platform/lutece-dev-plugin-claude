@@ -342,7 +342,7 @@ in an interactive shell is not. When the answer "nothing left" is the point of t
 | LE01 | FAIL | line endings converted in a changed file (diff widened to the whole file) | carriage returns in HEAD vs the work tree | changed files |
 | PV01 | FAIL | pom version and plugin descriptor `<version>` differ | (cross-file check) | pom.xml, plugins/*.xml |
 | PV02 | FAIL | version not above the last released git tag while upgrade scripts changed since (WARN, not evaluated, in a shallow clone without tags or outside git): an upgraded site never runs the new upgrade scripts. The numbers only count, as plugin-liquibase compares them (`PluginVersion` of library-sql-utils): `4.0.2-SNAPSHOT` after a `4.0.2-beta-03` release is the same version. A script ending at the installed version runs only with `liquibase.accept.unstable.versions` (or `accept.snapshot.versions`) and an upgrade as the plugin's last run, never on a site installed fresh at that release: put the changes in a script ending above the release (`update_db_x-4.0.2-4.0.3.sql`) and raise the version to `4.0.3-SNAPSHOT` | `git tag` | pom.xml |
-| PV03 | WARN | version not above the last released git tag, no upgrade script since: raise it before adding one | (git tags) | pom.xml |
+| PV03 | WARN | version below the last released git tag, or equal to a final release, no upgrade script since: raise it before adding one (equal to a pre-release's numbers: PASS with the reminder) | (git tags) | pom.xml |
 
 **LE01** — the fix is `tools/restore-line-endings.sh`: it puts back the endings HEAD has on every changed file
 whose endings moved, whatever else changed in it, and touches nothing else. A file that carries real changes on

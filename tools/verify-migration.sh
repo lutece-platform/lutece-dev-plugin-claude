@@ -1949,7 +1949,10 @@ echo ""
 # compares the installed version with the scripts' target) and the release read different ones.
 # PV02: the v8 version is not above the last released tag while upgrade scripts changed since: a site already on that
 # release is "up to date", so those scripts are silently NOT included (2.0.0-SNAPSHOT after a 2.1.x release).
-# PV03: the same version without upgrade script since: nothing is lost yet, the next script would be.
+# PV03: the same version without upgrade script since: nothing is lost yet, the next script would be. Below a release,
+# or equal to a final one, it warns (the version was not raised after a release); equal to the numbers of a
+# pre-release (2.0.1-SNAPSHOT after 2.0.1-beta-01, the beta cycle) it passes with the reminder: raising the version
+# then would only make a release number nobody asked for.
 PV_MATCHES=$(python3 - <<'PY'
 import glob, os, re, subprocess
 def version(v):
@@ -1983,12 +1986,15 @@ if released:
         upgrades = [f for f in since if re.search(r"/upgrades?/[^/]+\.sql$", f)]
         if upgrades:
             print("PV02 pom.xml: version %s is not above the last release %s, and %d upgrade script(s) changed since (%s): a site on that release never runs them (a script ending at the installed version runs only with liquibase.accept.unstable.versions or accept.snapshot.versions and an upgrade as the last run, never after a fresh install): put the changes in a script ending above the release, and raise the version to it%s" % (pv, last[1], len(upgrades), ", ".join(os.path.basename(f) for f in upgrades[:3]), why))
+        elif version(pv) == last[0] and re.search(r"\d-[A-Za-z]", last[1]):
+            print("PV03N version %s carries the numbers of the pre-release %s and no upgrade script was added since: nothing is lost; a new upgrade script needs a version above it (PV02)" % (pv, last[1]))
         else:
             print("PV03 pom.xml: version %s is not above the last release %s: raise it before adding an upgrade script, or a site on that release never runs it%s" % (pv, last[1], why))
 PY
 )
 PV01_MATCHES=$(echo "$PV_MATCHES" | grep "^PV01 " | sed 's/^PV01 //'); PV02_MATCHES=$(echo "$PV_MATCHES" | grep "^PV02 " | sed 's/^PV02 //')
 PV02_UNJUDGED=$(echo "$PV_MATCHES" | grep "^PV02NE " | sed 's/^PV02NE //'); PV03_MATCHES=$(echo "$PV_MATCHES" | grep "^PV03 " | sed 's/^PV03 //')
+PV03_NOTE=$(echo "$PV_MATCHES" | sed -n 's/^PV03N //p')
 COUNT=0; [ -n "$PV01_MATCHES" ] && COUNT=$(echo "$PV01_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "PV01" "PASS" "pom and plugin descriptor carry the same version" 0
 else emit "PV01" "FAIL" "pom and plugin descriptor versions differ" "$COUNT" "$PV01_MATCHES"; fi
@@ -1997,7 +2003,8 @@ if [ -n "$PV02_UNJUDGED" ]; then emit "PV02" "WARN" "Version NOT EVALUATED again
 elif [ "$COUNT" -eq 0 ]; then emit "PV02" "PASS" "The version is above the last release" 0
 else emit "PV02" "FAIL" "Version not above the last release while upgrade scripts changed since: upgraded sites skip them" "$COUNT" "$PV02_MATCHES"; fi
 COUNT=0; [ -n "$PV03_MATCHES" ] && COUNT=$(echo "$PV03_MATCHES" | wc -l)
-if [ "$COUNT" -eq 0 ]; then emit "PV03" "PASS" "The version is above the last release, or nothing to judge" 0
+if [ "$COUNT" -eq 0 ] && [ -n "$PV03_NOTE" ]; then emit "PV03" "PASS" "The $PV03_NOTE" 0
+elif [ "$COUNT" -eq 0 ]; then emit "PV03" "PASS" "The version is above the last release, or nothing to judge" 0
 else emit "PV03" "WARN" "Version not above the last release: raise it before the next upgrade script" "$COUNT" "$PV03_MATCHES"; fi
 echo ""
 

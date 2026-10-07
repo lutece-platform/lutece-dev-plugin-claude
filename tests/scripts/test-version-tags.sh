@@ -46,8 +46,11 @@ fails=0
 [ "$(pv02 behind 2.0.0-SNAPSHOT plugin-x-2.1.0 script)" = "FAIL" ] || { echo "FAIL: a version below the last release with an upgrade script since is not a failure"; fails=1; }
 [ "$(pv02 quiet 2.0.0-SNAPSHOT plugin-x-2.1.0 none PV02)" = "PASS" ] || { echo "FAIL: a version below the last release without upgrade script since fails PV02"; fails=1; }
 [ "$(pv02 quiet2 2.0.0-SNAPSHOT plugin-x-2.1.0 none PV03)" = "WARN" ] || { echo "FAIL: a version below the last release without upgrade script since is not warned (PV03)"; fails=1; }
+[ "$(pv02 beta 2.0.1-SNAPSHOT plugin-x-2.0.1-beta-01 none PV03)" = "PASS" ] || { echo "FAIL: the beta cycle (2.0.1-SNAPSHOT after 2.0.1-beta-01) without upgrade script is warned (PV03)"; fails=1; }
+[ "$(pv02 final 2.0.1-SNAPSHOT plugin-x-2.0.1 none PV03)" = "WARN" ] || { echo "FAIL: a version equal to a final release is not warned (PV03)"; fails=1; }
+[ "$(pv02 betascript 2.0.1-SNAPSHOT plugin-x-2.0.1-beta-01 script)" = "FAIL" ] || { echo "FAIL: an upgrade script added after a beta of the same version does not fail PV02"; fails=1; }
 [ "$(pv02_where shallow 2.0.0-SNAPSHOT)" = "WARN" ] || { echo "FAIL: a shallow clone without tags passes PV02 it could not judge"; fails=1; }
 [ "$(pv02_where nogit 2.0.0-SNAPSHOT)" = "WARN" ] || { echo "FAIL: a folder outside git passes PV02 it could not judge"; fails=1; }
 [ "$(pv02_where untagged 1.0.0-SNAPSHOT)" = "PASS" ] || { echo "FAIL: a full repository with no release does not pass PV02"; fails=1; }
-[ "$fails" -eq 0 ] && { echo "PASS: PV02 reads release tags with a build-number suffix, still fails a version below the last release, and does not pass a shallow clone without tags nor a folder outside git"; exit 0; }
+[ "$fails" -eq 0 ] && { echo "PASS: PV02 reads release tags with a build-number suffix, still fails a version below the last release, lets the beta cycle pass PV03 but fails a script added after a beta, and does not pass a shallow clone without tags nor a folder outside git"; exit 0; }
 exit 1
