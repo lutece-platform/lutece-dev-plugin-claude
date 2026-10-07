@@ -27,20 +27,20 @@ check_system() {
     local s r
     s="$(uname -s 2>/dev/null)"; r="$(uname -r 2>/dev/null)"
     case "$s" in
-        MINGW*|MSYS*|CYGWIN*) report FAIL ENV01 "Git Bash / MSYS is not supported: install WSL 2 (wsl --install -d Ubuntu-24.04) and work inside it" ;;
+        MINGW*|MSYS*|CYGWIN*) report FAIL ENV01 "Git Bash / MSYS is not supported, WSL 2 needed: wsl --install -d Ubuntu-24.04" ;;
         Linux)
             if printf '%s' "$r" | grep -qi 'microsoft-standard-wsl2\|wsl2'; then report PASS ENV01 "WSL 2"
             elif printf '%s' "$r" | grep -qi microsoft; then report FAIL ENV01 "WSL 1 is not supported: wsl --set-version <distribution> 2"
             else report PASS ENV01 "Linux"; fi ;;
-        Darwin) report WARN ENV01 "macOS is not verified: Linux or WSL 2 is the supported setup" ;;
-        *) report FAIL ENV01 "system $s is not supported: Linux or WSL 2" ;;
+        Darwin) report WARN ENV01 "macOS is not verified: use Linux or WSL 2" ;;
+        *) report FAIL ENV01 "System $s is not supported: use Linux or WSL 2" ;;
     esac
 }
 
 # ENV02: the project is in the Linux file system, not on a Windows drive.
 check_location() {
     if on_windows_drive "$DIR"; then
-        report FAIL ENV02 "$DIR is on a Windows drive: clone the project under ~/ in the Linux file system"
+        report FAIL ENV02 "Project on a Windows drive ($DIR): clone it under ~/"
     else
         report PASS ENV02 "project in the Linux file system"
     fi
@@ -49,10 +49,10 @@ check_location() {
 # ENV03: git present, and not converting LF to CRLF on checkout.
 check_git() {
     local a
-    if ! command -v git >/dev/null 2>&1; then report FAIL ENV03 "git not found: sudo apt install git"; return; fi
+    if ! command -v git >/dev/null 2>&1; then report FAIL ENV03 "Git not found: sudo apt install git"; return; fi
     a="$(git -C "$DIR" config core.autocrlf 2>/dev/null || git config --global core.autocrlf 2>/dev/null)"
     if [ "$a" = "true" ]; then
-        report FAIL ENV03 "core.autocrlf=true rewrites every file in CRLF: git config --global core.autocrlf input"
+        report FAIL ENV03 "Git rewrites line endings (core.autocrlf=true): git config --global core.autocrlf input"
     else
         report PASS ENV03 "git keeps the line endings"
     fi
@@ -62,32 +62,32 @@ check_git() {
 check_java() {
     local p v
     p="$(command -v java 2>/dev/null)"
-    if [ -z "$p" ]; then report FAIL ENV04 "java not found: sudo apt install openjdk-21-jdk-headless"; return; fi
-    if on_windows_drive "$p"; then report FAIL ENV04 "java is the Windows one ($p): install openjdk-21-jdk-headless in Linux"; return; fi
+    if [ -z "$p" ]; then report FAIL ENV04 "Java not found: sudo apt install openjdk-21-jdk-headless"; return; fi
+    if on_windows_drive "$p"; then report FAIL ENV04 "Java is the Windows one ($p): sudo apt install openjdk-21-jdk-headless"; return; fi
     v="$(java -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)"
     if [ -n "$v" ] && [ "$v" -ge 17 ] 2>/dev/null; then report PASS ENV04 "java $v"
-    else report FAIL ENV04 "java ${v:-unknown} is too old: 17 or later (openjdk-21-jdk-headless)"; fi
+    else report FAIL ENV04 "Java ${v:-unknown} is too old, 17 or later needed: sudo apt install openjdk-21-jdk-headless"; fi
 }
 
 # ENV05: a Linux Maven 3.9 (3.8 is too old, 4 is not supported).
 check_maven() {
     local p v
     p="$(command -v mvn 2>/dev/null)"
-    if [ -z "$p" ]; then report FAIL ENV05 "mvn not found: sdk install maven (SDKMAN), not apt"; return; fi
-    if on_windows_drive "$p"; then report FAIL ENV05 "mvn is the Windows one ($p): install Maven in Linux (sdk install maven)"; return; fi
+    if [ -z "$p" ]; then report FAIL ENV05 "Maven not found: sdk install maven 3.9.12 (SDKMAN, not apt)"; return; fi
+    if on_windows_drive "$p"; then report FAIL ENV05 "Maven is the Windows one ($p): sdk install maven 3.9.12"; return; fi
     v="$(mvn -v 2>/dev/null | sed -n 's/^Apache Maven \([0-9][0-9.]*\).*/\1/p' | head -1)"
     case "$v" in
         3.9*) report PASS ENV05 "Maven $v" ;;
-        4*) report FAIL ENV05 "Maven $v is not supported: Maven 3.9 (sdk install maven 3.9.12)" ;;
-        "") report FAIL ENV05 "mvn -v gives no version" ;;
-        *) report FAIL ENV05 "Maven $v is too old: Maven 3.9 (sdk install maven)" ;;
+        4*) report FAIL ENV05 "Maven $v is not supported, 3.9 needed: sdk install maven 3.9.12" ;;
+        "") report FAIL ENV05 "Maven gives no version (mvn -v): sdk install maven 3.9.12" ;;
+        *) report FAIL ENV05 "Maven $v is too old, 3.9 needed: sdk install maven 3.9.12" ;;
     esac
 }
 
 # ENV06: Python 3.9 or later, with PyYAML for the e2e bench.
 check_python() {
     if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; then
-        report FAIL ENV06 "no python3 3.9 or later: sudo apt install python3"; return
+        report FAIL ENV06 "Python 3.9 or later not found: sudo apt install python3"; return
     fi
     if python3 -c 'import yaml' >/dev/null 2>&1; then report PASS ENV06 "python3 with PyYAML"
     else report WARN ENV06 "PyYAML missing, the e2e bench needs it: sudo apt install python3-yaml"; fi
@@ -96,16 +96,16 @@ check_python() {
 # ENV07: node, which checks the JavaScript of a plugin (JS07).
 check_node() {
     if command -v node >/dev/null 2>&1; then report PASS ENV07 "node $(node --version 2>/dev/null)"
-    else report WARN ENV07 "node missing: the JavaScript check JS07 is not evaluated (sudo apt install nodejs)"; fi
+    else report WARN ENV07 "Node missing, the JavaScript check JS07 is skipped: sudo apt install nodejs"; fi
 }
 
 # ENV08: a reachable Docker daemon, for the e2e bench.
 check_docker() {
     if ! command -v docker >/dev/null 2>&1; then
-        report WARN ENV08 "docker missing: the e2e bench cannot run (on Windows, Docker Desktop with the WSL integration of this distribution)"; return
+        report WARN ENV08 "Docker missing, the e2e bench cannot run: install Docker (Windows: Docker Desktop, WSL integration on)"; return
     fi
     if timeout 10 docker info >/dev/null 2>&1; then report PASS ENV08 "docker reachable"
-    else report WARN ENV08 "docker does not answer: start it (on Windows, tick this distribution in Docker Desktop > Settings > Resources > WSL integration)"; fi
+    else report WARN ENV08 "Docker does not answer, the e2e bench cannot run: start it (Windows: Docker Desktop > Settings > Resources > WSL integration)"; fi
 }
 
 check_system

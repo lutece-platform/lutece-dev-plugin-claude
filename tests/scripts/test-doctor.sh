@@ -46,7 +46,7 @@ check "Maven 3.8 is refused" "printf '%s' \"\$OUT\" | grep -q 'FAIL \[ENV05\] Ma
 
 stub java 'echo "openjdk version \"11.0.22\" 2024-01-16" >&2'
 OUT=$(run "$T")
-check "java 11 is refused" "printf '%s' \"\$OUT\" | grep -q 'FAIL \[ENV04\] java 11'"
+check "java 11 is refused" "printf '%s' \"\$OUT\" | grep -q 'FAIL \[ENV04\] Java 11'"
 
 git init -q "$T/repo" && git -C "$T/repo" config core.autocrlf true
 OUT=$(run "$T/repo")

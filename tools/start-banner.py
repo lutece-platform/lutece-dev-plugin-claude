@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Prints the block a session start shows the user in a Lutece project: one line for the project and its Lutece
-level, one line with a mark per prerequisite of the machine and the fix of each one that blocks, then the command to
-run.
+"""Prints the block a session start shows the user in a Lutece project: lutecepowers and whether it is up to date, the
+project and its Lutece level, what the machine lacks (with the command that fixes it), then the command to run.
 
-Usage: start-banner.py <project_dir> <color 0|1> < doctor.sh output ("  PASS|WARN|FAIL [ENVnn] message")
+Usage: start-banner.py <project_dir> <color 0|1> < doctor.sh output ("  PASS|WARN|FAIL [ENVnn] problem: fix")
 Colour only when asked: the terminal renders ANSI, other surfaces print the codes as text.
 """
 import json
@@ -16,7 +15,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 lutece_level = __import__("lutece-level")
 
-ACCENT, DIM, RED, YELLOW = "1;38;2;30;136;229", "2", "31", "33"
+ACCENT, DIM, BOLD, RED, YELLOW = "1;38;2;30;136;229", "2", "1", "31", "33"
+LATEST_URL = "https://raw.githubusercontent.com/lutece-platform/lutece-dev-plugin-lutecepowers/main/.claude-plugin/plugin.json"
 
 
 def paint(text, code, color):
@@ -33,9 +33,6 @@ def version():
         return ""
 
 
-LATEST_URL = "https://raw.githubusercontent.com/lutece-platform/lutece-dev-plugin-lutecepowers/main/.claude-plugin/plugin.json"
-
-
 def latest():
     """The version published on the main branch, "" when it cannot be read within three seconds."""
     try:
@@ -50,15 +47,15 @@ def numbers(v):
     return tuple(int(n) for n in re.findall(r"\d+", v)[:3])
 
 
-def freshness(color):
-    """Up to date, or the newer version with how to get it; empty when the published version cannot be read."""
+def tool_line(color):
+    """lutecepowers, its version, and whether a newer one is published."""
     mine, last = version(), latest()
+    line = paint("lutecepowers", ACCENT, color) + (" " + mine if mine else "")
     if not mine or not last:
-        return ""
+        return line
     if numbers(last) <= numbers(mine):
-        return paint("✓ up to date", DIM, color)
-    return "%s %s available %s" % (paint("▲", YELLOW, color), last,
-                                   paint("· /plugin → Installed → lutecepowers → Update now, then /reload-plugins", DIM, color))
+        return line + paint(" · up to date", DIM, color)
+    return line + paint(" · %s is installing, run /reload-plugins when Claude Code offers it" % last, DIM, color)
 
 
 def name(root):
@@ -69,48 +66,26 @@ def name(root):
     return m.group(1) if m else os.path.basename(root)
 
 
-LABELS = {"ENV01": None, "ENV02": "path", "ENV03": "git", "ENV04": None, "ENV05": None, "ENV06": "python",
-          "ENV07": "node", "ENV08": "docker"}
-MARKS = {"PASS": ("✓", "32"), "WARN": ("▲", YELLOW), "FAIL": ("✗", RED)}
-
-
-def prerequisites(doctor, color):
-    """One line, a mark and a short name per doctor.sh check: the system, java and Maven carry their version."""
-    items = []
-    for status, code, message in doctor:
-        label = LABELS.get(code, code.lower())
-        if label is None:
-            label = message.split(":")[0].split(" (")[0].lower()
-            label = re.sub(r"^(java|maven) (\S+).*", r"\1 \2", label)
-        mark, style = MARKS[status]
-        items.append(paint(mark, style, color) + " " + (label if status != "PASS" else paint(label, DIM, color)))
-    return paint("prerequisites", DIM, color) + "  " + "  ".join(items)
-
-
 def lines(root, doctor, color):
-    """The block: the project line, the prerequisites and the fix of each one that blocks, then the command to run (the
-    update below Lutece 8, else the checkup)."""
+    """The block, one line per fact, a problem line only for what the machine lacks."""
     found = lutece_level.detect(root)
     kind, major = found if found else ("plugin", None)
     dot = paint(" · ", DIM, color)
-    out = [paint("lutecepowers", ACCENT, color) + (" " + paint(version(), DIM, color) if version() else "") + dot + name(root) + dot + paint("lutece %s %s" % (major or "?", kind), DIM, color)]
-    fresh = freshness(color)
-    if fresh.startswith(("▲", "\033[%sm▲" % YELLOW)):
-        out.append(fresh)
-    elif fresh:
-        out[0] += dot + fresh
-    if doctor:
-        out.append(prerequisites(doctor, color))
-    for status, _, message in doctor:
-        if status == "FAIL":
-            problem, _, fix = message.partition(": ")
-            out.append("%s %s%s" % (paint("✗", RED, color), problem, paint("  → " + fix, DIM, color) if fix else ""))
+    problems = [(s, m) for s, _, m in doctor if s in ("FAIL", "WARN")]
+    level = "Lutece %d %s" % (major, kind) if major is not None else "Lutece %s, version not detected" % kind
+    project = name(root) + dot + level + (dot + paint("machine ready", DIM, color) if doctor and not problems else "")
+    out = [tool_line(color), project]
+    for status, message in problems:
+        problem, _, fix = message.partition(": ")
+        mark = paint("✗", RED, color) if status == "FAIL" else paint("▲", YELLOW, color)
+        out.append("%s %s%s" % (mark, problem, paint("  → " + fix, DIM, color) if fix else ""))
     if major is not None and major < 8:
-        out.append("%s below lutece 8 %s %s" % (paint("▲", YELLOW, color), paint("· run", DIM, color),
-                                               paint("/lutecepowers-v8:lutece-update-%s" % kind, "1", color)))
+        skill = "lutece-update-site" if kind == "site" else "lutece-update-plugin"
+        out.append("%s %s %s" % (paint("›", DIM, color), paint("/lutecepowers-v8:" + skill, BOLD, color),
+                                 paint("to move to Lutece 8", DIM, color)))
     else:
-        out.append("%s %s %s" % (paint("› run", DIM, color), paint("/lutecepowers-v8:lutece-checkup", "1", color),
-                                 paint("to check this %s" % kind, DIM, color)))
+        out.append("%s %s %s" % (paint("›", DIM, color), paint("/lutecepowers-v8:lutece-checkup", BOLD, color),
+                                 paint("to check this " + kind, DIM, color)))
     return out
 
 

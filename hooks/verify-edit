@@ -88,7 +88,7 @@ for line in sys.argv[1].splitlines():
 }
 
 read -r KIND LEVEL <<< "$(python3 "$T/lutece-level.py" "$F" 2>/dev/null)"
-KIND=${KIND:-plugin}
+[ "${KIND:-plugin}" = site ] || KIND=plugin
 $MIGRATING || [ "$LEVEL" != old ] || note "this project is below Lutece 8: the Lutece 8 checks do not apply to its files."
 
 NOW=$(findings "$ROOT" "$F")

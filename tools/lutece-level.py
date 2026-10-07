@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prints the kind and the Lutece level of the Maven project holding a path: "plugin|site v8|old|unknown".
+"""Prints the kind and the Lutece level of the Maven project holding a path: "plugin|module|library|site v8|old|unknown".
 
 The level is read from the poms, from the nearest one up to the outermost one of the reactor: the version of a Lutece
 parent (lutece-global-pom, lutece-site-pom) or of lutece-core, its ${property} resolved, the lower bound of a range.
@@ -58,7 +58,10 @@ def detect(path):
         for block in re.findall(r"<properties>(.*?)</properties>", c, re.S):
             props.update(dict(re.findall(r"<([\w.\-]+)>\s*([^<]*?)\s*</\1>", block)))
     site = r"<packaging>\s*lutece-site\s*</packaging>|<parent>(?:(?!</parent>).)*<artifactId>\s*lutece-site-pom\s*</artifactId>"
-    kind = "site" if re.search(site, contents[0], re.S) else "plugin"
+    own = re.search(r"<artifactId>\s*([^<\s]+)\s*</artifactId>", re.sub(r"<parent>.*?</parent>", "", contents[0], flags=re.S))
+    name = own.group(1) if own else ""
+    kind = "site" if re.search(site, contents[0], re.S) else "module" if name.startswith("module-") \
+        else "library" if name.startswith("library-") else "plugin"
     for c in contents:
         parent = re.search(r"<parent>(.*?)</parent>", c, re.S)
         if parent and LUTECE_PARENT.search(parent.group(1)):
