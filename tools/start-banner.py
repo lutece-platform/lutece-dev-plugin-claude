@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sys
+import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -29,6 +30,34 @@ def version():
             return json.load(fh).get("version", "")
     except (OSError, ValueError):
         return ""
+
+
+LATEST_URL = "https://raw.githubusercontent.com/lutece-platform/lutece-dev-plugin-lutecepowers/main/.claude-plugin/plugin.json"
+
+
+def latest():
+    """The version published on the main branch, "" when it cannot be read within three seconds."""
+    try:
+        with urllib.request.urlopen(LATEST_URL, timeout=3) as r:
+            return json.load(r).get("version", "")
+    except (OSError, ValueError):
+        return ""
+
+
+def numbers(v):
+    """A version as a tuple of numbers, for comparison."""
+    return tuple(int(n) for n in re.findall(r"\d+", v)[:3])
+
+
+def freshness(color):
+    """Up to date, or the newer version with how to get it; empty when the published version cannot be read."""
+    mine, last = version(), latest()
+    if not mine or not last:
+        return ""
+    if numbers(last) <= numbers(mine):
+        return paint("✓ up to date", DIM, color)
+    return "%s %s available %s" % (paint("▲", YELLOW, color), last,
+                                   paint("· /plugin → Installed → lutecepowers → Update now, then /reload-plugins", DIM, color))
 
 
 def name(root):
@@ -64,6 +93,11 @@ def lines(root, doctor, color):
     kind, major = found if found else ("plugin", None)
     dot = paint(" · ", DIM, color)
     out = [paint("lutecepowers", ACCENT, color) + (" " + paint(version(), DIM, color) if version() else "") + dot + name(root) + dot + paint("lutece %s %s" % (major or "?", kind), DIM, color)]
+    fresh = freshness(color)
+    if fresh.startswith(("▲", "\033[%sm▲" % YELLOW)):
+        out.append(fresh)
+    elif fresh:
+        out[0] += dot + fresh
     if major is not None and major < 8:
         out.append("%s below lutece 8 %s" % (paint("▲", YELLOW, color), paint("· run /lutecepowers-v8:lutece-update-%s" % kind, DIM, color)))
     else:
