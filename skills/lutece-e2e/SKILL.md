@@ -273,8 +273,10 @@ untranslated label, a fragment with no design system applied. Only eyes catch th
 until the agent has looked at every screen.
 
 `lpe2e all` runs `tools/review.py todo`, which deduplicates the captures into groups — one group per
-(url path, DOM kind), whatever the data, plus one per explicit `shot:` step of a scenario (the way to get a screen
-only a signed-in user reaches, such as a front-office page behind a login, into the review) — and writes
+(url path, DOM kind), whatever the data. Every capture enters it: the crawl's, each screen a scenario step reached
+(a form, a confirmation, a list holding the data the scenario created, an error message: where the rendering defects
+hide, a raw `Optional[…]` date or an empty form card) and each explicit `shot:` step (the way to get a screen only a
+signed-in user reaches, such as a front-office page behind a login) — and writes
 `artifacts/review-todo.md`. The gate then calls
 `tools/review.py check` and **fails with rc=7** until `artifacts/review.md` carries a verdict for every group.
 `REVIEW=skip lpe2e all` bypasses it; use that only to iterate, never to hand over. The first full run ends rc=7:

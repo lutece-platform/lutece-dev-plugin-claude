@@ -793,6 +793,8 @@ def _play(bo, sc, vars_, record):
                 pending = []
             if list(step)[0] in ("goto", "submit", "submit_novalidate", "confirm", "click"):
                 record.setdefault("screenshots", []).append(lutece.shot(bo, "%s_%d" % (sc["id"], i), "jpg", full_page=not sc.get("viewport_shots")))
+                record.setdefault("review_shots", []).append({"shot": record["screenshots"][-1], "url": lutece.normalize(bo.url),
+                                                              "kind": lutece.classify(bo)})
         except Exception as e:
             record["screenshot"] = lutece.shot(bo, "fail_%s_%d" % (sc["id"], i), "jpg", full_page=not sc.get("viewport_shots"))
             record["failed_step"] = i

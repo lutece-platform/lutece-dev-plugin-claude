@@ -89,12 +89,14 @@ def _in_scope():
 
 
 def _with_review_shots(rows_):
-    """The rows plus one row per explicit `shot:` step of a scenario: the screen its author asked to be judged,
-    often one only a signed-in user reaches (a front-office page behind a login)."""
+    """The rows plus one row per capture a scenario took on its way: every screen a navigating step reached (a
+    form, a confirmation, a list holding the data the scenario created, an error message) and every explicit
+    `shot:` step, often a screen only a signed-in user reaches. The crawl alone sees the screens a url opens; the
+    screens a scenario reaches carry the data and the states where rendering defects hide."""
     out = list(rows_)
     for r in rows_:
         for s in r.get("review_shots") or []:
-            out.append({"suite": "scenarios", "id": r["id"], "url": s["url"], "kind": "shot",
+            out.append({"suite": "scenarios", "id": r["id"], "url": s["url"], "kind": s.get("kind") or "shot",
                         "screenshot": s["shot"], "status": r.get("status")})
     return out
 
