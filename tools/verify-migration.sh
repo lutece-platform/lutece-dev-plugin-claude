@@ -41,6 +41,191 @@ if [ -d "webapp/WEB-INF/templates" ]; then
     fi
 fi
 
+# The slowest checks are functions started in the background here, each writing its output, errors and status to
+# files the check reads at its turn (fetched); the report keeps its order.
+BG_DIR=$(mktemp -d)
+PF_PIDS=()
+trap 'kill "${PF_PIDS[@]}" 2>/dev/null; rm -rf "$BG_DIR"' EXIT
+
+# Starts a function in the background under a name.
+prefetch() {
+    { "$2" > "$BG_DIR/$1.out" 2> "$BG_DIR/$1.err"; echo $? > "$BG_DIR/$1.part"; mv "$BG_DIR/$1.part" "$BG_DIR/$1.rc"; } &
+    PF_PIDS+=("$!")
+    printf -v "PF_$1" '%s' "$!"
+}
+
+# Prints what a prefetched function printed and returns its status, or runs the function when it was not started.
+fetched() {
+    local pid_var="PF_$1"
+    local pid="${!pid_var:-}"
+    while [ ! -f "$BG_DIR/$1.rc" ] && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; do sleep 0.02; done
+    if [ -f "$BG_DIR/$1.rc" ]; then
+        cat "$BG_DIR/$1.out"
+        cat "$BG_DIR/$1.err" >&2
+        return "$(cat "$BG_DIR/$1.rc")"
+    fi
+    "$2"
+}
+
+# Prints the I18N02 findings. A module's keys are module.<plugin>.<module>.*: I18nService reads them from
+# plugins/<plugin>/modules/<module>/resources. Its bare <module>.* keys belong to the plugin of that name, whose bundle
+# this project does not carry.
+i18n02_scan() {
+    BUNDLE=$(find src/java -name "*_messages.properties" 2>/dev/null | head -1)
+    PLUGIN=$(basename "${BUNDLE:-}" 2>/dev/null | sed 's/_messages.properties//')
+    if [[ "${BUNDLE:-}" =~ /plugins/([a-z0-9]+)/modules/([a-z0-9]+)/resources/ ]]; then
+        PLUGIN="module\.${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}"
+    fi
+    if [ -n "$PLUGIN" ] && [ -n "$BUNDLE" ]; then
+        DECLARED=$(mktemp); ASKED=$(mktemp)
+        SCRIPT_DIR="$SCRIPT_DIR" python3 -c 'import glob, os, sys; sys.path.insert(0, os.environ["SCRIPT_DIR"]); from bundles import keys; print("\n".join(k for f in glob.glob("src/java/**/*_messages*.properties", recursive=True) for k in keys(f)))' | LC_ALL=C sort -u > "$DECLARED"
+        grep -arhoE "#i18n\{$PLUGIN\.[A-Za-z0-9_.-]+\}" webapp src 2>/dev/null | sed -E "s/^#i18n\{$PLUGIN\.//; s/\}$//" >> "$ASKED"
+        grep -arhoE "[A-Z0-9_]*(MESSAGE|INFO|ERROR|WARNING|TITLE|PROPERTY_PAGE_TITLE)_[A-Z0-9_]+ *= *\"$PLUGIN\.[A-Za-z0-9_.-]+\"" src/java --include="*.java" 2>/dev/null \
+            | grep -vE "^[A-Z0-9_]*(DS_KEY|DSKEY|DATASTORE)" | grep -oE "\"$PLUGIN\.[A-Za-z0-9_.-]+\"" | tr -d '"' | sed -E "s/^$PLUGIN\.//" >> "$ASKED"
+        grep -arhoE "(pageTitleI18nKey|pagePathI18nKey) *= *\"$PLUGIN\.[A-Za-z0-9_.-]+\"" src/java --include="*.java" 2>/dev/null \
+            | grep -oE "\"$PLUGIN\.[A-Za-z0-9_.-]+\"" | tr -d '"' | sed -E "s/^$PLUGIN\.//" >> "$ASKED"
+        grep -ahoE "<(description|feature-title|feature-description|portlet-type-name|daemon-name|daemon-description|insert-service-label)>$PLUGIN\.[A-Za-z0-9_.-]+<" webapp/WEB-INF/plugins/*.xml 2>/dev/null \
+            | sed -E "s/^<[a-z-]+>$PLUGIN\.//; s/<$//" >> "$ASKED"
+        grep -rahiE "INSERT +INTO +core_(portlet_type|admin_right)\b" src/sql --include="*.sql" 2>/dev/null \
+            | grep -oE "'$PLUGIN\.[A-Za-z0-9_.-]+'" | tr -d "'" | sed -E "s/^$PLUGIN\.//" >> "$ASKED"
+        NOTKEYS=$(mktemp)
+        { find webapp/WEB-INF/conf -name "*.properties" -exec grep -ahoE "^[[:space:]]*$PLUGIN\.[^=:[:space:]]+" {} + 2>/dev/null
+          grep -rahoiE "core_datastore[^;]*" src/sql --include="*.sql" 2>/dev/null | grep -oE "'$PLUGIN\.[A-Za-z0-9_.-]+'" | tr -d "'"; } \
+            | sed -E "s/^[[:space:]]*$PLUGIN\.//" | LC_ALL=C sort -u > "$NOTKEYS"
+        sort -u "$ASKED" | while read -r k; do
+            [ -n "$k" ] || continue
+            grep -qxF "$k" "$NOTKEYS" && continue
+            grep -qxF "$k" "$DECLARED" || echo "${PLUGIN//\\/}.$k: asked for by a template, a message constant, the plugin descriptor or a right/portlet type row, declared in no bundle"
+        done
+        rm -f "$DECLARED" "$ASKED" "$NOTKEYS"
+    fi
+}
+
+# Prints the I18N03 findings between the default bundle and _fr.
+i18n03_scan() {
+    SCRIPT_DIR="$SCRIPT_DIR" python3 - <<'PY'
+import glob, os, sys
+sys.path.insert(0, os.environ["SCRIPT_DIR"])
+from bundles import keys
+from i18n_unused import unused
+dead = {(os.path.normpath(b), k) for b, _, k in unused(".", os.path.expanduser("~/.lutece-references"))}
+for base in glob.glob("src/java/**/*_messages.properties", recursive=True):
+    stem = base[:-len(".properties")]
+    variants = [base] + sorted(glob.glob(stem + "_*.properties"))
+    if len(variants) < 2:
+        continue
+    fr = stem + "_fr.properties"
+    if os.path.isfile(fr):
+        dk, fk = keys(base), keys(fr)
+        for k in sorted(fk - dk):
+            print("%s: %s missing (present in %s)" % (base, k, os.path.basename(fr)))
+        for k in sorted(dk - fk):
+            if (os.path.normpath(base), k) not in dead:
+                print("%s: %s missing (present in %s)" % (fr, k, os.path.basename(base)))
+PY
+}
+
+# Prints the I18N08 findings.
+i18n08_scan() {
+    python3 "$SCRIPT_DIR/i18n_unused.py" . 2>/dev/null
+}
+
+# Prints the TS06 findings.
+ts06_scan() {
+    [ -d "src/test/" ] || return 0
+    grep -rn 'public void test' src/test/ --include="*.java" 2>/dev/null | while read -r line; do
+        FILE=$(echo "$line" | cut -d: -f1)
+        LINENUM=$(echo "$line" | cut -d: -f2)
+        if ! head -n $((LINENUM - 1)) "$FILE" 2>/dev/null | lp_reverse | awk '/^[[:space:]]*(@|$)/ { print; next } { exit }' \
+                | grep -qE '@(Test|ParameterizedTest|RepeatedTest|TestFactory|TestTemplate)\b'; then
+            echo "$line"
+        fi
+    done
+}
+
+# Prints the TM08 findings; exits as scan-template-design.py does.
+tm08_scan() {
+    python3 "$SCRIPT_DIR/scan-template-design.py" . --flat --warn-only 2>/dev/null
+}
+
+# Prints the template parse report of TM09.
+tm09_scan() {
+    bash "$SCRIPT_DIR/check-template-parse.sh" . 2>/dev/null
+}
+
+# Prints the ST02 findings.
+st02_scan() {
+    grep -rn 'public final class' src/ --include="*.java" 2>/dev/null | while read -r line; do
+        FILE=$(echo "$line" | cut -d: -f1)
+        grep -q '@ApplicationScoped\|@RequestScoped\|@SessionScoped' "$FILE" 2>/dev/null || continue
+        CLS=$(echo "$line" | sed 's/.*public final class \([A-Za-z0-9_]*\).*/\1/')
+        [ -z "$CLS" ] && continue
+        if grep -rqE "select\( *${CLS}\.class|Instance< *${CLS} *>" src/ --include="*.java" 2>/dev/null \
+           || python3 - "$CLS" <<'PY'
+import glob, re, sys
+cls = sys.argv[1]
+for f in glob.glob("src/**/*.java", recursive=True):
+    t = re.sub(r"/\*.*?\*/|//[^\n]*", "", open(f, encoding="utf-8", errors="replace").read(), flags=re.S)
+    if re.search(r"@Inject\b[^;{]*?[\s>]%s\s+[_a-zA-Z]\w*\s*;|@Inject\b[^;{]*?\([^)]*[\s(,>]%s\s+\w+\s*[,)]" % (re.escape(cls), re.escape(cls)), t):
+        sys.exit(0)
+sys.exit(1)
+PY
+        then
+            echo "$line -> resolved by concrete type, not proxyable"
+        fi
+    done
+}
+
+# Prints the JS04 findings.
+js04_scan() {
+    bash "$SCRIPT_DIR/legacy-admin-jsp.sh" . | awk -F '\t' '$4 == "direct" { print $1 ": calls the @Controller " $2 " outside processController: make that method a @View (the defaultView for the menu entry) and the JSP a processController one"; next } { print $1 ": calls " $2 ", a JspBean without @Controller: port it to MVCAdminJspBean, one JSP with processController" }'
+}
+
+# Prints the static scripts JS07 parses.
+js07_files() {
+    find webapp -path webapp/WEB-INF -prune -o -name "*.js" ! -name "*.min.js" ! -path "*/lib/*" ! -path "*/vendor/*" -print 2>/dev/null
+}
+
+# Prints the JS07 findings.
+js07_scan() {
+    js07_files | while read -r js; do
+        out=$(node --check "$js" 2>&1) || echo "$js: $(printf '%s\n' "$out" | grep -m1 -E 'SyntaxError')"
+    done
+}
+
+JC_PIDS=()
+for checks in "wg01 cd08 cd05" "dp01 dp04 dp05 dp06 pi01 rl01 pd02 gi01 mv08 pd03 mv01 st04 cs03 wb10 wb11 da03 hm01 hm02"; do
+    "$LP_PYTHON" "$SCRIPT_DIR/java_checks.py" --into "$BG_DIR" . $checks >/dev/null 2>&1 &
+    JC_PIDS+=("$!")
+done
+PF_PIDS+=("${JC_PIDS[@]}")
+if [ -d "src/java" ]; then
+    prefetch i18n02 i18n02_scan
+    prefetch i18n03 i18n03_scan
+    prefetch i18n08 i18n08_scan
+fi
+[ -d "src/test/" ] && prefetch ts06 ts06_scan
+if [ -d "webapp/WEB-INF/templates/" ]; then
+    prefetch tm08 tm08_scan
+    prefetch tm09 tm09_scan
+fi
+[ -d "src/" ] && prefetch st02 st02_scan
+prefetch js04 js04_scan
+[ -d "webapp" ] && [ -n "$(js07_files)" ] && command -v node >/dev/null 2>&1 && prefetch js07 js07_scan
+
+# Tells whether a java_checks.py process is still running.
+jc_running() {
+    local pid
+    for pid in "${JC_PIDS[@]}"; do kill -0 "$pid" 2>/dev/null && return 0; done
+    return 1
+}
+
+# Prints the findings of a java_checks.py check: its file once written, else the check run on its own.
+jc() {
+    while [ ! -f "$BG_DIR/$1" ] && jc_running; do sleep 0.02; done
+    if [ -f "$BG_DIR/$1" ]; then cat "$BG_DIR/$1"; else python3 "$SCRIPT_DIR/java_checks.py" "$1" . 2>/dev/null; fi
+}
+
 PASS=0
 FAIL=0
 WARN=0
@@ -393,46 +578,46 @@ echo ""
 # ─── Deprecated API ──────────────────────────────────────
 echo "CATEGORY: Deprecated API"
 # DP01: a call to a lutece-core getInstance( ) deprecated for removal, the class resolved through the imports (java_checks.py dp01).
-DP01_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" dp01 . 2>/dev/null)
+DP01_MATCHES=$(jc dp01)
 COUNT=0; [ -n "$DP01_MATCHES" ] && COUNT=$(echo "$DP01_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "DP01" "PASS" "No deprecated core getInstance( ) call" 0
 else emit "DP01" "FAIL" "Deprecated core getInstance() calls (@Deprecated forRemoval in lutece-core; SecurityService/AdminAuthenticationService are not deprecated)" "$COUNT" "$DP01_MATCHES"; fi
 check_grep "DP02" '[^A-Za-z]FileImageService\.init' "src/" "FAIL" "FileImageService.init( ): the core registers FileImageService at startup (AppInit), a second call registers the provider twice"
 check_grep "DP03" '\(^\|[^.A-Za-z0-9_]\)getModel([[:space:]]*)' "src/" "FAIL" "MANDATORY: getModel() -> Models parameter (excludes DTO getters like request.getModel())"
 # DP04: an import of a lutece-core type deprecated for removal, read in the core of ~/.lutece-references (java_checks.py dp04).
-DP04_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" dp04 . 2>/dev/null)
+DP04_MATCHES=$(jc dp04)
 COUNT=0; [ -n "$DP04_MATCHES" ] && COUNT=$(echo "$DP04_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "DP04" "PASS" "No lutece-core type deprecated for removal" 0
 else emit "DP04" "FAIL" "lutece-core type deprecated for removal: use the replacement the core gives" "$COUNT" "$DP04_MATCHES"; fi
 # DP05: an import of a lutece-core type the v7 core had and the v8 core does not (java_checks.py dp05): removed with no
 # deprecation first, nothing points at a replacement; the compiler says the symbol is missing, not where it went.
-DP05_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" dp05 . 2>/dev/null)
+DP05_MATCHES=$(jc dp05)
 COUNT=0; [ -n "$DP05_MATCHES" ] && COUNT=$(echo "$DP05_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "DP05" "PASS" "No lutece-core type the v8 core no longer has" 0
 else emit "DP05" "FAIL" "lutece-core type gone in v8 (moved, or removed with nothing pointing at a replacement)" "$COUNT" "$DP05_MATCHES"; fi
 # DP06: core API or core_* table on the core's develop and in no published core (java_checks.py dp06): the build passes
 # on the latest snapshot, a site on the published core fails. A signal, not a bound to raise: no release carries it yet.
-DP06_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" dp06 . 2>/dev/null)
+DP06_MATCHES=$(jc dp06)
 COUNT=0; [ -n "$DP06_MATCHES" ] && COUNT=$(echo "$DP06_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "DP06" "PASS" "No core API or table of an unpublished core" 0
 else emit "DP06" "WARN" "Needs a core not published yet: say it in the hand-over, raise the lutece-core lower bound to the first release that carries it once there is one" "$COUNT" "$DP06_MATCHES"; fi
 # PI01: a plugin init( ) that initialises a service; in v8 the service observes the startup itself (java_checks.py pi01).
-PI01_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" pi01 . 2>/dev/null)
+PI01_MATCHES=$(jc pi01)
 COUNT=0; [ -n "$PI01_MATCHES" ] && COUNT=$(echo "$PI01_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "PI01" "PASS" "No plugin init( ) initialising a service" 0
 else emit "PI01" "FAIL" "Plugin init( ) initialising a service: the service observes the startup itself (@Observes @Initialized( ApplicationScoped.class )), its dependencies injected" "$COUNT" "$PI01_MATCHES"; fi
 # RL01: a removal listener registered outside a startup observer, a producer or an @Inject method (java_checks.py rl01).
-RL01_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" rl01 . 2>/dev/null)
+RL01_MATCHES=$(jc rl01)
 COUNT=0; [ -n "$RL01_MATCHES" ] && COUNT=$(echo "$RL01_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "RL01" "PASS" "Removal listeners register at startup on the injected removal services" 0
 else emit "RL01" "FAIL" "Removal listener registered from an init( ): register it in a @Observes @Initialized( ApplicationScoped.class ) method, on the core's removal service injected by name" "$COUNT" "$RL01_MATCHES"; fi
 # PD02: a plugin class whose init( ) works while no descriptor names it: the core never runs that init( ) (java_checks.py pd02).
-PD02_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" pd02 . 2>/dev/null)
+PD02_MATCHES=$(jc pd02)
 COUNT=0; [ -n "$PD02_MATCHES" ] && COUNT=$(echo "$PD02_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "PD02" "PASS" "Every plugin init( ) belongs to a class a descriptor names" 0
 else emit "PD02" "FAIL" "Plugin init( ) that never runs: no descriptor names its class; move what it does into a startup observer, then delete the class" "$COUNT" "$PD02_MATCHES"; fi
 # GI01: a static getInstance( ) on a CDI bean of the project, called inside it or left undeprecated (java_checks.py gi01).
-GI01_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" gi01 . 2>/dev/null)
+GI01_MATCHES=$(jc gi01)
 COUNT=0; [ -n "$GI01_MATCHES" ] && COUNT=$(echo "$GI01_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "GI01" "PASS" "No static getInstance( ) used or left open on a CDI bean" 0
 else emit "GI01" "FAIL" "Static getInstance( ) on a CDI bean: inject the bean; the accessor goes, or stays @Deprecated( forRemoval = true ) for the artefacts that call it" "$COUNT" "$GI01_MATCHES"; fi
@@ -549,31 +734,31 @@ check_grep "CD03" 'CompletableFuture\.runAsync( ( ) ->[^,]*$\|CompletableFuture\
 check_grep "CD04" 'org\.apache\.commons\.fileupload' "src/" "FAIL" "commons.fileupload -> MultipartItem (MemoryFileItem from library-httpaccess for in-memory cases)"
 
 # CD05: a CDI bean registering itself in its constructor or @PostConstruct with no startup observer (java_checks.py cd05).
-CD05_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" cd05 . 2>/dev/null)
+CD05_MATCHES=$(jc cd05)
 COUNT=0; [ -n "$CD05_MATCHES" ] && COUNT=$(echo "$CD05_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "CD05" "PASS" "No lazy bean self-registration trap" 0
 else emit "CD05" "WARN" "CDI bean registering itself in its constructor or @PostConstruct, created on first use only: register from an @Observes @Initialized method" "$COUNT" "$CD05_MATCHES"; fi
 
 # CD08: a CDI.current( ) lookup inside an instance method of a CDI bean: the bean injects it (java_checks.py cd08).
-CD08_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" cd08 . 2>/dev/null)
+CD08_MATCHES=$(jc cd08)
 COUNT=0; [ -n "$CD08_MATCHES" ] && COUNT=$(echo "$CD08_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "CD08" "PASS" "No CDI.current( ) lookup inside a CDI bean" 0
 else emit "CD08" "WARN" "CDI.current( ) inside a CDI bean: inject it (@Inject, @Inject @Any Instance<X>, @Inject Event<X>)" "$COUNT" "$CD08_MATCHES"; fi
 
 # MV08: an @Pager defaultItemsPerPage naming a property no properties file declares (java_checks.py mv08).
-MV08_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" mv08 . 2>/dev/null)
+MV08_MATCHES=$(jc mv08)
 COUNT=0; [ -n "$MV08_MATCHES" ] && COUNT=$(echo "$MV08_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "MV08" "PASS" "Every @Pager items-per-page property is declared" 0
 else emit "MV08" "WARN" "@Pager defaultItemsPerPage names an undeclared property: the pager shows 50 items whatever is configured" "$COUNT" "$MV08_MATCHES"; fi
 
 # WG01: an admin method loading a workgroup resource by its id without the workgroup check (java_checks.py wg01).
-WG01_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" wg01 . 2>/dev/null)
+WG01_MATCHES=$(jc wg01)
 COUNT=0; [ -n "$WG01_MATCHES" ] && COUNT=$(echo "$WG01_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "WG01" "PASS" "Every workgroup resource loaded by its id is checked against the user's workgroups" 0
 else emit "WG01" "WARN" "Workgroup resource loaded by its id without AdminWorkgroupService.isAuthorized( ): the listing hides it, the url opens it" "$COUNT" "$WG01_MATCHES"; fi
 
 # PD03: a plugin class that overrides nothing; the descriptor can name PluginDefaultImplementation (java_checks.py pd03).
-PD03_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" pd03 . 2>/dev/null)
+PD03_MATCHES=$(jc pd03)
 COUNT=0; [ -n "$PD03_MATCHES" ] && COUNT=$(echo "$PD03_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "PD03" "PASS" "Every plugin class overrides something" 0
 else emit "PD03" "WARN" "Plugin class with nothing but constants: name PluginDefaultImplementation in the descriptor, move the constants to the service" "$COUNT" "$PD03_MATCHES"; fi
@@ -643,7 +828,7 @@ echo ""
 echo "CATEGORY: MVC / New patterns"
 
 # MV01: an admin page rendered from a new HashMap misses the security token its controller enables (java_checks.py).
-MV01_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" mv01 . 2>/dev/null)
+MV01_MATCHES=$(jc mv01)
 COUNT=0; [ -n "$MV01_MATCHES" ] && COUNT=$(echo "$MV01_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "MV01" "PASS" "Admin pages carry the security token their controller enables" 0
 else emit "MV01" "FAIL" "Admin page rendered from a new HashMap without the enabled security token: its forms are refused (fill Models, call getPage( title, template ))" "$COUNT" "$MV01_MATCHES"; fi
@@ -827,25 +1012,7 @@ echo "CATEGORY: Structure"
 # or selects by its concrete type, which is the case that cannot be proxied.
 ST02_MATCHES=""
 if [ -d "src/" ]; then
-    ST02_MATCHES=$(grep -rn 'public final class' src/ --include="*.java" 2>/dev/null | while read -r line; do
-        FILE=$(echo "$line" | cut -d: -f1)
-        grep -q '@ApplicationScoped\|@RequestScoped\|@SessionScoped' "$FILE" 2>/dev/null || continue
-        CLS=$(echo "$line" | sed 's/.*public final class \([A-Za-z0-9_]*\).*/\1/')
-        [ -z "$CLS" ] && continue
-        if grep -rqE "select\( *${CLS}\.class|Instance< *${CLS} *>" src/ --include="*.java" 2>/dev/null \
-           || python3 - "$CLS" <<'PY'
-import glob, re, sys
-cls = sys.argv[1]
-for f in glob.glob("src/**/*.java", recursive=True):
-    t = re.sub(r"/\*.*?\*/|//[^\n]*", "", open(f, encoding="utf-8", errors="replace").read(), flags=re.S)
-    if re.search(r"@Inject\b[^;{]*?[\s>]%s\s+[_a-zA-Z]\w*\s*;|@Inject\b[^;{]*?\([^)]*[\s(,>]%s\s+\w+\s*[,)]" % (re.escape(cls), re.escape(cls)), t):
-        sys.exit(0)
-sys.exit(1)
-PY
-        then
-            echo "$line -> resolved by concrete type, not proxyable"
-        fi
-    done)
+    ST02_MATCHES=$(fetched st02 st02_scan)
 fi
 COUNT=0; [ -n "$ST02_MATCHES" ] && COUNT=$(echo "$ST02_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "ST02" "PASS" "No final keyword on a CDI class resolved by its concrete type" 0
@@ -870,46 +1037,46 @@ if [ "$COUNT" -eq 0 ]; then emit "ST03" "PASS" "DAO classes have CDI scope" 0
 else emit "ST03" "FAIL" "DAO classes without @ApplicationScoped" "$COUNT" "$ST03_MATCHES"; fi
 
 # ST04: a project type CDI must resolve while no class of the project assignable to it is a bean (java_checks.py).
-ST04_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" st04 . 2>/dev/null)
+ST04_MATCHES=$(jc st04)
 COUNT=0; [ -n "$ST04_MATCHES" ] && COUNT=$(echo "$ST04_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "ST04" "PASS" "Every project type CDI resolves has a bean" 0
 else emit "ST04" "FAIL" "Project type resolved by CDI with no bean: the lookup is unsatisfied at deployment (give it a scope or a producer)" "$COUNT" "$ST04_MATCHES"; fi
 
 # CS03: a @Controller comparing the request method with POST works around the core defect that runs an @Action on GET
 # without its token; the core owns the fix, the e2e scenario carries core_defect (java_checks.py).
-CS03_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" cs03 . 2>/dev/null)
+CS03_MATCHES=$(jc cs03)
 COUNT=0; [ -n "$CS03_MATCHES" ] && COUNT=$(echo "$CS03_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "CS03" "PASS" "No plugin guard around the core GET token defect" 0
 else emit "CS03" "WARN" "Request method guard in a @Controller: the core runs an @Action on GET without its token, a core defect to report, not to work around; remove the guard, keep the e2e scenario with core_defect" "$COUNT" "$CS03_MATCHES"; fi
 
 # WB10: PluginAdminPageJspBean.init sets the plugin from the plugin_name parameter only; a @RequestScoped bean is new on
 # every request, so its inherited getPlugin( ) is null on each request that does not carry it (java_checks.py wb10).
-WB10_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" wb10 . 2>/dev/null)
+WB10_MATCHES=$(jc wb10)
 COUNT=0; [ -n "$WB10_MATCHES" ] && COUNT=$(echo "$WB10_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "WB10" "PASS" "No @RequestScoped bean relying on the inherited getPlugin( )" 0
 else emit "WB10" "FAIL" "Inherited getPlugin( ) in a @RequestScoped bean: null on a request without plugin_name; override it with PluginService.getPlugin( PLUGIN_NAME )" "$COUNT" "$WB10_MATCHES"; fi
 
 # WB11: the core XSS filter (sanitizeFilterMode) escapes every parameter under /jsp/admin and /jsp/site; a JspBean or an
 # XPage escaping one again stores it escaped twice (java_checks.py wb11).
-WB11_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" wb11 . 2>/dev/null)
+WB11_MATCHES=$(jc wb11)
 COUNT=0; [ -n "$WB11_MATCHES" ] && COUNT=$(echo "$WB11_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "WB11" "PASS" "No request parameter escaped on top of the core XSS filter" 0
 else emit "WB11" "WARN" "Request parameter HTML-escaped by hand: the core XSS filter already escapes it, the value is stored escaped twice; drop the escaping" "$COUNT" "$WB11_MATCHES"; fi
 
 # DA03: a DAO reading or binding as a number a column its create scripts declare as text (java_checks.py da03).
-DA03_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" da03 . 2>/dev/null)
+DA03_MATCHES=$(jc da03)
 COUNT=0; [ -n "$DA03_MATCHES" ] && COUNT=$(echo "$DA03_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "DA03" "PASS" "DAO numeric reads and binds match the column types" 0
 else emit "DA03" "WARN" "Number read or bound on a text column: align the column type with an upgrade script, or use get/setString" "$COUNT" "$DA03_MATCHES"; fi
 
 # HM01: Homes in the v8 form: a plain Home is static, a portlet home is one the core can create by reflection (java_checks.py).
-HM01_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" hm01 . 2>/dev/null)
+HM01_MATCHES=$(jc hm01)
 COUNT=0; [ -n "$HM01_MATCHES" ] && COUNT=$(echo "$HM01_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "HM01" "PASS" "Homes in the v8 form" 0
 else emit "HM01" "FAIL" "Home not in the v8 form: plain Home static without getInstance( ); portlet home the core can create by reflection (public no-arg constructor, no @Inject field, a CDI bean not final)" "$COUNT" "$HM01_MATCHES"; fi
 
 # HM02: a portlet home in the older form (hand-made singleton): it works, the modern form is a CDI bean (java_checks.py).
-HM02_MATCHES=$(python3 "$SCRIPT_DIR/java_checks.py" hm02 . 2>/dev/null)
+HM02_MATCHES=$(jc hm02)
 COUNT=0; [ -n "$HM02_MATCHES" ] && COUNT=$(echo "$HM02_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "HM02" "PASS" "Portlet homes in the modern form" 0
 else emit "HM02" "WARN" "Portlet home in the older form: make it @ApplicationScoped, getInstance( ) returning CDI.current( ).select( X.class ).get( ) (rules/dao-patterns.md)" "$COUNT" "$HM02_MATCHES"; fi
@@ -1276,38 +1443,7 @@ echo ""
 # Every grep here is `-a`: a bundle written in ISO-8859 counts as binary for grep, which then reports nothing and
 # the check would silently pass — the same trap applies to any manual search in these files.
 I18N02_MATCHES=""
-if [ -d "src/java" ]; then
-    BUNDLE=$(find src/java -name "*_messages.properties" 2>/dev/null | head -1)
-    PLUGIN=$(basename "${BUNDLE:-}" 2>/dev/null | sed 's/_messages.properties//')
-    # A module's keys are module.<plugin>.<module>.*: I18nService reads them from plugins/<plugin>/modules/<module>/resources.
-    # Its bare <module>.* keys belong to the plugin of that name, whose bundle this project does not carry.
-    if [[ "${BUNDLE:-}" =~ /plugins/([a-z0-9]+)/modules/([a-z0-9]+)/resources/ ]]; then
-        PLUGIN="module\.${BASH_REMATCH[1]}\.${BASH_REMATCH[2]}"
-    fi
-    if [ -n "$PLUGIN" ] && [ -n "$BUNDLE" ]; then
-        DECLARED=$(mktemp); ASKED=$(mktemp)
-        SCRIPT_DIR="$SCRIPT_DIR" python3 -c 'import glob, os, sys; sys.path.insert(0, os.environ["SCRIPT_DIR"]); from bundles import keys; print("\n".join(k for f in glob.glob("src/java/**/*_messages*.properties", recursive=True) for k in keys(f)))' | LC_ALL=C sort -u > "$DECLARED"
-        grep -arhoE "#i18n\{$PLUGIN\.[A-Za-z0-9_.-]+\}" webapp src 2>/dev/null | sed -E "s/^#i18n\{$PLUGIN\.//; s/\}$//" >> "$ASKED"
-        grep -arhoE "[A-Z0-9_]*(MESSAGE|INFO|ERROR|WARNING|TITLE|PROPERTY_PAGE_TITLE)_[A-Z0-9_]+ *= *\"$PLUGIN\.[A-Za-z0-9_.-]+\"" src/java --include="*.java" 2>/dev/null \
-            | grep -vE "^[A-Z0-9_]*(DS_KEY|DSKEY|DATASTORE)" | grep -oE "\"$PLUGIN\.[A-Za-z0-9_.-]+\"" | tr -d '"' | sed -E "s/^$PLUGIN\.//" >> "$ASKED"
-        grep -arhoE "(pageTitleI18nKey|pagePathI18nKey) *= *\"$PLUGIN\.[A-Za-z0-9_.-]+\"" src/java --include="*.java" 2>/dev/null \
-            | grep -oE "\"$PLUGIN\.[A-Za-z0-9_.-]+\"" | tr -d '"' | sed -E "s/^$PLUGIN\.//" >> "$ASKED"
-        grep -ahoE "<(description|feature-title|feature-description|portlet-type-name|daemon-name|daemon-description|insert-service-label)>$PLUGIN\.[A-Za-z0-9_.-]+<" webapp/WEB-INF/plugins/*.xml 2>/dev/null \
-            | sed -E "s/^<[a-z-]+>$PLUGIN\.//; s/<$//" >> "$ASKED"
-        grep -rahiE "INSERT +INTO +core_(portlet_type|admin_right)\b" src/sql --include="*.sql" 2>/dev/null \
-            | grep -oE "'$PLUGIN\.[A-Za-z0-9_.-]+'" | tr -d "'" | sed -E "s/^$PLUGIN\.//" >> "$ASKED"
-        NOTKEYS=$(mktemp)
-        { find webapp/WEB-INF/conf -name "*.properties" -exec grep -ahoE "^[[:space:]]*$PLUGIN\.[^=:[:space:]]+" {} + 2>/dev/null
-          grep -rahoiE "core_datastore[^;]*" src/sql --include="*.sql" 2>/dev/null | grep -oE "'$PLUGIN\.[A-Za-z0-9_.-]+'" | tr -d "'"; } \
-            | sed -E "s/^[[:space:]]*$PLUGIN\.//" | LC_ALL=C sort -u > "$NOTKEYS"
-        I18N02_MATCHES=$(sort -u "$ASKED" | while read -r k; do
-            [ -n "$k" ] || continue
-            grep -qxF "$k" "$NOTKEYS" && continue
-            grep -qxF "$k" "$DECLARED" || echo "${PLUGIN//\\/}.$k: asked for by a template, a message constant, the plugin descriptor or a right/portlet type row, declared in no bundle"
-        done)
-        rm -f "$DECLARED" "$ASKED" "$NOTKEYS"
-    fi
-fi
+[ -d "src/java" ] && I18N02_MATCHES=$(fetched i18n02 i18n02_scan)
 COUNT=0; [ -n "$I18N02_MATCHES" ] && COUNT=$(echo "$I18N02_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "I18N02" "PASS" "Every i18n key the plugin asks for is declared" 0
 else emit "I18N02" "WARN" "i18n key asked for but declared nowhere: an empty label on screen (and a WARN in the log)" "$COUNT" "$I18N02_MATCHES"; fi
@@ -1441,27 +1577,7 @@ echo ""
 # removing it is the fix, not translating it. I18N04: the other languages.
 I18N03_MATCHES=""
 if [ -d "src/java" ]; then
-    I18N03_MATCHES=$(SCRIPT_DIR="$SCRIPT_DIR" python3 - <<'PY'
-import glob, os, sys
-sys.path.insert(0, os.environ["SCRIPT_DIR"])
-from bundles import keys
-from i18n_unused import unused
-dead = {(os.path.normpath(b), k) for b, _, k in unused(".", os.path.expanduser("~/.lutece-references"))}
-for base in glob.glob("src/java/**/*_messages.properties", recursive=True):
-    stem = base[:-len(".properties")]
-    variants = [base] + sorted(glob.glob(stem + "_*.properties"))
-    if len(variants) < 2:
-        continue
-    fr = stem + "_fr.properties"
-    if os.path.isfile(fr):
-        dk, fk = keys(base), keys(fr)
-        for k in sorted(fk - dk):
-            print("%s: %s missing (present in %s)" % (base, k, os.path.basename(fr)))
-        for k in sorted(dk - fk):
-            if (os.path.normpath(base), k) not in dead:
-                print("%s: %s missing (present in %s)" % (fr, k, os.path.basename(base)))
-PY
-)
+    I18N03_MATCHES=$(fetched i18n03 i18n03_scan)
     I18N03_OTHERS=$(SCRIPT_DIR="$SCRIPT_DIR" python3 - <<'PY'
 import glob, os, sys
 sys.path.insert(0, os.environ["SCRIPT_DIR"])
@@ -1602,7 +1718,7 @@ else emit "I18N07" "WARN" "French value with a spelling error (Êtes-vous, sûr)
 # I18N08: a key of the default bundle nothing uses (generator leftovers the translators keep paying for).
 # i18n_unused.py has the exact rules: runtime-read families, stems built in Java or templates, other repositories.
 I18N08_MATCHES=""
-[ -d "src/java" ] && { I18N08_MATCHES=$(python3 "$SCRIPT_DIR/i18n_unused.py" . 2>/dev/null) || true; }
+[ -d "src/java" ] && { I18N08_MATCHES=$(fetched i18n08 i18n08_scan) || true; }
 COUNT=0; [ -n "$I18N08_MATCHES" ] && COUNT=$(echo "$I18N08_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "I18N08" "PASS" "Every bundle key is used" 0
 else emit "I18N08" "WARN" "Bundle key no file names: remove it in every language (fix-i18n-bundles.py --drop <keys file>), unless built at runtime" "$COUNT" "$I18N08_MATCHES"; fi
@@ -1942,7 +2058,7 @@ else emit "JS06" "FAIL" "Download JSP leaving template text: 'OutputStream alrea
 # processController() on one JSP per controller, and the automatic CSRF filter only covers those actions: a legacy
 # DoXxx.jsp calling bean.doXxx( request ) accepts a forged call unless the bean validates a token itself. Portlet
 # JspBeans are the one legacy path the platform keeps (CS01 covers their token).
-JS04_MATCHES=$(bash "$SCRIPT_DIR/legacy-admin-jsp.sh" . | awk -F '\t' '$4 == "direct" { print $1 ": calls the @Controller " $2 " outside processController: make that method a @View (the defaultView for the menu entry) and the JSP a processController one"; next } { print $1 ": calls " $2 ", a JspBean without @Controller: port it to MVCAdminJspBean, one JSP with processController" }')
+JS04_MATCHES=$(fetched js04 js04_scan)
 COUNT=0; [ -n "$JS04_MATCHES" ] && COUNT=$(echo "$JS04_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "JS04" "PASS" "Admin JSPs dispatch through a @Controller" 0
 else emit "JS04" "FAIL" "Admin JSP outside the MVC dispatch (a non-MVC bean, or a @Controller called directly): no v8 dispatch, no automatic CSRF (rules/jsp-admin.md)" "$COUNT" "$JS04_MATCHES"; fi
@@ -1953,11 +2069,9 @@ echo ""
 # build. Checked with node --check, NOT EVALUATED without node; FreeMarker templates under WEB-INF and minified vendor
 # files are left out.
 JS07_MATCHES=""; JS07_FILES=""
-[ -d "webapp" ] && JS07_FILES=$(find webapp -path webapp/WEB-INF -prune -o -name "*.js" ! -name "*.min.js" ! -path "*/lib/*" ! -path "*/vendor/*" -print 2>/dev/null)
+[ -d "webapp" ] && JS07_FILES=$(js07_files)
 if [ -n "$JS07_FILES" ] && command -v node >/dev/null 2>&1; then
-    JS07_MATCHES=$(printf '%s\n' "$JS07_FILES" | while read -r js; do
-        out=$(node --check "$js" 2>&1) || echo "$js: $(printf '%s\n' "$out" | grep -m1 -E 'SyntaxError')"
-    done)
+    JS07_MATCHES=$(fetched js07 js07_scan)
 fi
 COUNT=0; [ -n "$JS07_MATCHES" ] && COUNT=$(echo "$JS07_MATCHES" | wc -l)
 if [ -n "$JS07_FILES" ] && ! command -v node >/dev/null 2>&1; then emit "JS07" "WARN" "Static scripts NOT EVALUATED: node is not installed" 0
@@ -2053,7 +2167,7 @@ if [ ! -d "webapp/WEB-INF/templates/" ]; then
 elif ! command -v python3 >/dev/null; then
     emit "TM08" "WARN" "Template design rules NOT EVALUATED: no python3 on PATH" 0
 else
-    TM08_MATCHES=$(python3 "$SCRIPT_DIR/scan-template-design.py" . --flat --warn-only 2>/dev/null)
+    TM08_MATCHES=$(fetched tm08 tm08_scan)
     TM08_RC=$?
     if [ "$TM08_RC" -ne 0 ]; then
         emit "TM08" "FAIL" "Template design rules NOT EVALUATED although the project assembled: run scan-template-design.py by hand to see why" 0
@@ -2069,7 +2183,7 @@ fi
 if [ ! -d "webapp/WEB-INF/templates/" ]; then
     emit "TM09" "PASS" "Every template parses with FreeMarker (no templates in this project)" 0
 else
-    TM09_OUT=$(bash "$SCRIPT_DIR/check-template-parse.sh" . 2>/dev/null)
+    TM09_OUT=$(fetched tm09 tm09_scan)
     TM09_MATCHES=$(echo "$TM09_OUT" | grep '^PARSE_ERROR')
     if echo "$TM09_OUT" | grep -q "^FMPARSE skipped"; then
         echo "$TM09_OUT" | grep '^FMPARSE skipped' >&2
@@ -2101,16 +2215,7 @@ check_grep "TS05" 'import org\.junit\.BeforeClass\|import org\.junit\.AfterClass
 
 # TS06: Test methods without @Test (or another JUnit 5 test annotation) in the annotation block above them
 TS06_MATCHES=""
-if [ -d "src/test/" ]; then
-    TS06_MATCHES=$(grep -rn 'public void test' src/test/ --include="*.java" 2>/dev/null | while read -r line; do
-        FILE=$(echo "$line" | cut -d: -f1)
-        LINENUM=$(echo "$line" | cut -d: -f2)
-        if ! head -n $((LINENUM - 1)) "$FILE" 2>/dev/null | lp_reverse | awk '/^[[:space:]]*(@|$)/ { print; next } { exit }' \
-                | grep -qE '@(Test|ParameterizedTest|RepeatedTest|TestFactory|TestTemplate)\b'; then
-            echo "$line"
-        fi
-    done)
-fi
+[ -d "src/test/" ] && TS06_MATCHES=$(fetched ts06 ts06_scan)
 COUNT=0; [ -n "$TS06_MATCHES" ] && COUNT=$(echo "$TS06_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "TS06" "PASS" "All test methods have @Test" 0
 else emit "TS06" "FAIL" "Test methods without @Test annotation" "$COUNT" "$TS06_MATCHES"; fi

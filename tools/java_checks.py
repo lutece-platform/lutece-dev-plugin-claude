@@ -2,6 +2,7 @@
 """java_checks.py — Java checks of verify-migration.sh that need more than a grep.
 
 Usage: java_checks.py <st04|mv01|hm01|cs03|wb10|wb11|da03|dp04|dp05|dp06|pi01|rl01|pd02|gi01|cd08|mv08|wg01|pd03|dp01|cd05> [project_root]
+       java_checks.py --into DIR [project_root [check ...]]   (the checks, all by default, each into DIR/<check>)
 
 st04  a type of the project that CDI must resolve (an @Inject point, CDI.current( ).select( X.class ).get( )) while
       no class of the project assignable to it carries a bean-defining annotation and no @Produces method returns
@@ -57,6 +58,7 @@ gi01  a static getInstance( ) on a CDI bean of the project: called from the proj
       declared without @Deprecated( forRemoval = true ) (remove it, or keep it deprecated for the artefacts that call it).
 Prints one line per finding (file:line: message); nothing when the project is clean.
 """
+import functools
 import glob
 import os
 import re
@@ -70,8 +72,9 @@ CLASS_DECL = re.compile(r"(?m)^[ \t]*(?:@[\w.]+(?:\([^()]*\))?[ \t]+)*(?:(?:publ
 ADMIN_MVC = {"MVCAdminJspBean"}
 
 
+@functools.lru_cache(maxsize=None)
 def strip(text):
-    """Blanks comments and string contents, keeping offsets."""
+    """Blanks comments and string contents, keeping offsets; a text already stripped is answered from memory."""
     return re.sub(r"/\*.*?\*/|//[^\n]*|\"(?:\\.|[^\"\\\n])*\"",
                   lambda m: '"' + " " * (len(m.group(0)) - 2) + '"' if m.group(0).startswith('"')
                   else re.sub(r"[^\n]", " ", m.group(0)), text, flags=re.S)
@@ -85,6 +88,12 @@ def read_source(path):
 
 def sources(root):
     """Maps every main Java source of the project to its comment-free text."""
+    return dict(read_sources(root))
+
+
+@functools.lru_cache(maxsize=None)
+def read_sources(root):
+    """Reads every main Java source of the project once per process."""
     out = {}
     for base in ("src/java", "src/main/java"):
         for dirpath, _, names in os.walk(os.path.join(root, base)):
@@ -719,16 +728,35 @@ METHOD = re.compile(r"(?m)^[ \t]*((?:@[\w.]+(?:\([^)]*\))?[ \t\n]*)*)((?:public|
                     r"[\w<>\[\], ?.]+[ \t]+(\w+)[ \t]*\(((?:[^()]|\([^()]*\))*)\)[ \t\n]*(?:throws[^{;]*)?\{")
 
 
+BRACE = re.compile(r"[{}]")
+LINE_WITH_TEXT = re.compile(r"(?m)^[ \t]*[^ \t\n]")
+
+
+def method_matches(code):
+    """METHOD.finditer( code ), tried only at the starts of lines holding text: a blank line never starts a match, and
+    trying one costs a cubic backtrack over its spaces."""
+    pos = 0
+    for line in LINE_WITH_TEXT.finditer(code):
+        if line.start() < pos:
+            continue
+        m = METHOD.match(code, line.start())
+        if m:
+            pos = m.end()
+            yield m
+
+
 def method_spans(code):
     """(annotations and parameters, name, start, end) of every method body of a comment-free source."""
     out = []
-    for m in METHOD.finditer(code):
+    for m in method_matches(code):
         if m.group(3) in KEYWORDS:
             continue
-        depth, i = 1, m.end()
-        while i < len(code) and depth:
-            depth += {"{": 1, "}": -1}.get(code[i], 0)
-            i += 1
+        depth, i = 1, len(code)
+        for b in BRACE.finditer(code, m.end()):
+            depth += 1 if b.group() == "{" else -1
+            if not depth:
+                i = b.end()
+                break
         out.append((m.group(1) + " " + m.group(4), m.group(3), m.end(), i))
     return out
 
@@ -941,13 +969,36 @@ def pd03(root):
     return out
 
 
+CHECKS = {"dp01": dp01, "dp04": dp04, "dp05": dp05, "dp06": dp06, "pi01": pi01, "rl01": rl01, "pd02": pd02, "gi01": gi01,
+          "cd05": cd05, "cd08": cd08, "mv08": mv08, "wg01": wg01, "pd03": pd03, "mv01": mv01, "st04": st04, "cs03": cs03,
+          "wb10": wb10, "wb11": wb11, "da03": da03, "hm01": hm01, "hm02": hm02}
+
+
+def run_into(out_dir, root, names):
+    """Runs checks in the given order, each into out_dir/<check>, a file that appears complete; a check that fails
+    leaves the lines printed before it, as a process of its own would."""
+    for name in names:
+        part = os.path.join(out_dir, name + ".part")
+        with open(part, "w", encoding=sys.stdout.encoding, errors=sys.stdout.errors) as fh:
+            try:
+                for line in CHECKS[name](root):
+                    print(line, file=fh)
+            except Exception:
+                pass
+        os.replace(part, os.path.join(out_dir, name))
+
+
 def main():
-    """Runs one check on a project and prints its findings."""
-    if len(sys.argv) < 2 or sys.argv[1] not in ("st04", "mv01", "hm01", "hm02", "cs03", "wb10", "wb11", "da03", "dp04", "dp05", "dp06", "pi01", "rl01", "pd02", "gi01", "cd08", "mv08", "wg01", "pd03", "dp01", "cd05"):
+    """Runs one check on a project and prints its findings, or several into a directory (--into DIR)."""
+    if len(sys.argv) > 2 and sys.argv[1] == "--into":
+        names = [n for n in sys.argv[4:] if n in CHECKS] or list(CHECKS)
+        run_into(sys.argv[2], os.path.abspath(sys.argv[3] if len(sys.argv) > 3 else "."), names)
+        return
+    if len(sys.argv) < 2 or sys.argv[1] not in CHECKS:
         print(__doc__, file=sys.stderr)
         sys.exit(2)
     root = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else ".")
-    for line in {"st04": st04, "mv01": mv01, "hm01": hm01, "hm02": hm02, "cs03": cs03, "wb10": wb10, "wb11": wb11, "da03": da03, "dp04": dp04, "dp05": dp05, "dp06": dp06, "pi01": pi01, "rl01": rl01, "pd02": pd02, "gi01": gi01, "cd08": cd08, "mv08": mv08, "wg01": wg01, "pd03": pd03, "dp01": dp01, "cd05": cd05}[sys.argv[1]](root):
+    for line in CHECKS[sys.argv[1]](root):
         print(line)
 
 

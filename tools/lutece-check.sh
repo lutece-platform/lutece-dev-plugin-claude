@@ -47,10 +47,28 @@ stopped() {
     { grep -E "lutecepowers: no working Python|EXPLODED failed" "$1"; tail -3 "$1"; } | sed 's/^ */   /' | awk '!seen[$0]++' | cut -c1-200
 }
 
+# Tells whether an assembled webapp carrying both macro families exists: the scanner and the i18n check then read it
+# and assemble nothing, so they can run side by side.
+assembled() {
+    local d
+    for d in target/lutece target/* webapp; do
+        [ -d "$d/WEB-INF/templates/admin/themes/tabler" ] && [ -d "$d/WEB-INF/templates/skin/themes/macros" ] && return 0
+    done
+    return 1
+}
+
 run verify bash "$S/verify-migration.sh" .
-run scanner python3 "$S/scan-template-design.py" . --flat; scan_rc=$?
-run i18n bash "$S/check-i18n-keys.sh" .
-run parse bash "$S/check-template-parse.sh" .
+if assembled; then
+    run scanner python3 "$S/scan-template-design.py" . --flat & scan_pid=$!
+    run i18n bash "$S/check-i18n-keys.sh" . & i18n_pid=$!
+    run parse bash "$S/check-template-parse.sh" .
+    wait "$scan_pid"; scan_rc=$?
+    wait "$i18n_pid"
+else
+    run scanner python3 "$S/scan-template-design.py" . --flat; scan_rc=$?
+    run i18n bash "$S/check-i18n-keys.sh" .
+    run parse bash "$S/check-template-parse.sh" .
+fi
 
 echo "== verify-migration"
 V="$OUT/verify.clean.txt"

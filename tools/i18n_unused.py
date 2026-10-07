@@ -11,6 +11,7 @@ repository under --refs (default ~/.lutece-references) names `<prefix>.<key>`. K
 (model.entity.*, validation.*, site_property.*, plugin.*) are never reported. An adminFeature.* key is not one of
 them: the plugin descriptor and the core_admin_right SQL name it in full, so a key neither names is dead.
 """
+import bisect
 import functools
 import glob
 import os
@@ -70,6 +71,40 @@ def artifact_id(root):
     return ids[0].strip() if ids else None
 
 
+def present(hay, needles):
+    """The needles found in hay (str or bytes, needles alike), as `needle in hay` would find them. A needle is looked
+    up among the text following each occurrence of its anchor (up to its first dot), sorted once per anchor; a needle
+    with a short anchor or no dot is searched alone."""
+    groups, found = {}, set()
+    dot = "." if isinstance(hay, str) else b"."
+    for needle in needles:
+        cut = needle.find(dot) + 1
+        if cut < 3:
+            if needle in hay:
+                found.add(needle)
+        else:
+            groups.setdefault(needle[:cut], []).append(needle)
+    for anchor, group in groups.items():
+        width, starts, p = max(len(n) for n in group) - len(anchor), [], hay.find(anchor)
+        while p >= 0:
+            starts.append(hay[p + len(anchor):p + len(anchor) + width])
+            p = hay.find(anchor, p + 1)
+        starts.sort()
+        for needle in group:
+            rest = needle[len(anchor):]
+            i = bisect.bisect_left(starts, rest)
+            if i < len(starts) and starts[i].startswith(rest):
+                found.add(needle)
+    return found
+
+
+def quoted(text, keys):
+    """The keys `"key"` names in text, as `'"' + key + '"' in text` would find them."""
+    plain = {k for k in keys if '"' not in k}
+    found = {m.group(1) for m in re.finditer(r'"([^"]*)(?=")', text) if m.group(1) in plain}
+    return found | {k for k in keys if '"' in k and '"' + k + '"' in text}
+
+
 def used_elsewhere(refs, fulls, own):
     """The keys of fulls that a reference repository other than the project, or a copy of it (same artifactId), names."""
     if not refs or not os.path.isdir(refs) or not fulls:
@@ -82,6 +117,7 @@ def used_elsewhere(refs, fulls, own):
     finally:
         os.unlink(patterns.name)
     mine = artifact_id(own)
+    encoded = {k.encode("utf-8"): k for k in fulls}
     found = set()
     for o in out:
         o = os.path.normpath(o)
@@ -90,7 +126,7 @@ def used_elsewhere(refs, fulls, own):
             continue
         with open(o, "rb") as handle:
             data = handle.read()
-        found.update(k for k in fulls if k.encode("utf-8") in data)
+        found.update(encoded[k] for k in present(data, encoded))
     return found
 
 
@@ -104,17 +140,22 @@ def unused(root, refs):
     """(bundle, line, key) of every unused key of the project's default bundles."""
     text = read_all(root, project_files(root))
     stems = stems_of(text)
-    candidates = []
+    entries = []
     for bundle in sorted(glob.glob(os.path.join(root, "src/java/**/resources/*_messages.properties"), recursive=True)):
         prefix = os.path.basename(bundle)[:-len("_messages.properties")]
-        for n, key in keys_of(bundle):
-            full = prefix + "." + key
-            if not key or key.startswith(RUNTIME) or full in text or '"' + key + '"' in text:
-                continue
-            if any(full.startswith(s) or key.startswith(s) or (prefix + "." in s and key.startswith(s.split(prefix + ".", 1)[1]))
-                   for s in stems):
-                continue
-            candidates.append((bundle, n, key, full))
+        entries.extend((bundle, n, key, prefix) for n, key in keys_of(bundle))
+    asked = [(key, prefix + "." + key) for _, _, key, prefix in entries if key and not key.startswith(RUNTIME)]
+    named = present(text, {full for _, full in asked})
+    bare = quoted(text, {key for key, _ in asked})
+    candidates = []
+    for bundle, n, key, prefix in entries:
+        full = prefix + "." + key
+        if not key or key.startswith(RUNTIME) or full in named or key in bare:
+            continue
+        if any(full.startswith(s) or key.startswith(s) or (prefix + "." in s and key.startswith(s.split(prefix + ".", 1)[1]))
+               for s in stems):
+            continue
+        candidates.append((bundle, n, key, full))
     elsewhere = used_elsewhere(refs, {full for _, _, _, full in candidates}, os.path.abspath(root))
     for bundle, n, key, full in candidates:
         if full not in elsewhere:
