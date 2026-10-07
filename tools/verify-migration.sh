@@ -1852,12 +1852,12 @@ if [ -d webapp/WEB-INF/plugins ] || [ -d src/sql ]; then
     WB1314=$(SCRIPT_DIR="$SCRIPT_DIR" python3 - <<'EOF2'
 import glob, os, re, sys
 sys.path.insert(0, os.environ["SCRIPT_DIR"])
-from admin_rights import updates
+from admin_rights import uncommented, updates
 rows = {}
 for f in sorted(glob.glob("src/sql/**/*.sql", recursive=True)):
     if re.search(r"/upgrades?/", f):
         continue
-    text = open(f, errors="replace").read()
+    text = uncommented(open(f, errors="replace").read())
     steps = []
     for m in re.finditer(r"(?is)insert\s+into\s+core_admin_right\s*\(([^)]*)\)\s*values\s*(.*?);", text):
         cols = [c.strip().lower() for c in m.group(1).split(",")]

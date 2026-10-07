@@ -122,7 +122,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from admin_rights import updates  # noqa: E402
+from admin_rights import uncommented, updates  # noqa: E402
 import template_rules  # noqa: E402
 
 ADMIN = "webapp/WEB-INF/templates/admin"
@@ -1100,7 +1100,9 @@ def right_of(insert, at):
 
 def check_sql(text, findings, know):
     """SQL rules: the admin feature icon is a CSS class, adminHeader.ftl renders <i class="${iconUrl}">; an entry
-    type icon (genatt_entry_type.icon_name) is a name of the theme's icon macro."""
+    type icon (genatt_entry_type.icon_name) is a name of the theme's icon macro. A commented-out statement is never
+    run, so it is never judged."""
+    text = uncommented(text)
     for match in re.finditer(r"INSERT INTO genatt_entry_type\s*\(([^)]*)\)\s*VALUES(.*?);", text, flags=re.S | re.I):
         cols = [c.strip().lower() for c in match.group(1).split(",")]
         if "icon_name" not in cols or not know.icons:

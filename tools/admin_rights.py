@@ -13,6 +13,13 @@ ASSIGN = re.compile(r"""\s*(\w+)\s*=\s*('(?:[^']|'')*'|"[^"]*"|-?\d+|null)\s*(,|
 WHERE = re.compile(r"""\s*id_right\s*=\s*('(?:[^']|'')*'|"[^"]*")\s*""", re.I)
 
 
+def uncommented(text):
+    """A SQL text with its whole-line `--` comments and `/* */` blocks blanked, offsets and line numbers kept: a
+    commented-out statement is never run."""
+    blank = lambda m: re.sub(r"[^\n]", " ", m.group(0))
+    return re.sub(r"(?m)^[ \t]*--[^\n]*", blank, re.sub(r"/\*.*?\*/", blank, text, flags=re.S))
+
+
 def _literal(value):
     """A SQL literal as text: quotes removed, a doubled quote made single, NULL as 'NULL'."""
     if value[:1] in "'\"":
@@ -24,7 +31,7 @@ def updates(text):
     """Every update of one admin right in a SQL text, in order: (offset, id_right, {column: value}). A `SET id_right`
     renames the right; the caller follows it."""
     out = []
-    for match in UPDATE.finditer(text):
+    for match in UPDATE.finditer(uncommented(text)):
         where = WHERE.fullmatch(match.group(2))
         if not where:
             continue
