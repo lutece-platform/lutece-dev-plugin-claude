@@ -93,10 +93,8 @@ def lines(root, doctor, color):
     project = name(root) + dot + level + (dot + paint("machine ready", DIM, color) if doctor and not problems else "")
     out = [tool_line(color), project]
     if not lutecedata(root):
-        out.append(paint("✗ lutecedata MCP isn't connected. Give Claude X-ray vision of all ~1,700 Lutece repos and all "
-                         "your applications in under a second.", "1;31", color))
-        out.append(paint("  → Grab your command in lutecedata › Account › Claude Code, run it, then restart Claude Code.",
-                         DIM, color))
+        out.append(paint("✗ lutecedata MCP isn't connected. Plug it in to give Claude X-ray vision into all things Lutece: zoekt search, deps, commits, and more.",
+                         "1;31", color))
     for status, message in problems:
         problem, _, fix = message.partition(": ")
         mark = paint("✗", RED, color) if status == "FAIL" else paint("▲", YELLOW, color)
