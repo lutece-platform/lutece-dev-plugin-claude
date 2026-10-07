@@ -100,6 +100,13 @@ run_hook "$CLAUDE_IN" CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_PROJECT_DIR="$TMP/v7" >/
 mkdir -p "$TMP/v7/.migration"; run_hook "$CLAUDE_IN" CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_PROJECT_DIR="$TMP/v7" >/dev/null
 [ -f "$TMP/v7/.claude/rules/dao-patterns.md" ] && pass "a project being updated gets the rules whatever its version" || fail "rules missing during an update"
 
+echo "prerequisites"
+mkdir -p "$TMP/bin4" && printf '#!/bin/sh\necho "Apache Maven 4.0.0 (x)"\n' > "$TMP/bin4/mvn" && chmod +x "$TMP/bin4/mvn"
+OUT="$(run_hook "$CLAUDE_IN" CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_PROJECT_DIR="$TMP/proj" PATH="$TMP/bin4:$PATH")"
+printf '%s' "$OUT" | python3 -c 'import json, sys; d = json.load(sys.stdin); sys.exit(0 if "Maven 4" in d.get("systemMessage", "") and "ENV05" in d["hookSpecificOutput"]["additionalContext"] else 1)' && pass "a missing prerequisite is shown to the user and to the agent" || fail "missing prerequisite not reported"
+OUT="$(run_hook "$CLAUDE_IN" CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_PROJECT_DIR="$TMP")"
+printf '%s' "$OUT" | grep -q systemMessage && fail "no Lutece project must give no prerequisite warning" || pass "outside a Lutece project no prerequisite is checked"
+
 echo "reference sync"
 for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$LUTECE_REFERENCES_DIR/.last-sync" ] && break; sleep 0.3; done
 [ -f "$LUTECE_REFERENCES_DIR/.last-sync" ] && pass "sync stamp written after a successful pass" || fail "sync stamp missing"

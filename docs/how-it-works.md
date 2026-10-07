@@ -75,6 +75,7 @@ A single hook script, `hooks/session-start`, runs on every coding agent that sup
 1. Injects the `using-lutecepowers` skill as context, with the absolute plugin root substituted for `LUTECEPOWERS_ROOT`. Fires on startup, clear and compact, not on resume, so a resumed session is not charged twice.
 2. Clones or updates the Lutece v8 reference repositories listed in `hooks/sync-references` into `~/.lutece-references/` in the background (branch `develop`, plus the v7 branches of each repository).
 3. On Claude Code, when the current directory is a Lutece 8 Maven project, copies the rules into `.claude/rules/` so they load automatically by path; a project whose Lutece parent or lutece-core is below 8 (`tools/lutece-level.py`) gets none, and loses the copies of an earlier session, unless it carries `.migration/`. It also exports `LUTECEPOWERS_ROOT` to the shell.
+4. In a Lutece project, shows the user one line for the project and its Lutece level (`tools/start-banner.py`), the command to run (`lutece-update-plugin` or `lutece-update-site` below Lutece 8, else `lutece-checkup`), then one line per blocking finding of `tools/doctor.sh` with its fix, also told to the agent.
 
 The reference sync runs at most once per hour, six repositories at a time.
 
@@ -85,6 +86,7 @@ Coding agents without a usable session hook load the bootstrap another way: Open
 ## Other hooks
 
 - `hooks/verify-edit` (after each edit, Claude Code): runs `tools/verify-file.sh` on the edited file of a Lutece project and hands back, at once, the FAIL and WARN lines the edit added to the committed version. A file that already broke checks, a project whose sources still carry Lutece 7 code, or a project below Lutece 8, gets one non-blocking note per session: leave it unless the user asks, and ask at the end whether to run the update skill. While a project carries `.migration/`, every finding of the edited file comes back.
+- `hooks/check-result` (on the first prompt, Claude Code): once the background `lutece-check.sh --quick` is done, shows its first lines to the user and all of it to the agent, as existing debt to leave unless asked.
 - `hooks/migration-gate` (Stop, Claude Code): while a project carries `.migration/gate-required`, refuses to end the turn until a full `final-gate.sh` passes.
 
 ## Skills

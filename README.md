@@ -16,8 +16,9 @@ and scripts that check everything a machine can check. Claude Code, Codex, Curso
    ```
 
    Maven 3.9 (not 4). On Windows, Docker Desktop with the WSL 2 integration of the distribution ticked, for the e2e bench.
-4. **Check the setup:** in a project, ask the agent *"run the lutecepowers doctor"*. It names every problem
-   (a Windows `mvn` on the PATH, a project under `/mnt/c`, line endings git will convert, no Docker) and how to fix it.
+4. **Check the setup:** opening the agent in a Lutece project shows its Lutece level, checks the machine and names what
+   is missing, with the fix (a Windows `mvn` on the PATH, a project under `/mnt/c`, line endings git will convert, no Docker). For the full
+   list, ask the agent *"run the lutecepowers doctor"*.
 
 ## Install
 

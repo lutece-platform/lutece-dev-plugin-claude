@@ -47,8 +47,8 @@ def major(version, props):
     return int(m.group(1)) if m else None
 
 
-def level(path):
-    """Returns (kind, level) for the project holding the path, or None without a pom."""
+def detect(path):
+    """Returns (kind, major Lutece version or None) for the project holding the path, or None without a pom."""
     chain = poms(path)
     if not chain:
         return None
@@ -65,14 +65,29 @@ def level(path):
             v = re.search(r"<version>([^<]*)</version>", parent.group(1))
             n = major(v.group(1), props) if v else None
             if n is not None:
-                return kind, "old" if n < 8 else "v8"
+                return kind, n
         core = CORE.search(c)
         if core:
             v = re.search(r"<version>([^<]*)</version>", core.group(0))
             n = major(v.group(1), props) if v else None
             if n is not None:
-                return kind, "old" if n < 8 else "v8"
-    return kind, "unknown"
+                return kind, n
+    return kind, None
+
+
+def major_of(path):
+    """Returns the major Lutece version of the project holding the path, or None when unknown."""
+    found = detect(path)
+    return found[1] if found else None
+
+
+def level(path):
+    """Returns (kind, "old" | "v8" | "unknown") for the project holding the path, or None without a pom."""
+    found = detect(path)
+    if found is None:
+        return None
+    kind, n = found
+    return kind, "unknown" if n is None else "old" if n < 8 else "v8"
 
 
 if __name__ == "__main__":

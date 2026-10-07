@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BOOTSTRAP="${ROOT_DIR}/skills/using-lutecepowers/SKILL.md"
 
-if [ ! -t 0 ]; then cat >/dev/null 2>&1 || true; fi
+HOOK_IN=""; if [ ! -t 0 ]; then HOOK_IN="$(cat 2>/dev/null || true)"; fi
 
 # Resolves the harness: explicit argument, then environment.
 detect_harness() {
@@ -52,10 +52,32 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   echo "export LUTECEPOWERS_ROOT=\"${ROOT_DIR}\"" >> "$CLAUDE_ENV_FILE" 2>/dev/null
 fi
 
+# In a Lutece project (shown a start banner), the machine checks of doctor.sh that do not pass: FAIL lines, then WARN lines.
+PREREQ_FAIL=""; PREREQ_WARN=""; LUTECE_PROJECT=""
+if [ -f "${PROJECT_DIR}/pom.xml" ] && grep -q "lutece-plugin\|lutece-module\|lutece-library\|lutece-site\|lutece-global-pom" "${PROJECT_DIR}/pom.xml" 2>/dev/null; then
+  LUTECE_PROJECT=1
+  DOCTOR="$(timeout 15 bash "${ROOT_DIR}/tools/doctor.sh" "$PROJECT_DIR" 2>/dev/null </dev/null)"
+  PREREQ_FAIL="$(printf '%s\n' "$DOCTOR" | grep '^  FAIL ' | sed 's/^  FAIL /- /')"
+  PREREQ_WARN="$(printf '%s\n' "$DOCTOR" | grep '^  WARN ' | sed 's/^  WARN /- /')"
+fi
+PREREQ=""
+if [ -n "$PREREQ_FAIL$PREREQ_WARN" ]; then
+  PREREQ="<lutecepowers-machine>
+${PREREQ_FAIL:+Begin your first answer by telling the user what this machine lacks for Lutece work, with the fix each line
+gives: builds, checks and the bench fail until it is fixed.
+$PREREQ_FAIL
+}${PREREQ_WARN:+Limited, to mention only when the task needs it:
+$PREREQ_WARN
+}Full check: bash ${ROOT_DIR}/tools/doctor.sh .
+</lutecepowers-machine>
+
+"
+fi
+
 BODY="$(skill_body "$BOOTSTRAP" 2>/dev/null || echo "Error reading using-lutecepowers skill")"
 BODY="${BODY//\$\{LUTECEPOWERS_ROOT\}/$ROOT_DIR}"
 
-CONTEXT="<EXTREMELY_IMPORTANT>
+CONTEXT="${PREREQ}<EXTREMELY_IMPORTANT>
 You have Lutecepowers, a toolkit for Lutece 8 development.
 
 LUTECEPOWERS_ROOT=${ROOT_DIR}
@@ -72,6 +94,14 @@ ROOT_ESCAPED="$(printf '%s' "$ROOT_DIR" | json_string)"
 
 case "$HARNESS" in
   cursor)  printf '{"additional_context":%s,"env":{"LUTECEPOWERS_ROOT":%s}}\n' "$ESCAPED" "$ROOT_ESCAPED" ;;
-  *)       printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}\n' "$ESCAPED" ;;
+  *)
+    if [ -n "$LUTECE_PROJECT" ]; then
+      COLOR=0; [ "${CLAUDE_CODE_ENTRYPOINT:-}" = cli ] && [ -z "${NO_COLOR:-}" ] && COLOR=1
+      BANNER="$(printf '%s\n' "$DOCTOR" | python3 "${ROOT_DIR}/tools/start-banner.py" "$PROJECT_DIR" "$COLOR" 2>/dev/null)"
+      NOTICE="$(printf '%s' "$BANNER" | json_string)"
+      printf '{"systemMessage":%s,"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}\n' "$NOTICE" "$ESCAPED"
+    else
+      printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}\n' "$ESCAPED"
+    fi ;;
 esac
 exit 0
