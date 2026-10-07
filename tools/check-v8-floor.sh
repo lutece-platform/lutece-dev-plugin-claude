@@ -29,10 +29,24 @@ FLOOR="lutece-core $V8_FLOOR_CORE built on $V8_FLOOR_CORE_BUILD or later"
 # Prints a message on stderr.
 say() { echo "$*" >&2; }
 
-# Records the verdict with the jar it was read from, prints the diagnosis of a refusal and exits with its code.
+# Prints what a verdict depends on beside the pom: the floor and the jar as a file (inode, size, modification time).
+# Maven refreshing a snapshot writes a new file but may keep the old modification time, so a date alone is not enough.
+stamp() {
+    python3 - "${1:-}" "$FLOOR" <<'PY'
+import os, sys
+try:
+    s = os.stat(sys.argv[1]) if sys.argv[1] else None
+except OSError:
+    s = None
+print("%s|%s" % ("%d:%d:%d" % (s.st_ino, s.st_size, s.st_mtime_ns) if s else "-", sys.argv[2]))
+PY
+}
+
+# Records the verdict with the jar it was read from and its stamp, prints the diagnosis of a refusal and exits with
+# its code.
 verdict() {
     mkdir -p "$ROOT/target"
-    printf '%s\t%s\t%s\n' "$1" "${3:-}" "$2" > "$CACHE"
+    printf '%s\t%s\t%s\t%s\n' "$1" "${3:-}" "$(stamp "${3:-}")" "$2" > "$CACHE"
     [ "$1" = 0 ] || say "$2"
     exit "$1"
 }
@@ -61,8 +75,8 @@ PY
 [ -f "$ROOT/pom.xml" ] || { say "V8FLOOR undecidable: $ROOT has no pom.xml"; exit 2; }
 
 if [ -f "$CACHE" ] && [ "$CACHE" -nt "$ROOT/pom.xml" ]; then
-    rc=$(cut -f1 "$CACHE"); jar=$(cut -f2 "$CACHE"); msg=$(cut -f3- "$CACHE")
-    if [ -z "$jar" ] || { [ -f "$jar" ] && [ "$CACHE" -nt "$jar" ]; }; then
+    rc=$(cut -f1 "$CACHE"); jar=$(cut -f2 "$CACHE"); kept=$(cut -f3 "$CACHE"); msg=$(cut -f4- "$CACHE")
+    if [ "$kept" = "$(stamp "$jar")" ]; then
         [ "$rc" = 0 ] || say "$msg"
         exit "$rc"
     fi

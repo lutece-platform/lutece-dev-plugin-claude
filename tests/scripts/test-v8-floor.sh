@@ -47,9 +47,17 @@ else
     echo "SKIP: ~/.m2 lacks the lutece-core 8.0.1 and $V8_FLOOR_CORE jars or its version list, the offline Maven cases are not run (mvn dependency:get fetches them, RELEASE the list)"
 fi
 mkdir -p "$T/nopom";                     expect nopom 2
-mkdir -p "$T/core-803/target"; printf '1\t\tV8FLOOR CACHED\n' > "$T/core-803/target/.v8-floor"
+FLOOR="lutece-core $V8_FLOOR_CORE built on $V8_FLOOR_CORE_BUILD or later"
+mkdir -p "$T/core-803/target"; printf '1\t\t-|%s\tV8FLOOR CACHED\n' "$FLOOR" > "$T/core-803/target/.v8-floor"
 bash "$C" "$T/core-803" --offline 2> "$T/cached.err"
 [ $? = 1 ] && grep -q "V8FLOOR CACHED" "$T/cached.err" || { echo "FAIL: a cache with no jar field is not read"; fails=$((fails + 1)); }
+printf 'x' > "$T/core.jar"
+printf '1\t%s\t1:1:1|%s\tV8FLOOR STALE\n' "$T/core.jar" "$FLOOR" > "$T/core-803/target/.v8-floor"
+bash "$C" "$T/core-803" --offline 2> "$T/stale.err"
+[ $? = 0 ] && ! grep -q "V8FLOOR STALE" "$T/stale.err" || { echo "FAIL: a cache recorded for another jar file is read"; fails=$((fails + 1)); }
+printf '1\t\t-|lutece-core 0.0.0 built on 1970-01-01 or later\tV8FLOOR OLD FLOOR\n' > "$T/core-803/target/.v8-floor"
+bash "$C" "$T/core-803" --offline 2> "$T/floor.err"
+[ $? = 0 ] && ! grep -q "V8FLOOR OLD FLOOR" "$T/floor.err" || { echo "FAIL: a cache recorded under another floor is read"; fails=$((fails + 1)); }
 
-[ "$fails" -eq 0 ] && { echo "PASS: v8 floor refuses 8.0.1, a beta and an old snapshot build, accepts the floor snapshot and later, reads a cache with no jar"; exit 0; }
+[ "$fails" -eq 0 ] && { echo "PASS: v8 floor refuses 8.0.1, a beta and an old snapshot build, accepts the floor snapshot and later, reads a cache with no jar, refuses one recorded for another jar file or another floor"; exit 0; }
 exit 1
