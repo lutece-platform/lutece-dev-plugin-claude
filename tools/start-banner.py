@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Prints the block a session start shows the user in a Lutece project: one line for the project and its Lutece
-level, the command to run, one line with a mark per prerequisite of the machine, then the fix of each one that blocks.
+level, one line with a mark per prerequisite of the machine and the fix of each one that blocks, then the command to
+run.
 
 Usage: start-banner.py <project_dir> <color 0|1> < doctor.sh output ("  PASS|WARN|FAIL [ENVnn] message")
 Colour only when asked: the terminal renders ANSI, other surfaces print the codes as text.
@@ -83,12 +84,12 @@ def prerequisites(doctor, color):
             label = re.sub(r"^(java|maven) (\S+).*", r"\1 \2", label)
         mark, style = MARKS[status]
         items.append(paint(mark, style, color) + " " + (label if status != "PASS" else paint(label, DIM, color)))
-    return "  ".join(items)
+    return paint("prerequisites", DIM, color) + "  " + "  ".join(items)
 
 
 def lines(root, doctor, color):
-    """The block: the project line, the command to run (the update below Lutece 8, else the checkup), then each blocking
-    finding of the machine."""
+    """The block: the project line, the prerequisites and the fix of each one that blocks, then the command to run (the
+    update below Lutece 8, else the checkup)."""
     found = lutece_level.detect(root)
     kind, major = found if found else ("plugin", None)
     dot = paint(" · ", DIM, color)
@@ -98,16 +99,18 @@ def lines(root, doctor, color):
         out.append(fresh)
     elif fresh:
         out[0] += dot + fresh
-    if major is not None and major < 8:
-        out.append("%s below lutece 8 %s" % (paint("▲", YELLOW, color), paint("· run /lutecepowers-v8:lutece-update-%s" % kind, DIM, color)))
-    else:
-        out.append(paint("› run /lutecepowers-v8:lutece-checkup to check this %s" % kind, DIM, color))
     if doctor:
         out.append(prerequisites(doctor, color))
     for status, _, message in doctor:
         if status == "FAIL":
             problem, _, fix = message.partition(": ")
             out.append("%s %s%s" % (paint("✗", RED, color), problem, paint("  → " + fix, DIM, color) if fix else ""))
+    if major is not None and major < 8:
+        out.append("%s below lutece 8 %s %s" % (paint("▲", YELLOW, color), paint("· run", DIM, color),
+                                               paint("/lutecepowers-v8:lutece-update-%s" % kind, "1", color)))
+    else:
+        out.append("%s %s %s" % (paint("› run", DIM, color), paint("/lutecepowers-v8:lutece-checkup", "1", color),
+                                 paint("to check this %s" % kind, DIM, color)))
     return out
 
 
