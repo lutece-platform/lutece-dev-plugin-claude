@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Prints the block a session start shows the user in a Lutece project: lutecepowers and whether it is up to date, the
-project and its Lutece level, what the machine lacks (with the command that fixes it), then the command to run.
+project and its Lutece level, a missing lutecedata MCP, what the machine lacks (with the command that fixes it), then
+the command to run.
 
 Usage: start-banner.py <project_dir> <color 0|1> < doctor.sh output ("  PASS|WARN|FAIL [ENVnn] problem: fix")
 Colour only when asked: the terminal renders ANSI, other surfaces print the codes as text.
@@ -58,6 +59,22 @@ def tool_line(color):
     return line + paint(" · %s is installing, run /reload-plugins when Claude Code offers it" % last, DIM, color)
 
 
+def lutecedata(root):
+    """Whether an MCP server named lutecedata is declared: user, project or managed scope, any url."""
+    home = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~")
+    servers = set()
+    for path, keys in ((os.path.join(home, ".claude.json"), ("mcpServers",)), (os.path.join(root, ".mcp.json"), ("mcpServers",)),
+                       ("/etc/claude-code/managed-mcp.json", ("mcpServers",))):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        servers.update(data.get("mcpServers") or {})
+        servers.update(((data.get("projects") or {}).get(root) or {}).get("mcpServers") or {})
+    return any("lutecedata" in s.lower() for s in servers)
+
+
 def name(root):
     """The artifactId of the project, else its directory name."""
     pom = open(os.path.join(root, "pom.xml"), encoding="utf-8", errors="replace").read()
@@ -75,6 +92,11 @@ def lines(root, doctor, color):
     level = "Lutece %d %s" % (major, kind) if major is not None else "Lutece %s, version not detected" % kind
     project = name(root) + dot + level + (dot + paint("machine ready", DIM, color) if doctor and not problems else "")
     out = [tool_line(color), project]
+    if not lutecedata(root):
+        out.append(paint("✗ lutecedata MCP isn't connected. Give Claude X-ray vision of all ~1,700 Lutece repos and all "
+                         "your applications in under a second.", "1;31", color))
+        out.append(paint("  → Grab your command in lutecedata › Account › Claude Code, run it, then restart Claude Code.",
+                         DIM, color))
     for status, message in problems:
         problem, _, fix = message.partition(": ")
         mark = paint("✗", RED, color) if status == "FAIL" else paint("▲", YELLOW, color)
