@@ -2,7 +2,8 @@
 # Checks lpe2e upgrade without a server: the previous version it starts from (E2E_BEFORE_WAR, then E2E_V7_DUMP, then a
 # v7 site: E2E_V7_REF for a plugin, E2E_V7_WAR for a site, else a usage error), the copy of a previous site the hard
 # links cannot reach, the takeover scripts (required for a site, optional for a plugin, both files checked), the
-# cleanup of a previous upgrade's artifacts, and the summary of a failed upgrade, which replaces any older verdict.
+# cleanup of a previous upgrade's artifacts, the Lutece logs of an earlier start emptied before each start (the core
+# pass reads them), and the summary of a failed upgrade, which replaces any older verdict.
 set -u
 . "$(dirname "$0")/../../tools/python.sh"
 E="$(cd "$(dirname "$0")" && pwd)/../../skills/lutece-e2e"
@@ -46,4 +47,8 @@ check "it shows no suite table" "$(grep -c '| Suite |' "$S")" 0
 rm "$T/e2e/artifacts/logs/upgrade.json"
 E2E_DIR="$T/e2e" python3 "$E/tools/report.py" upgrade-failed > /dev/null 2>&1
 check "an upgrade that died before its report still replaces the summary" "$(grep -c 'avant tout rapport' "$S")" 1
+L="$T/home/benches/b/output/defaultServer/logs/lutece"; mkdir -p "$L" "$T/e2e/harness"
+printf 'Caused by: java.lang.IllegalStateException: an earlier start\n' > "$L/error.log"; echo old > "$L/liquibase.log"; echo kept > "$L/application-1.log.gz"
+PY='(lambda s: (setattr(s, "sh", lambda *a, **k: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()), s.app_start(s.Bench(), "'$T'/site"), sorted(p.name for p in __import__("pathlib").Path("'$L'").iterdir()))[2])(__import__("server"))'
+check "a start leaves no Lutece log of an earlier start to judge it on" "$(py E2E_DIR="$T/e2e" E2E_NAME=b)" "['application-1.log.gz']"
 if [ $fail = 0 ]; then echo "PASS: lpe2e upgrade picks its previous version, checks its takeover scripts and reports a failure"; else exit 1; fi

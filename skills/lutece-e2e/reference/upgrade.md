@@ -39,7 +39,9 @@ lpe2e upgrade
 3. **The bench site takes the database over.** By default one normal start, what a deployment does. With
    `E2E_TAKEOVER` (required for a site): the two passes of `reference/database.md` from the scripts
    `site_check.py takeover <v7 site> <v8 site> --out <dir>` wrote — `takeover-1-core.sql`, a start where only the core
-   upgrades run, `takeover-2-components.sql`, then the normal start. For a plugin, the two sites are
+   upgrades run, `takeover-2-components.sql`, then the normal start. Each pass is judged on its own console and on
+   the Lutece logs it wrote: Liberty's output directory outlives the container, so every start empties its
+   `logs/lutece/*.log` first (a stopped pass leaves its own under `artifacts/logs`). For a plugin, the two sites are
    `~/.lutecepowers-e2e/sites7/<key>/site` and `~/.lutecepowers-e2e/benches/<name>/site`.
    On a v7 database, the upgrade scripts Liquibase cannot see (`tools/liquibase-visibility.sh`: an unparseable name,
    no `-- liquibase formatted sql` first line) are applied by hand first and printed `HAND-APPLIED`: a site would have

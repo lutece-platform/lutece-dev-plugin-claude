@@ -495,13 +495,16 @@ def daemon_ready(bench, timeout=120):
 def app_start(bench, site):
     """Start the bench's Liberty on a site directory and on the bench's database as it is; return the instant it
     started. Liberty's output directory outlives the container: its workarea keeps the JSP the pages compiled, so a
-    run only compiles the ones whose source changed (Liberty compares them with the site's files)."""
+    run only compiles the ones whose source changed (Liberty compares them with the site's files). The Lutece logs it
+    also holds are emptied, so a start is judged on its own errors only, never on those of an earlier start."""
     sh("docker", "rm", "-f", bench.app)
     logs = bench.e2e / "artifacts/logs"
     logs.mkdir(parents=True, exist_ok=True)
     env = bench.e2e / "harness/app.env"
     output = bench.state / "output"
     output.mkdir(exist_ok=True)
+    for old in (output / "defaultServer/logs/lutece").glob("*.log"):
+        old.unlink(missing_ok=True)
     since = sh("date", "-u", "+%Y-%m-%dT%H:%M:%S.%NZ").stdout.strip()
     r = sh("docker", "run", "-d", "--init", "--name", bench.app, "--network", "container:" + bench.runner, "-u", UID,
            "-e", "portal.serverName=db", "-e", "portal.dbname=" + bench.db, "-e", "portal.port=3306", "-e", "portal.user=lutece",
