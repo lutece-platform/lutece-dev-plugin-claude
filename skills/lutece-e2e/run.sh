@@ -29,12 +29,14 @@
 #   lpe2e py <script> [args]    a Python script in the bench's runner (/bench is the bench code, /e2e the project)
 #
 # Variables: E2E_VOLUME=none|small|large (seed size, none by default), E2E_WORKERS=n (default: from the free cores),
-# KEEP=1 (leave the bench up after a full run). Everything else lives in e2e.conf.
+# KEEP=1 (leave the bench up after a full run), E2E_MIN_MEM_MB=n (memory a bench needs free before it is raised:
+# 6144 with E2E_SEARCH, 3072 otherwise; 0 skips the check), E2E_MEM_WAIT=s (how long to wait for it, 120).
+# Everything else lives in e2e.conf.
 # Exit codes: 1 bench, 2 usage, 3 the bench's own oracle fails, 4 bench invariant broken, 5 unexpected server
 # errors, 6 smoke test, 7 visual review missing, 8 a suite with something to prove was entirely skipped,
 # 9 an action of the artefact proven by no scenario (COVERAGE=skip to iterate), 10 the artefact resolves a lutece-core
-# below the Lutece 8 level lutecepowers supports (tools/v8-floor.conf), 11 the database takeover of lpe2e upgrade failed;
-# otherwise pytest's code (1 = a red test).
+# below the Lutece 8 level lutecepowers supports (tools/v8-floor.conf), 11 the database takeover of lpe2e upgrade failed,
+# 12 not enough free memory to raise the bench; otherwise pytest's code (1 = a red test).
 set -euo pipefail
 BENCH=$(cd "$(dirname "$0")" && pwd)
 . "$BENCH/tools/python.sh"
@@ -111,10 +113,29 @@ cmd_build() {
   bash "$BENCH/tools/liquibase-visibility.sh" "$HOME/.lutecepowers-e2e/benches/$E2E_NAME/site" || true
 }
 
+# The machine has the memory a bench takes before one is raised (MemAvailable of /proc/meminfo against E2E_MIN_MEM_MB):
+# a bench with Solr and Elasticsearch peaks near 4.7 GB on a small plugin, the application's JVM grows with the site,
+# and a machine that runs out kills the background jobs, the run with them. Waits E2E_MEM_WAIT seconds for memory to
+# come back, then exits 12.
+mem_guard() {
+  local need=${E2E_MIN_MEM_MB:-$([ -n "${E2E_SEARCH:-}" ] && echo 6144 || echo 3072)} wait=${E2E_MEM_WAIT:-120} t=0 avail
+  local info=${LPE2E_MEMINFO:-/proc/meminfo}
+  [ "$need" -gt 0 ] && [ -r "$info" ] || return 0
+  while avail=$(awk '/^MemAvailable:/{print int($2 / 1024)}' "$info"); [ "${avail:-$need}" -lt "$need" ]; do
+    if [ "$t" -ge "$wait" ]; then
+      echo "not enough free memory to raise the bench: ${avail} MB available, ${need} MB needed (E2E_MIN_MEM_MB); stop another bench or job, then run again"
+      exit 12
+    fi
+    [ "$t" -gt 0 ] || echo "memory: ${avail} MB available, ${need} MB needed: waiting up to ${wait}s"
+    sleep 5; t=$((t + 5))
+  done
+}
+
 # Start the bench on a fresh database without the previous run's logs, the previous summary kept as summary-prev.md;
 # E2E_RESTART_AFTER_SEED restarts the application once the seed is in, for a target that caches tables at boot.
 cmd_up() {
   step "up: $E2E_NAME on the shared e2e server (fresh database)"
+  mem_guard
   if [ -f artifacts/summary.md ]; then cp artifacts/summary.md artifacts/summary-prev.md; fi
   docker rm -f "$APP" >/dev/null 2>&1 || true
   rm -rf artifacts/logs; mkdir -p artifacts/logs; chmod 777 artifacts/logs 2>/dev/null || true
@@ -332,6 +353,7 @@ cmd_upgrade() {
   mkdir -p artifacts
   needs_build && cmd_build
   step "upgrade: the previous version's database taken over by the bench site"
+  mem_guard
   if [ -f artifacts/summary.md ]; then mv artifacts/summary.md artifacts/summary-prev.md; fi
   rm -f artifacts/pass-upgrade
   rm -rf artifacts/logs artifacts/logs7; mkdir -p artifacts/logs artifacts/logs7; chmod 777 artifacts/logs artifacts/logs7 2>/dev/null || true

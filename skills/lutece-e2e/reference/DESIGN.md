@@ -111,7 +111,13 @@ What the scripts enforce, and no change may loosen:
     exit codes tell the causes apart: 1 stack, 2 usage, 3 oracle, 4 invariant (the admin account altered, or a
     security key switched off in `conf/override` and not named in `E2E_ALLOW_SECURITY_OFF`), 5 server errors,
     6 smoke, 7 review, 8 suite skipped, 9 an action of the artefact proven by no scenario, 10 lutece-core below the
-    supported Lutece 8 level, 11 the database upgrade of `upgrade` failed (the v7 preparation or the takeover).
+    supported Lutece 8 level, 11 the database upgrade of `upgrade` failed (the v7 preparation or the takeover),
+    12 not enough free memory to raise the bench.
+19. **A bench is raised only on a machine that can hold it**: `up` and `upgrade` compare `MemAvailable` with
+    `E2E_MIN_MEM_MB` (6144 with `E2E_SEARCH`, 3072 otherwise: a small plugin's bench with Solr and Elasticsearch
+    peaks at 4.7 GB, the application's JVM grows with the site), wait `E2E_MEM_WAIT` seconds (120) for it, then
+    exit 12 with what is available and what is needed. A machine that runs out kills background jobs, the run
+    with them, and nothing says why.
 
 ## Traps (kept in the skill)
 

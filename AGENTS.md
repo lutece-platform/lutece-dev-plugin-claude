@@ -70,6 +70,7 @@ bash tests/scripts/test-site-v7-leg.sh
 bash tests/scripts/test-gen-site-fresh.sh
 bash tests/scripts/test-latest-lutece.sh
 bash tests/scripts/test-upgrade.sh
+bash tests/scripts/test-mem-guard.sh
 bash tests/scripts/test-site-force.sh
 bash tests/scripts/test-e2e-site-cache.sh
 bash tests/scripts/test-e2e-src-digest.sh
