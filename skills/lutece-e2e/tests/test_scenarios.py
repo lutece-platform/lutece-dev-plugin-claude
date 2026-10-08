@@ -723,6 +723,7 @@ def test_scenario(bo, browser, request, record, sc):
     the navigations since the last oracle are credited when the next one passes, those after the last never are."""
     if sc.get("isolated") or sc.get("anonymous"):
         ctx = browser.new_context(viewport={"width": 1440, "height": 1000}, locale="fr-FR")
+        request.addfinalizer(ctx.close)
         bo = ctx.new_page()
         lutece.observe(bo)
         request.node.page = bo

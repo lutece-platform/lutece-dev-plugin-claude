@@ -38,6 +38,9 @@ PYTEST = ["-p", "no:cacheprovider", "-p", "no:xdist", "--rootdir=/bench"]
 DURATIONS_FILE = "/e2e/artifacts/.durations.json"
 DURATIONS = {}
 PROCS = []
+MAX_CONTEXTS = 24
+"""Contexts a worker's browser may hold after a job before it is replaced: pools, crawl pages and session checks stay
+well under it, so only contexts that escaped the pool can reach it."""
 CODE = ""
 
 
@@ -50,16 +53,21 @@ def code(count):
 class KeptContext:
     """A pooled browser context handed to a test: closing it cleans it and gives it back to the pool."""
 
-    def __init__(self, ctx, pool):
-        """Wrap a real context and the free list it returns to."""
-        self._ctx, self._pool = ctx, pool
+    def __init__(self, ctx, pool, lent):
+        """Wrap a real context, the free list it returns to and the set of contexts lent to the running tests."""
+        self._ctx, self._pool, self._lent = ctx, pool, lent
+        lent.add(self)
 
     def __getattr__(self, name):
         """Everything but close is the real context's."""
         return getattr(self._ctx, name)
 
     def close(self, **kwargs):
-        """Empty the context (local storage, pages, routes, cookies, permissions) and return it to the pool."""
+        """Empty the context (local storage, pages, routes, cookies, permissions) and return it to the pool; a context
+        that cannot be cleaned is closed for good."""
+        if self not in self._lent:
+            return
+        self._lent.discard(self)
         try:
             for page in self._ctx.pages:
                 try:
@@ -71,17 +79,17 @@ class KeptContext:
             self._ctx.clear_cookies()
             self._ctx.clear_permissions()
             self._pool.append(self._ctx)
-        except Exception:  # noqa: BLE001 - a context the test closed itself is dropped
-            pass
+        except Exception:  # noqa: BLE001 - a context the test closed itself, or a crashed one, is dropped
+            close_quietly(self._ctx)
 
 
 class KeptBrowser:
     """The worker's browser with its contexts kept between tests: a new context with the same options reuses a
     cleaned one, so the static files stay in its memory cache. Flushed whenever the bench site changes."""
 
-    def __init__(self, browser, pools):
-        """Wrap the real browser and the pools of free contexts, by options."""
-        self._browser, self._pools = browser, pools
+    def __init__(self, browser, pools, lent):
+        """Wrap the real browser, the pools of free contexts by options and the set of contexts lent to the tests."""
+        self._browser, self._pools, self._lent = browser, pools, lent
 
     def __getattr__(self, name):
         """Everything but new_context is the real browser's."""
@@ -98,7 +106,22 @@ class KeptBrowser:
             data = json.load(open(state)) if isinstance(state, (str, os.PathLike)) else state
             if data.get("cookies"):
                 ctx.add_cookies(data["cookies"])
-        return KeptContext(ctx, pool)
+        return KeptContext(ctx, pool, self._lent)
+
+
+def close_quietly(target):
+    """Close a context, a page's context or a browser, whatever state it is in."""
+    try:
+        (target.context if hasattr(target, "goto") else target).close()
+    except Exception:  # noqa: BLE001 - already gone
+        pass
+
+
+def reclaim(cache):
+    """Give back to the pool every context a test left open (a test that never closed its own context would keep its
+    pages and their renderer processes alive for the life of the worker)."""
+    for kept in list(cache.get("lent", ())):
+        kept.close()
 
 
 def flush_contexts(cache):
@@ -106,11 +129,36 @@ def flush_contexts(cache):
     pools = cache.get("pools", {})
     for pool in pools.values():
         for ctx in pool:
-            try:
-                ctx.close()
-            except Exception:  # noqa: BLE001 - already gone
-                pass
+            close_quietly(ctx)
     pools.clear()
+
+
+def drop_visit_pages(cache):
+    """Close the crawl pages of the worker and forget them."""
+    for key in ("visit-bo", "visit-fo"):
+        page = cache.pop(key, None)
+        if page is not None:
+            close_quietly(page)
+    cache.pop("logged_in", None)
+
+
+def recycle(cache, launch):
+    """A fresh browser when the worker's one holds more contexts than MAX_CONTEXTS: whatever escaped the pool is
+    released with its processes. The session file stays valid; the pools and the crawl pages start again."""
+    try:
+        count = len(cache["browser"].contexts)
+    except Exception:  # noqa: BLE001 - a dead browser is replaced too
+        count = MAX_CONTEXTS + 1
+    if count <= MAX_CONTEXTS:
+        return
+    print("runnerd: %s holds %d contexts, browser recycled" % (os.environ.get("PYTEST_XDIST_WORKER"), count), flush=True)
+    cache.get("pools", {}).clear()
+    cache.get("lent", set()).clear()
+    cache.pop("visit-bo", None)
+    cache.pop("visit-fo", None)
+    cache.pop("logged_in", None)
+    close_quietly(cache["browser"])
+    cache["browser"] = launch()
 
 
 class WarmPlugin:
@@ -131,7 +179,7 @@ class WarmPlugin:
         if name not in WARM:
             return None
         if name == "browser":
-            value = KeptBrowser(self.cache["browser"], self.cache.setdefault("pools", {}))
+            value = KeptBrowser(self.cache["browser"], self.cache.setdefault("pools", {}), self.cache.setdefault("lent", set()))
         elif name in self.cache:
             value = self.cache[name]
         else:
@@ -175,7 +223,12 @@ def worker(index, jobs, results):
     from playwright.sync_api import sync_playwright
     import lutece
     pw = sync_playwright().start()
-    cache = {"browser": pw.chromium.launch(headless=True, args=lutece.chromium_args())}
+
+    def launch():
+        """This worker's browser."""
+        return pw.chromium.launch(headless=True, args=lutece.chromium_args())
+
+    cache = {"browser": launch()}
     results.put(("ready", index))
     while True:
         job = jobs.get()
@@ -193,8 +246,11 @@ def worker(index, jobs, results):
                 results.put(("logged", index, cache["login_s"], round(time.time() - job.get("sent", t), 2)))
             continue
         if job == "reset":
+            reclaim(cache)
             flush_contexts(cache)
+            drop_visit_pages(cache)
             cache = {"browser": cache["browser"]}
+            recycle(cache, launch)
             continue
         if job == "flush":
             flush_contexts(cache)
@@ -203,7 +259,9 @@ def worker(index, jobs, results):
             try:
                 results.put(("visited", index, visit(cache, job)))
             except Exception as e:  # noqa: BLE001 - a dead worker would hang the daemon
-                cache.pop("visit-" + job["mode"], None)
+                page = cache.pop("visit-" + job["mode"], None)
+                if page is not None:
+                    close_quietly(page)
                 results.put(("visited", index, [({"url": it[0], "from": it[1], "status": 0, "error": ("worker: %s" % e)[:120]}, [], [], None)
                                                 for it in job["items"]]))
             continue
@@ -229,6 +287,8 @@ def worker(index, jobs, results):
                 sys.stdout.flush()
                 os.dup2(saved[0], 1)
                 os.dup2(saved[1], 2)
+        reclaim(cache)
+        recycle(cache, launch)
         results.put(("done", index, int(rc), round(time.time() - start, 2), out, junit, plugin.durations))
 
 
@@ -247,6 +307,7 @@ def login(cache, index):
             resp = page.goto(lutece.url("jsp/admin/AdminMenu.jsp"), wait_until="commit")
             alive = resp is not None and resp.status < 400 and "AdminLogin" not in page.url
         except Exception:  # noqa: BLE001 - a page whose context is gone is replaced
+            close_quietly(page)
             page = None
     if page is None:
         page = cache["browser"].new_context(viewport={"width": 1440, "height": 1000}, locale="fr-FR").new_page()
