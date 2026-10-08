@@ -128,7 +128,10 @@ SCOPED = not lutece.scope()("jsp/admin/AdminLogin.jsp")
 @pytest.mark.skipif(SCOPED, reason=lutece.DECLARED_SKIP + "core public screen, out of the plugin scope")
 def test_login_screen(anon, record):
     """The login screen renders and rejects a wrong password with a Lutece message, not an error page."""
-    resp = anon.goto(lutece.url("jsp/admin/AdminLogin.jsp"), wait_until="load")
+    reason = lutece.screen_skip("jsp/admin/AdminLogin.jsp")
+    if reason:
+        pytest.skip(lutece.DECLARED_SKIP + reason)
+    resp =anon.goto(lutece.url("jsp/admin/AdminLogin.jsp"), wait_until="load")
     record["screenshot"] = lutece.shot(anon, "AdminLogin", "jpg")
     assert resp.status == 200, resp.status
     assert anon.locator('input[name="access_code"]').count() == 1, "login form not rendered"
@@ -142,6 +145,9 @@ def test_login_screen(anon, record):
                                     "jsp/admin/AdminFormContact.jsp"])
 def test_sessionless_screen(anon, record, target):
     """Public admin screens (lost login / password, contact) render cleanly without a session."""
+    reason = lutece.screen_skip(target)
+    if reason:
+        pytest.skip(lutece.DECLARED_SKIP + reason)
     resp = anon.goto(lutece.url(target), wait_until="load")
     record["screenshot"] = lutece.shot(anon, _slug(target), "jpg")
     kind = lutece.classify(anon, resp.status)
