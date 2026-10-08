@@ -4,11 +4,14 @@
 Usage: source-key.py <project_dir> [<toolkit_dir> ...]
 
 The key covers the project's files (the e2e bench's hand-written files included), the toolkit directories given
-(the scripts that judge it), and the Lutece artefacts of the local Maven repository other than the project's own:
-those the last assembled bench site carries in WEB-INF/lib, every one when no site was assembled yet.
+(the scripts that judge it), and the content of the local Maven repository copies of the Lutece jars the bench site
+carries in WEB-INF/lib (exact names and versions, tools/dep-digest.py), the project's own left out. Any other artefact,
+or another version of a carried one, installed or downloaded by any build leaves the key; without an assembled site
+the local repository does not enter it.
 Build output, bench artifacts and generated sites are left out, so two builds of the same sources give the same key.
 """
 import hashlib
+import importlib.util
 import os
 import pathlib
 import re
@@ -44,27 +47,33 @@ def own_artifact(project):
     return ids[1] if len(ids) > 1 else None
 
 
-def site_artifacts(project):
-    """The artifactIds of the jars the last assembled bench site carries (LPE2E_SITE, the shared bench's site), None
-    when no site was assembled."""
+def bench_site(project):
+    """The site the project's bench assembled: LPE2E_SITE, else the state of the bench e2e/e2e.conf names; None when
+    there is none."""
     site = os.environ.get("LPE2E_SITE")
-    libs = list(pathlib.Path(site).glob("WEB-INF/lib/*.jar")) if site else \
-        list((pathlib.Path(project) / "e2e" / "harness" / "site" / "target").glob("*/WEB-INF/lib/*.jar"))
-    if not libs:
-        return None
-    return {re.sub(r"-\d[^/]*\.jar$", "", p.name) for p in libs}
+    if not site:
+        try:
+            conf = (pathlib.Path(project) / "e2e" / "e2e.conf").read_text(errors="replace")
+        except OSError:
+            return None
+        m = re.search(r"^E2E_NAME=[\"']?([^\"'\s]+)", conf, re.M)
+        if not m:
+            return None
+        home = os.environ.get("LUTECEPOWERS_E2E_HOME") or str(pathlib.Path.home() / ".lutecepowers-e2e")
+        site = os.path.join(home, "benches", m.group(1), "site")
+    return pathlib.Path(site) if (pathlib.Path(site) / "WEB-INF" / "lib").is_dir() else None
 
 
-def maven_lutece(h, own, used):
-    """Feeds path, size and time of the Lutece jars of the local repository the site uses, the project's own left out."""
-    repo = pathlib.Path(os.environ.get("M2_REPO", pathlib.Path.home() / ".m2" / "repository")) / "fr" / "paris" / "lutece"
-    if not repo.is_dir():
+def carried_jars(h, project):
+    """Feeds the digest of the local repository copies of exactly the Lutece jars the bench site carries
+    (tools/dep-digest.py), the project's own left out; nothing when no site was assembled."""
+    site = bench_site(project)
+    if site is None:
         return
-    for p in sorted(repo.rglob("*")):
-        if p.suffix in (".jar", ".zip") and not (own and "/%s/" % own in p.as_posix()) \
-                and (used is None or p.parent.parent.name in used):
-            st = p.stat()
-            h.update(("%s %d %d" % (p.relative_to(repo).as_posix(), st.st_size, int(st.st_mtime))).encode())
+    spec = importlib.util.spec_from_file_location("dep_digest", pathlib.Path(__file__).with_name("dep-digest.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    h.update(mod.digest(site, own_artifact(project)).encode())
 
 
 def main():
@@ -75,7 +84,7 @@ def main():
     h = hashlib.sha256()
     for d in sys.argv[1:]:
         walk(d, h)
-    maven_lutece(h, own_artifact(sys.argv[1]), site_artifacts(sys.argv[1]))
+    carried_jars(h, sys.argv[1])
     print(h.hexdigest()[:16])
 
 

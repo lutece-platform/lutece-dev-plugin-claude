@@ -5,7 +5,8 @@
 #
 # Re-measures the three things a fix can silently invalidate, and fails on the first one that is not clean:
 #   1. build and unit tests         — 0 compiler warning, 0 failures and 0 errors read from surefire, NOT from
-#                                     BUILD SUCCESS (the 8.x parent sets testFailureIgnore)
+#                                     BUILD SUCCESS (the 8.x parent sets testFailureIgnore); steps 1 and 2 read
+#                                     the local Maven repository and never write it
 #   2. verify-migration.sh          — 0 FAIL
 #   3. e2e bench, when e2e/ exists  — every suite green, then upgrade; a green run or upgrade of the same sources
 #                                     (e2e/artifacts/pass-all, pass-upgrade) is reused, --force plays it again
@@ -18,7 +19,7 @@ set -uo pipefail
 
 case "${1:-}" in
   -h|--help)
-    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
     exit 0 ;;
 esac
 
@@ -77,12 +78,27 @@ step "1/3 build and unit tests"
 WARNFLAGS="-Dmaven.compiler.showWarnings=true -Dmaven.compiler.showDeprecation=true"
 HAS_TESTS=false
 [ -d src/test/java ] && find src/test/java \( -name "Test*.java" -o -name "*Test.java" -o -name "*Tests.java" -o -name "*TestCase.java" \) | grep -q . && HAS_TESTS=true
+# Steps 1 and 2 never write the local repository: a download, a newer snapshot or an update check there would change
+# what the benches of other projects carry and invalidate their green runs. Every Maven they start (MAVEN_ARGS, the
+# build and the floor and assembly checks of verify-migration.sh) reads the local repository as the tail of a chained
+# one (Maven 3.9) whose head, ~/.lutecepowers-e2e/gate-m2, takes whatever has to be written. The build runs offline
+# first, so it compiles against what the bench site was assembled from, online only when a dependency is missing.
+M2_LOCAL=$(sed -n 's:.*<localRepository>\(.*\)</localRepository>.*:\1:p' "$SETTINGS" 2>/dev/null | head -1)
+M2_LOCAL=${M2_LOCAL:-${M2_REPO:-$HOME/.m2/repository}}
+M2_LOCAL=${M2_LOCAL/#\~/$HOME}; M2_LOCAL=${M2_LOCAL//\$\{user.home\}/$HOME}
+GATE_M2="${LUTECEPOWERS_E2E_HOME:-$HOME/.lutecepowers-e2e}/gate-m2"
+GATE_MAVEN_ARGS="${MAVEN_ARGS:-} -Dmaven.repo.local=$GATE_M2 -Dmaven.repo.local.tail=$M2_LOCAL"
+mvn_build( ) {
+    MAVEN_ARGS="$GATE_MAVEN_ARGS" mvn -B -s "$SETTINGS" -o "$@" > $LOGS-build.log 2>&1 && return 0
+    grep -qE "offline mode|has not been downloaded from it before" $LOGS-build.log || return 0
+    MAVEN_ARGS="$GATE_MAVEN_ARGS" mvn -B -s "$SETTINGS" "$@" > $LOGS-build.log 2>&1 || true
+}
 if ! $HAS_TESTS; then
-    mvn -B -s "$SETTINGS" clean compile $WARNFLAGS > $LOGS-build.log 2>&1 || true
+    mvn_build clean compile $WARNFLAGS
 elif grep -q "<packaging>jar</packaging>" pom.xml 2>/dev/null; then
-    mvn -B -s "$SETTINGS" clean test -Dlutece-test-hsql $WARNFLAGS > $LOGS-build.log 2>&1 || true
+    mvn_build clean test -Dlutece-test-hsql $WARNFLAGS
 else
-    mvn -B -s "$SETTINGS" clean lutece:exploded antrun:run -Dlutece-test-hsql test $WARNFLAGS > $LOGS-build.log 2>&1 || true
+    mvn_build clean lutece:exploded antrun:run -Dlutece-test-hsql test $WARNFLAGS
 fi
 WARNS=$(grep -E "^\[WARNING\] .*/src/.*\.java" $LOGS-build.log | grep -v "/src/test/" | sed 's|^\[WARNING\] ||; s|^.*/src/|src/|' | sort -u)
 NW=$(printf '%s' "$WARNS" | grep -c . || true)
@@ -118,7 +134,7 @@ else
 fi
 
 step "2/3 migration checks"
-if bash "$SKILL_DIR/verify-migration.sh" . > $LOGS-verify.log 2>&1; then
+if MAVEN_ARGS="$GATE_MAVEN_ARGS" bash "$SKILL_DIR/verify-migration.sh" . > $LOGS-verify.log 2>&1; then
     good "verify-migration.sh: 0 FAIL"
 else
     grep -E "^  .*FAIL" $LOGS-verify.log | head -10

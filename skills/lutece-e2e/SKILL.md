@@ -83,7 +83,7 @@ run and for the last one. In between, a fix is applied and checked by `lpe2e wat
 | `perf` | server timings, SQL digests; `E2E_JFR=1` adds the JFR hot methods | after the suites |
 | `report` | rebuilds `summary.md` and `report.html` from the artefacts already there | free, anytime |
 | `review` | the screen-by-screen visual gate | before handing over |
-| `key` | the key a green run stamps (`artifacts/pass-*`): sources, configuration, bench code, Lutece artefacts | read by `final-gate.sh` |
+| `key` | the key a green run stamps (`artifacts/pass-*`): sources, configuration, bench code, the local repository copies of the Lutece jars the bench site carries (no other artefact or version) | read by `final-gate.sh` |
 | `logs`, `status`, `port`, `sh`, `py` | the application log, the containers, the host port, a shell, a script in the runner | while diagnosing |
 | `upgrade` | the previous version's database taken over by the bench site, then the suites on it ([reference/upgrade.md](reference/upgrade.md)) | a migration or an update, before handing over |
 | `down` | removes the bench's containers and database; the shared server stays for the other benches | when done |
