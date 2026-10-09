@@ -11,8 +11,8 @@ site (packaging lutece-site)
 
 | Layer | Provides | The site must not |
 |---|---|---|
-| `lutece-global-pom` 8.x | Java 17, Jakarta EE 10 and MicroProfile provided, enforcer (`requireUpperBoundDeps`, `banDuplicatePomDependencyVersions`), lutece-maven-plugin 7.2.0, the Lutece liberty-maven-plugin fork (`liberty:dev`) | redeclare plugin versions, the JDK, the enforcer |
-| `lutece-site-pom` 8.x | `build-config` (provided, mandatory for site-assembly), profile `container-runtime` (logs to JUL) | recreate `dev`/`rec`/`prod` profiles: 8.0.1 dropped them, `src/conf/<env>` is no longer copied (SI09) |
+| `lutece-global-pom` 8.x | Java 17, Jakarta EE 10 and MicroProfile provided, enforcer (`requireUpperBoundDeps`, `banDuplicatePomDependencyVersions`), lutece-maven-plugin, the Lutece liberty-maven-plugin fork (`liberty:dev`) | redeclare plugin versions, the JDK, the enforcer |
+| `lutece-site-pom` 8.x | `build-config` (provided, mandatory for site-assembly), profile `container-runtime` (logs to JUL) | recreate `dev`/`rec`/`prod` profiles: `src/conf/<env>` is not copied (SI09) |
 | `lutece-bom` | the managed version and `<type>` of every Lutece artefact of the catalogue | declare a version for a managed artefact (SI04) |
 | `<family>-starter` | a flattened pom listing the plugins of a family; no webapp file, no configuration | redeclare what it brings |
 | pack (an organisation's layer, packaging `lutece-site`) | starter + BOM + common plugins, the theme, a configuration library, a `db.properties` on `jdbc/portal` | redeclare what it brings |

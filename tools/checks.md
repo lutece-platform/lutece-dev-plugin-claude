@@ -407,7 +407,7 @@ each difference (`- key|plugin|file|profile <id>: <reason>`). Rules and evidence
 | SI06 | FAIL / WARN | Artefact without version that neither the BOM nor the parent poms manage, in the dependencies or a profile, whatever the scope: the pom does not load (WARN for a provided or test one when the parent poms are not in the local repository) | (custom check, parents read in --m2) | pom.xml |
 | SI07 | WARN | Version range on a dependency | `[`, `(` | pom.xml |
 | SI08 | WARN | `lutece.*.version` property: it does not change the version the imported BOM manages | (custom check) | pom.xml |
-| SI09 | FAIL | `src/conf/<env>/` or a profile with `defaultConfDirectory`: not copied since `lutece-site-pom` 8.0.1 | (custom check) | src/conf, pom.xml |
+| SI09 | FAIL | `src/conf/<env>/` or a profile with `defaultConfDirectory`: not copied by `lutece-site-pom` | (custom check) | src/conf, pom.xml |
 | SI10 | FAIL | `src/java` (the lutece-site lifecycle compiles none) or classes under the packages the war excludes | (custom check) | src/java, webapp/WEB-INF/classes |
 | SI11 | FAIL | `webapp/WEB-INF/classes/META-INF/microprofile-config.properties`: site-assembly deletes and rewrites it | (custom check) | webapp |
 | SI12 | FAIL | SQL of the site Liquibase never runs: path `SqlPathInfo` does not parse, or no `-- liquibase formatted sql` first line | `sql_paths.py` | src/sql |

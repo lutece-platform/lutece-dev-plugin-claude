@@ -25,8 +25,8 @@ config  the effective configuration of an assembled site: every key, its value a
         the way the core and MicroProfile Config resolve it. With --against, the dump the running site printed
         (site-config-dump.jsp: one `key=value` per line) is compared with it: a key the model resolves otherwise
         is a finding, the model is only trusted where it agrees with the container.
-envconf the per-environment configuration of a v7 site (src/conf/<env>/, one copy per environment, dropped by
-        lutece-site-pom 8.0.1) written as one override file with MicroProfile profile keys: a value every environment
+envconf the per-environment configuration of a v7 site (src/conf/<env>/, one copy per environment, which
+        lutece-site-pom does not copy) written as one override file with MicroProfile profile keys: a value every environment
         shares is a plain key, a value that differs is %<env>.key. Prints the draft, every line annotated with the files
         it comes from, then the files it cannot convert (Spring contexts, templates, db.properties, log.properties).
 spring  the Spring contexts of a v7 site (webapp/ and every src/conf/<env>/) as keys of the v8 war: for each bean
@@ -687,7 +687,7 @@ def check_pom(site, bom, out, m2=None):
     profiles = [p for p in site.find("m:profiles/m:profile") if p.find(".//m:defaultConfDirectory", POM_NS) is not None]
     confs = [d.name for d in (site.path / "src/conf").iterdir() if d.is_dir() and d.name != "default"] if (site.path / "src/conf").is_dir() else []
     if profiles or confs:
-        out.add("FAIL", "SI09", "src/conf/" + ",".join(confs or ["?"]) + ": per-environment conf directories are no longer copied (lutece-site-pom 8.0.1 dropped the profiles); move each value to a MicroProfile profile key (%<profile>.key) in conf/override")
+        out.add("FAIL", "SI09", "src/conf/" + ",".join(confs or ["?"]) + ": lutece-site-pom copies no per-environment conf directory; move each value to a MicroProfile profile key (%<profile>.key) in conf/override")
 
 
 def check_build(site, out):
