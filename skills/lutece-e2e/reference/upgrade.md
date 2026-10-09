@@ -58,7 +58,7 @@ upgrade are removed when a run starts:
 |---|---|
 | `liquibase-changesets.txt` | every changeset the takeover ran (`EXECTYPE FILENAME ID`) |
 | `liquibase-versions-after.txt` | the component versions recorded after it |
-| `datastore-v7.txt`, `datastore-v8.txt`, `datastore-lost.txt` | the settings the core upgrade to 8.0.0 deletes (advanced parameters, site properties, cache statuses, theme), before and after, and those changed or lost: set them again after the upgrade (`datastore-before.txt` for a v8 update) |
+| `datastore-v7.txt`, `datastore-v8.txt`, `datastore-lost.txt` | the settings of the site (advanced parameters, site properties, cache statuses, theme) before and after the takeover, and those it changed or removed: set them again after the upgrade (`datastore-before.txt` for a v8 update) |
 | `upgrade-disabled.txt` | plugins of the bench site the database leaves disabled (a renamed one that `plugins.dat` lists under its former name is one) |
 | `upgrade-orphans.txt` | status keys of names no descriptor declares any more (the keys of a renamed plugin nobody moved) |
 | `components-without-version.txt` | components the v7 site ships that the v7 start recorded no version for: the takeover installs them as new over their existing rows |

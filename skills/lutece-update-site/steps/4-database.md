@@ -9,8 +9,8 @@ What happens to an existing database: `reference/database.md`. Codes: SI12-SI15.
    the two scripts of the takeover and prints what a single start would break (SI13: a component script that needs
    the v8 core, SI14: a renamed component whose create script drops the former tables, SI15: a fix-up script that
    never runs). Then the recette dump of phase A, through `lpe2e upgrade` (`E2E_V7_WAR`, `E2E_V7_DUMP`,
-   `E2E_TAKEOVER`): it plays `reference/database.md` §1 and writes the settings §2 lists that the upgrade removed
-   (`artifacts/datastore-lost.txt`).
+   `E2E_TAKEOVER`): it plays `reference/database.md` §1 and lists the settings the takeover changed or removed
+   (§2, `artifacts/datastore-lost.txt`).
 3. **Scripts removed from a layer**: a pack or a theme that deleted its migration scripts or its `src/sql` in its v8
    tree still has them on its v7 branches and tags: read them there, never assume the upgrade path of a database
    from a v8 tree alone.

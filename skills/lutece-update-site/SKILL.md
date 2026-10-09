@@ -106,7 +106,7 @@ module moved out of the BOM) is declared by the site or dropped with the owner's
 | 1 | `1-pom.md` | parent, BOM import, starter or pack, versions, types, profiles |
 | 2 | `2-configuration.md` | overrides, per-environment conf to MicroProfile profiles, Spring contexts, database, secrets |
 | 3 | `3-webapp.md` | `plugins.dat`, template and JSP overrides, `web.xml`, static files |
-| 4 | `4-database.md` | SQL of the site, an existing database, what the core upgrade resets |
+| 4 | `4-database.md` | SQL of the site, an existing database, the settings the takeover changes |
 | 5 | `5-runtime.md` | Liberty `server.xml`, `server.env`, `jvm.options`, the JDBC driver |
 
 After each step: `site-assemble.sh .` into `target/`, then `site_check.py check` (phase E). Change what the level
@@ -159,7 +159,7 @@ notification gateway). A fresh install proves nothing about an upgrade: a v7 sit
 `lpe2e upgrade` with `E2E_V7_WAR` (its v7 war, assembled without profile, carrying plugin-liquibase of the v7 line), `E2E_V7_DUMP` (the recette dump of phase
 A) and `E2E_TAKEOVER` (`.migration/takeover`): the v7 site starts once on the dump with plugin-liquibase, the v8 site takes it over the way
 `reference/database.md` §1 describes (core first, then the components), and `artifacts/datastore-lost.txt` lists the
-settings the core upgrade removed, to set again (§2). The takeover scripts are not a bench device: they set what
+settings the takeover changed or removed, to set again (§2). The takeover scripts are not a bench device: they set what
 plugin-liquibase cannot read on a v7 database installed with Ant (the version of a component it could not resolve,
 the former identity of a renamed one), and an environment that starts without them can lose tables. Hand them over;
 `E2E_TAKEOVER` on a directory of two empty files shows the start without them (`reference/upgrade.md` of lutece-e2e). A v8 site runs `lpe2e upgrade` with `E2E_BEFORE_WAR` (the war

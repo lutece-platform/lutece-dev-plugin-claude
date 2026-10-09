@@ -51,14 +51,11 @@ A SI13 FAIL (a component script using a table the core upgrade drops) is a v7 up
 it to the v7 database first. The `lutece-e2e` bench plays the same sequence, step 1 included, in `lpe2e upgrade` with
 `E2E_TAKEOVER` (`reference/upgrade.md` of that skill).
 
-## 2. The core upgrade resets settings of the site
+## 2. Settings the takeover changes
 
-`update_db_lutece_core-7.9.9-8.0.0.sql` runs 179 `DELETE FROM core_datastore`: 36 `core.advanced_parameters.*`
-(the security settings of the back-office accounts), the theme and site properties (`portal.theme.site_property.*`,
-`portal.site.site_property.*`, meta), the cache statuses, the theme code. Before the upgrade, save those rows of the
-production copy (`SELECT * FROM core_datastore WHERE entity_key LIKE 'core.advanced_parameters.%' OR entity_key LIKE
-'portal.%site_property%' OR entity_key LIKE 'core.cache.status.%' OR entity_key LIKE 'theme%'`); after it, compare and
-set again what the site had chosen, in the back office or in a SQL script of the site that runs after the core's.
+`lpe2e upgrade` lists in `artifacts/datastore-lost.txt` the settings of the site (advanced parameters, site
+properties, cache statuses, theme) whose value the takeover changed or removed. A value the site had chosen is set
+again, in the back office or in a SQL script of the site that runs after the core's.
 
 ## 3. Files that seed the database once
 
