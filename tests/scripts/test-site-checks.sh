@@ -295,22 +295,14 @@ ta = war("tk-after", extra={
 rc, out = run("takeover", tb, ta, "--out", ROOT / "tk")
 core_sql = (ROOT / "tk/takeover-1-core.sql").read_text()
 comp_sql = (ROOT / "tk/takeover-2-components.sql").read_text()
-expect("SI13 warns of a theme script needing a table the core upgrade creates and keys it deletes",
-       "WARN [SI13] sql/themes/mytheme/init_db_theme_mytheme.sql: uses core_theme" in out and "datastore key(s)" in out, out)
+expect("SI13 leaves a theme script needing a table the core upgrade creates: the core scripts run first",
+       "uses core_theme" not in out and "datastore key(s)" not in out, out)
 expect("SI13 fails a component upgrade using a table the core upgrade drops",
        "FAIL [SI13] sql/plugins/legacy/upgrade/update_db_legacy-2.3.4-2.3.5.sql: uses core_xsl_export" in out and rc == 1, out)
 expect("SI13 does not flag a script naming an altered table without the added column", "update_db_forms-3.1.3-4.0.0" not in out, out)
 expect("SI13 names a key a component inserts without a delete while the core upgrade inserts it, the plan deletes it first",
        "WARN [SI13] sql/themes/mytheme/init_db_theme_mytheme.sql: inserts theme.fav without deleting it first" in out
        and "DELETE FROM core_datastore WHERE entity_key = 'theme.fav';" in comp_sql, out + comp_sql)
-import shutil
-tf = ROOT / "tk-after-fixed"
-shutil.copytree(ta, tf)
-jar(tf / "WEB-INF/lib/plugin-liquibase-2.0.2.jar", {"fr/paris/lutece/plugins/liquibase/filters/LuteceRunAfterComparator.class": "\xca\xfe isCoreScript"})
-rc2, out2 = run("takeover", tb, tf, "--out", ROOT / "tk-fixed")
-expect("SI13 knows a plugin-liquibase that runs the core first and drops the order warning, not the duplicate key",
-       "INFO [SI13] the plugin-liquibase of the war runs the core scripts first" in out2
-       and "uses core_theme" not in out2 and "inserts theme.fav without deleting it first" in out2, out2)
 expect("SI14 names a renamed component whose create script re-creates the former tables",
        "WARN [SI14] workflow-newpdf: renamed from workflow-oldpdf" in out, out)
 expect("SI15 names a prerun script outside the classpath",

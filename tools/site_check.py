@@ -38,10 +38,9 @@ rebase  every file of the site overlay that replaces a file of a dependency, rep
         file, the lines the site changed and whether they apply cleanly; --write replaces the site's file by the merge
         when it has no conflict, and writes <file>.conflict next to it otherwise.
 takeover the two SQL scripts that let the after war take over the database of the before site, one per normal start
-        after the start in migration mode: takeover-1-core.sql (only the core upgrades run: plugin-liquibase runs
-        sql/plugins/ and sql/themes/ before sql/upgrade/), takeover-2-components.sql (each component back to what the
-        before site had installed, the keys of a renamed component moved to its new name, the version of a new one
-        removed so its create and init scripts run). Prints SI13-SI15 for this takeover.
+        after the start in migration mode: takeover-1-core.sql (only the core upgrades run), takeover-2-components.sql
+        (each component back to what the before site had installed, the keys of a renamed component moved to its new
+        name, the version of a new one removed so its create and init scripts run). Prints SI13-SI15 for this takeover.
 plugins-dat  the plugins.dat of an assembled site, from the plugin descriptors it ships: <name>.installed=1 for each,
         <name>.pool=portal when the descriptor requires a pool, core_extensions.installed=1.
 
@@ -838,57 +837,26 @@ def duplicate_keys(before, after):
     return res
 
 
-def liquibase_runs_core_first(war):
-    """Tells whether the plugin-liquibase the war ships sorts the core scripts before every other one:
-    its LuteceRunAfterComparator then declares isCoreScript. Read in the class, not guessed from a version number."""
-    for jar in war.lib.glob("plugin-liquibase-*.jar"):
-        try:
-            with zipfile.ZipFile(jar) as z:
-                name = "fr/paris/lutece/plugins/liquibase/filters/LuteceRunAfterComparator.class"
-                if name in z.namelist() and b"isCoreScript" in z.read(name):
-                    return True
-        except zipfile.BadZipFile:
-            continue
-    return False
-
-
 def check_takeover(before, after, out):
-    """SI13: on the database of the before war, plugin-liquibase runs sql/plugins/ and sql/themes/ before
-    sql/upgrade/ (alphabetical order, core excluded from runAfter): a component script that needs a table the core
-    upgrade creates or alters, or writes a datastore key it deletes, fails or is undone unless the core goes first; a
-    script using a table the core upgrade drops fails once it does."""
+    """SI13: on the database of the before war, a component script that inserts a datastore key the core upgrade
+    inserts too, without deleting it first, hits a duplicate key; a script using a table the core upgrade drops fails
+    once it does."""
     core, components = takeover_scripts(before, after)
     if not core or not components:
         return
-    created, dropped, added, deleted = set(), set(), set(), []
+    created, dropped = set(), set()
     for _, f in core:
         text = f.read_text(encoding="utf-8", errors="replace")
         created |= {t.lower() for t in re.findall(r"CREATE TABLE\s+(?:IF NOT EXISTS\s+)?`?(\w+)", text, re.I)}
         dropped |= {t.lower() for t in re.findall(r"DROP TABLE\s+(?:IF EXISTS\s+)?`?(\w+)", text, re.I)}
-        added |= {(t.lower(), c.lower()) for t, c in re.findall(r"ALTER TABLE\s+`?(\w+)`?\s+ADD\s+(?:COLUMN\s+)?(?:IF NOT EXISTS\s+)?`?(\w+)", text, re.I)}
-        deleted += [(op.upper(), k) for op, k in DS_DELETE.findall(text)]
     gone = dropped - created
-    deleted = [(op, k, like(k)) for op, k in deleted]
     first, broken = 0, 0
-    core_first = liquibase_runs_core_first(after)
-    if core_first:
-        out.add("INFO", "SI13", "the plugin-liquibase of the war runs the core scripts first: the takeover needs no core pass for the order")
     for rel, keys in sorted(duplicate_keys(before, after).items()):
         first += 1
         out.add("WARN", "SI13", f"{rel}: inserts {', '.join(keys)} without deleting it first, a key the core upgrade inserts: a duplicate key once the core is upgraded; the takeover deletes it before the components (the script needs the DELETE)")
     for rel, f in components:
         text = f.read_text(encoding="utf-8", errors="replace")
         tables = {t.lower() for t in re.findall(r"\b(core_\w+)\b", text, re.I)}
-        words = {w.lower() for w in re.findall(r"\w+", text)}
-        keys = DS_INSERT.findall(text)
-        need = sorted((tables & created) | {f"{t}.{c}" for t, c in added if t in tables and c in words})
-        undone = sorted({k for k in keys for op, d, p in deleted if (k == d if op == "=" else p.fullmatch(k))})
-        if (need or undone) and not core_first:
-            first += 1
-            why = (f"uses {', '.join(need)} that the core upgrade creates or alters" if need else "") + \
-                  ("; " if need and undone else "") + \
-                  (f"writes {len(undone)} datastore key(s) the core upgrade deletes ({undone[0]}…)" if undone else "")
-            out.add("WARN", "SI13", f"{rel}: {why}; in one start it runs before sql/upgrade/: take the database over core first (reference/database.md §1)")
         if tables & gone:
             broken += 1
             out.add("FAIL", "SI13", f"{rel}: uses {', '.join(sorted(tables & gone))} that the core upgrade drops: it belongs to the v7 schema; apply it to the database before the takeover and record its version, or it fails once the core is upgraded")
@@ -933,8 +901,7 @@ def takeover_plan(before, after):
     had = {n: d["version"] for n, d in before.plugins().items()}
     renamed = renamed_components(before, after)
     config = before.effective() if before.v8() else {}
-    core = ["-- takeover 1/2 (MySQL / MariaDB): only the core upgrades run; plugin-liquibase would otherwise run",
-            "-- sql/plugins/ and sql/themes/ before sql/upgrade/ (alphabetical order)",
+    core = ["-- takeover 1/2 (MySQL / MariaDB): only the core upgrades run",
             upsert("core.plugins.status.core.version", before.core_version)]
     core += [upsert(f"core.plugins.status.{p}.version", MAX_VERSION) for p in names]
     core += [upsert(f"core.theme.status.{t}.version", MAX_VERSION) for t in themes]

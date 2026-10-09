@@ -11,12 +11,8 @@ only from the classpath (`WEB-INF/classes/sql`). On a database with no `DATABASE
 it runs nothing and records the versions the war declares (`TestIncludeAllFilter`, `LiquibaseRunnerContext`): every
 v7 → v8 upgrade script is then skipped for good. Three more facts decide the procedure:
 
-- Up to 2.0.2-beta-01 (no `LuteceRunAfterComparator.isCoreScript`), it runs the files in path order and the core
-  cannot take part in `runAfter`: `sql/plugins/` and `sql/themes/` run before `sql/upgrade/`, the core's. A theme or a
-  plugin script that needs a table of the v8 core (`core_theme`), or writes a datastore key the core upgrade deletes,
-  fails or is undone in a single start (SI13, which reads the war's plugin-liquibase to tell). With the fix, the core
-  runs first: a component script that inserts a key the core upgrade inserts too, without deleting it first, then
-  hits a duplicate key (SI13).
+- It runs the core scripts first, then the others in path order, reordered by `-- lutece runAfter:`: a component
+  script that inserts a key the core upgrade inserts too, without deleting it first, hits a duplicate key (SI13).
 - The migration mode records a version for every plugin descriptor, a new plugin included: its create and init
   scripts would then never run. It records none for a theme.
 - A component renamed in v8 (its SQL directory and descriptor name changed) is a new component to Liquibase: its
@@ -30,8 +26,8 @@ The procedure that works, played on a copy of the production database before any
 1. `SHOW TABLES LIKE 'DATABASECHANGELOG%';`. The documented way to bring a v7 site under Liquibase is plugin-liquibase
    added alone to the v7 site, with `liquibase.enabled.at.startup=true`, started once: it creates `DATABASECHANGELOG`
    and records the installed versions, running nothing. A database that went through it skips step 3. It still
-   needs the two passes: the v8 start would run the components before the core, and a component it recorded no
-   version for is installed as new by a normal v8 start, over its existing rows. Two causes: its SQL has no
+   needs the takeover (steps 4 and 5): a component it recorded no version for is installed as new by a normal v8 start, over its
+   existing rows. Two causes: its SQL has no
    `-- liquibase formatted sql` first line (`LiquibaseRunner files not managed by liquibase are …`, a start
    plugin-liquibase refuses unless `liquibase.safeRun=false`), or its SQL directory does not match its plugin name
    (plugin-liquibase 1.0.2: `resolves to component '<dir>' which is not declared by any plugin descriptor`, a refused

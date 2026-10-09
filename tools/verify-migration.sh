@@ -1805,15 +1805,14 @@ if [ "$COUNT" -eq 0 ]; then emit "WB08" "PASS" "Every descriptor icon the projec
 else emit "WB08" "WARN" "Descriptor icon path the project does not ship while it ships that image elsewhere (a typo): the plugin shows the generic icon" "$COUNT" "$WB08_WARN"; fi
 
 # WB09: a plugin declaring an admin right with the core's CORE_ prefix shares that id with the core: a core upgrade that
-# removes its own right removes the plugin's too, and plugin install scripts run before the core upgrade scripts
-# (sql/plugins sorts before sql/upgrade, and runAfter:core is refused), so the plugin cannot put it back.
+# removes its own right removes the plugin's too.
 WB09_MATCHES=""
 if [ -d webapp/WEB-INF/plugins ] && ! grep -q "<packaging>lutece-core</packaging>" pom.xml 2>/dev/null; then
     WB09_MATCHES=$(grep -HnoE "<feature-id>CORE_[A-Z0-9_]+</feature-id>" webapp/WEB-INF/plugins/*.xml 2>/dev/null | sed 's#<feature-id>\(.*\)</feature-id>#\1: a plugin right named like a core one (use the plugin prefix, rename existing rows with an UPDATE changeset)#')
 fi
 COUNT=0; [ -n "$WB09_MATCHES" ] && COUNT=$(echo "$WB09_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "WB09" "PASS" "No plugin right reuses the core CORE_ prefix" 0
-else emit "WB09" "WARN" "Plugin right with the CORE_ prefix: a core upgrade removing its own right removes this one, and the plugin cannot restore it (its scripts run first)" "$COUNT" "$WB09_MATCHES"; fi
+else emit "WB09" "WARN" "Plugin right with the CORE_ prefix: a core upgrade removing its own right removes this one" "$COUNT" "$WB09_MATCHES"; fi
 echo ""
 
 # WB12: the admin menu links a feature as `url?plugin_name=…` (core adminHeader.ftl, since 2007: a feature url is a bare
