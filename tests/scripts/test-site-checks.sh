@@ -5,8 +5,9 @@
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 . "$HERE/../../tools/python.sh"
-# The fixtures are written for this parent floor; pinned so a new lutece-global-pom release does not move it.
-export V8_FLOOR_PARENT=8.0.2
+# The fixtures are written for these parent floors; pinned so a new lutece-global-pom or lutece-site-pom release does
+# not move them.
+export V8_FLOOR_PARENT=8.0.2 V8_FLOOR_SITE_PARENT=8.0.2
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 python3 - "$HERE/../../tools/site_check.py" "$T" <<'PY'

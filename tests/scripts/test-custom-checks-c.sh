@@ -4,8 +4,9 @@
 # target/.v8-floor verdict, so check-v8-floor.sh answers from its cache and never calls Maven.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
-# The fixtures are written for this parent floor; pinned so a new lutece-global-pom release does not move it.
-export V8_FLOOR_PARENT=8.0.2
+# The fixtures are written for these parent floors; pinned so a new lutece-global-pom or lutece-site-pom release does
+# not move them.
+export V8_FLOOR_PARENT=8.0.2 V8_FLOOR_SITE_PARENT=8.0.4
 V="${VERIFY:-$HERE/../../tools/verify-migration.sh}"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
@@ -83,6 +84,11 @@ expect pm06-801 PM06 FAIL
 expect pm06-snap PM06 FAIL
 expect pm06-floor PM06 PASS
 expect pm06-810 PM06 PASS
+for v in 8.0.3 8.0.4; do
+    pom "pm06-site-$v" "<project><modelVersion>4.0.0</modelVersion><parent><artifactId>lutece-site-pom</artifactId><groupId>fr.paris.lutece.tools</groupId><version>$v</version></parent><artifactId>site-x</artifactId><packaging>lutece-site</packaging><version>1.0.0</version></project>"
+done
+expect pm06-site-8.0.3 PM06 FAIL
+expect pm06-site-8.0.4 PM06 PASS
 
 plugin_pom pm09-bounded 8.0.2 1.0.0 "$(deps "$(dep fr.paris.lutece lutece-core '[7.0.0,8.0.0)')")"
 expect pm09-bounded PM09 WARN

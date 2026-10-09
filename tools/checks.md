@@ -23,7 +23,7 @@
 | PM03 | FAIL | javax.mail dependency, test scope aside | `com\.sun\.mail` | pom.xml |
 | PM04 | FAIL | Jersey dependencies, test scope aside (Liberty provides JAX-RS) | `org\.glassfish\.jersey` | pom.xml |
 | PM05 | FAIL | json-lib (use Jackson), test scope aside | `net\.sf\.json-lib` | pom.xml |
-| PM06 | FAIL | Parent below the latest released lutece-global-pom / lutece-site-pom 8.x (`V8_FLOOR_PARENT` of `tools/v8-floor.conf`, read in the release repository) | (custom check) | pom.xml |
+| PM06 | FAIL | Parent below the latest released lutece-global-pom 8.x, or for a site lutece-site-pom 8.x (`V8_FLOOR_PARENT`, `V8_FLOOR_SITE_PARENT` of `tools/v8-floor.conf`, read in the release repository) | (custom check) | pom.xml |
 | PM07 | WARN | springVersion property, read by nothing (remove) | `<springVersion>` | pom.xml |
 | PM08 | WARN | Jira properties (remove) | `<jiraProjectName>\|<jiraComponentId>` | pom.xml |
 | PM09 | WARN | Bounded version range (use open) | `,[0-9].*)</version>` | pom.xml |
@@ -399,7 +399,7 @@ each difference (`- key|plugin|file|profile <id>: <reason>`). Rules and evidence
 
 | ID | Severity | Description | Pattern | Files |
 |----|----------|-------------|---------|-------|
-| SI01 | FAIL | Parent other than `lutece-site-pom` at `V8_FLOOR_PARENT` or later | (custom check) | pom.xml |
+| SI01 | FAIL | Parent other than `lutece-site-pom` at `V8_FLOOR_SITE_PARENT` or later | (custom check) | pom.xml |
 | SI02 | FAIL / WARN | Not exactly one `lutece-bom` import (FAIL); BOM and starter on different versions (WARN) | (custom check) | pom.xml |
 | SI03 | WARN | `lutece-core` declared by the site | (custom check) | pom.xml |
 | SI04 | WARN | Version written for an artefact the BOM manages | (custom check, needs the BOM pom) | pom.xml |

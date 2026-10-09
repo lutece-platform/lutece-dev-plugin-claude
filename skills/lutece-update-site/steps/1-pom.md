@@ -2,7 +2,7 @@
 
 Rules and their evidence: `reference/layers.md`. Codes: SI01-SI09.
 
-1. Parent: `lutece-site-pom` at `V8_FLOOR_PARENT` of `tools/v8-floor.conf` or later, the latest released 8.x
+1. Parent: `lutece-site-pom` at `V8_FLOOR_SITE_PARENT` of `tools/v8-floor.conf` or later, the latest released 8.x
    (`https://dev.lutece.paris.fr/maven_repository/fr/paris/lutece/tools/lutece-site-pom/maven-metadata.xml`).
 2. `dependencyManagement`: one import of `fr.paris.lutece.starters:lutece-bom` (type pom, scope import), the version
    of phase B's gate.

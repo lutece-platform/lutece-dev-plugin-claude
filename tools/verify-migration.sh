@@ -388,10 +388,13 @@ if [ -f "pom.xml" ]; then
     # shellcheck source=/dev/null
     . "$SCRIPT_DIR/v8-floor.conf"
     PARENT_VER=$(masked_pom all | python3 -c 'import re, sys; m = re.search(r"<parent>(.*?)</parent>", sys.stdin.read(), re.S); v = m and re.search(r"<version>\s*([^<]*?)\s*</version>", m.group(1)); print(v.group(1) if v else "")')
-    if [[ "$PARENT_VER" == 8.* ]] && [ "$(printf '%s\n%s\n' "$V8_FLOOR_PARENT" "${PARENT_VER%%-*}" | lp_version_sort | head -1)" = "$V8_FLOOR_PARENT" ] && [[ "$PARENT_VER" != "$V8_FLOOR_PARENT"-* ]]; then
+    PARENT_AID=$(masked_pom all | python3 -c 'import re, sys; m = re.search(r"<parent>(.*?)</parent>", sys.stdin.read(), re.S); a = m and re.search(r"<artifactId>\s*([^<]*?)\s*</artifactId>", m.group(1)); print(a.group(1) if a else "")')
+    PARENT_FLOOR=$V8_FLOOR_PARENT
+    [ "$PARENT_AID" = "lutece-site-pom" ] && PARENT_FLOOR=$V8_FLOOR_SITE_PARENT
+    if [[ "$PARENT_VER" == 8.* ]] && [ "$(printf '%s\n%s\n' "$PARENT_FLOOR" "${PARENT_VER%%-*}" | lp_version_sort | head -1)" = "$PARENT_FLOOR" ] && [[ "$PARENT_VER" != "$PARENT_FLOOR"-* ]]; then
         emit "PM06" "PASS" "Parent version is $PARENT_VER" 0
     else
-        emit "PM06" "FAIL" "Parent version is '$PARENT_VER' (must be $V8_FLOOR_PARENT or later: the latest released lutece-global-pom / lutece-site-pom 8.x)" 1
+        emit "PM06" "FAIL" "Parent version is '$PARENT_VER' (must be $PARENT_FLOOR or later: the latest released ${PARENT_AID:-lutece-global-pom} 8.x)" 1
     fi
 else
     emit "PM06" "PASS" "Parent version check (no pom.xml)" 0

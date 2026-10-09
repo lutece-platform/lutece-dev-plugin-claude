@@ -633,12 +633,12 @@ def latest_local_bom(m2):
 
 
 def floor_parent():
-    """The lowest Lutece 8 parent lutecepowers supports: V8_FLOOR_PARENT when pinned, else the latest released
-    lutece-global-pom 8.x (latest-lutece.py, as tools/v8-floor.conf reads it)."""
-    if os.environ.get("V8_FLOOR_PARENT"):
-        return os.environ["V8_FLOOR_PARENT"]
+    """The lowest site parent lutecepowers supports: V8_FLOOR_SITE_PARENT when pinned, else the latest released
+    lutece-site-pom 8.x (latest-lutece.py, as tools/v8-floor.conf reads it)."""
+    if os.environ.get("V8_FLOOR_SITE_PARENT"):
+        return os.environ["V8_FLOOR_SITE_PARENT"]
     r = subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name("latest-lutece.py")), "release",
-                        "fr.paris.lutece.tools:lutece-global-pom"], capture_output=True, text=True)
+                        "fr.paris.lutece.tools:lutece-site-pom"], capture_output=True, text=True)
     return r.stdout.strip().split(":")[2] if r.stdout.count(":") >= 2 else "8.0.0"
 
 
