@@ -40,7 +40,7 @@ rebase  every file of the site overlay that replaces a file of a dependency, rep
 takeover the two SQL scripts that let the after war take over the database of the before site, one per normal start
         after the start in migration mode: takeover-1-core.sql (only the core upgrades run), takeover-2-components.sql
         (each component back to what the before site had installed, the keys of a renamed component moved to its new
-        name, the version of a new one removed so its create and init scripts run). Prints SI13-SI15 for this takeover.
+        name, the version of a new one removed so its create and init scripts run). Prints SI13-SI14 for this takeover.
 plugins-dat  the plugins.dat of an assembled site, from the plugin descriptors it ships: <name>.installed=1 for each,
         <name>.pool=portal when the descriptor requires a pool, core_extensions.installed=1.
 
@@ -867,19 +867,13 @@ def check_takeover(before, after, out):
 def check_renames(before, after, out):
     """SI14: a component the before war does not declare whose create script creates tables of the before site (a
     renamed plugin): Liquibase installs it as new, so its upgrades never run, and a create script no precondition
-    guards drops the tables. SI15: a prerun_db_* script outside the
-    classpath (WEB-INF/classes/sql), which plugin-liquibase never runs."""
+    guards drops the tables."""
     declared = set(after.plugins())
     for new, (old, tables) in sorted(renamed_components(before, after).items()):
         if old in declared:
             out.add("FAIL", "SI14", f"{new}: its create script creates {', '.join(tables)} that {old}, still shipped, already created: installing {new} runs it on them")
         else:
             out.add("WARN", "SI14", f"{new}: renamed from {old} (its create script re-creates {', '.join(tables)}): on the takeover the keys and the version of {old} move to {new} (site_check.py takeover), or Liquibase installs it as new and never runs its upgrades")
-    prerun = lambda base: {str(f.relative_to(base)) for f in (base / "sql").rglob("prerun_db_*.sql")} if (base / "sql").is_dir() else set()
-    classpath = prerun(after.path / "WEB-INF/classes")
-    for rel in sorted(prerun(after.path / "WEB-INF")):
-        if rel not in classpath:
-            out.add("WARN", "SI15", f"WEB-INF/{rel}: not in WEB-INF/classes/sql, where plugin-liquibase looks (lutece-maven-plugin copies there only the paths SqlPathInfo parses): it never runs")
 
 
 MAX_VERSION = str(2 ** 31 - 1)

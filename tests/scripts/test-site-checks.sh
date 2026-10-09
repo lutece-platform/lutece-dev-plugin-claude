@@ -312,8 +312,6 @@ expect("SI13 names a key a component inserts without a delete while the core upg
        and "DELETE FROM core_datastore WHERE entity_key = 'theme.fav';" in comp_sql, out + comp_sql)
 expect("SI14 names a renamed component whose create script re-creates the former tables",
        "WARN [SI14] workflow-newpdf: renamed from workflow-oldpdf" in out, out)
-expect("SI15 names a prerun script outside the classpath",
-       "WARN [SI15] WEB-INF/sql/plugins/workflow/modules/newpdf/plugin/prerun_db_workflow-newpdf.sql" in out, out)
 expect("the core pass sets the core to its v7 version and every component above any script",
        "'core.plugins.status.core.version', '7.1.5'" in core_sql and "'core.plugins.status.forms.version', '2147483647'" in core_sql
        and "'core.theme.status.mytheme.version', '2147483647'" in core_sql, core_sql)

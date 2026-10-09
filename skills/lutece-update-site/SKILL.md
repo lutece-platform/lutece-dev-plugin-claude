@@ -155,7 +155,7 @@ python3 ${LUTECEPOWERS_ROOT}/tools/site_check.py config .migration/after --again
 It must report no disagreement: the model of phase E is trusted only where the container agrees with it. The bench
 runs without the profiles of the environments: it never reaches their systems (identity provider, search cluster,
 notification gateway). A fresh install proves nothing about an upgrade: a v7 site writes the scripts of its takeover
-(`site_check.py takeover .migration/before-default .migration/after --out .migration/takeover`, SI13-SI15), then runs
+(`site_check.py takeover .migration/before-default .migration/after --out .migration/takeover`, SI13-SI14), then runs
 `lpe2e upgrade` with `E2E_V7_WAR` (its v7 war, assembled without profile, carrying plugin-liquibase of the v7 line), `E2E_V7_DUMP` (the recette dump of phase
 A) and `E2E_TAKEOVER` (`.migration/takeover`): the v7 site starts once on the dump with plugin-liquibase, the v8 site takes it over the way
 `reference/database.md` §1 describes (core first, then the components), and `artifacts/datastore-lost.txt` lists the

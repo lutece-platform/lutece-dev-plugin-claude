@@ -17,9 +17,8 @@ v7 → v8 upgrade script is then skipped for good. Three more facts decide the p
   scripts would then never run. It records none for a theme.
 - A component renamed in v8 (its SQL directory and descriptor name changed) is a new component to Liquibase: its
   upgrades never run, so the tables keep the former schema, and a create script no precondition guards drops them
-  (SI14). The `prerun_db_*` fix-up such a component ships
-  runs only on a database Liquibase already tracked under the former directory, and never from `WEB-INF/sql`, where
-  `lutece-maven-plugin` leaves it (SI15).
+  (SI14). The `prerun_db_*` fix-up such a component ships runs only on a database Liquibase already tracked under the
+  former directory.
 
 The procedure that works, played on a copy of the production database before any environment:
 

@@ -672,7 +672,8 @@ echo ""
 
 # SQ06: a Liquibase-headed SQL file of the project that never reaches WEB-INF/classes/sql of the assembled webapp. The
 # lutece-maven-plugin copies a file there only when it can parse its name (update_db_<plugin>-<from>-<to>.sql, versions
-# in digits and dots); plugin-liquibase reads nothing else, so the script is dropped without a log line.
+# in digits and dots) or when it is a prerun_db_* script; plugin-liquibase reads nothing else, so the script is
+# dropped without a log line.
 SQ06_MATCHES=""
 SQ06_CLASSES=""
 for d in target/lutece target/*; do [ -d "$d/WEB-INF/classes/sql" ] && [ -d "$d/WEB-INF/templates" ] && { SQ06_CLASSES="$d/WEB-INF/classes/sql"; break; }; done
@@ -680,20 +681,12 @@ if [ -d "src/sql" ] && [ -n "$SQ06_CLASSES" ]; then
     SQ06_MATCHES=$(find src/sql -name "*.sql" 2>/dev/null | sort | while read -r f; do
         head -1 "$f" | grep -q "liquibase formatted sql" || continue
         rel=${f#src/sql/}
-        [ -f "$SQ06_CLASSES/$rel" ] || case "$rel" in
-            */prerun_db_*.sql) echo "PRERUN $f: not copied to WEB-INF/classes/sql by this lutece-maven-plugin: it runs once the site is built with one that copies the prerun_db scripts" ;;
-            *) echo "$f: not copied to WEB-INF/classes/sql, Liquibase never runs it: an upgrade is plugins/<plugin>/upgrade/update_db_<plugin>-<from>-<to>.sql (versions in digits and dots), an install script plugins/<plugin>/plugin/create_db_ or init_db_, or core/init_core_" ;;
-        esac
+        [ -f "$SQ06_CLASSES/$rel" ] || echo "$f: not copied to WEB-INF/classes/sql, Liquibase never runs it: an upgrade is plugins/<plugin>/upgrade/update_db_<plugin>-<from>-<to>.sql (versions in digits and dots), an install script plugins/<plugin>/plugin/create_db_ or init_db_, or core/init_core_, a pre-execution script prerun_db_<plugin>.sql"
     done)
 fi
-SQ13_MATCHES=$(echo "$SQ06_MATCHES" | sed -n 's/^PRERUN //p')
-SQ06_MATCHES=$(echo "$SQ06_MATCHES" | grep -v '^PRERUN ' | sed '/^$/d')
 COUNT=0; [ -n "$SQ06_MATCHES" ] && COUNT=$(echo "$SQ06_MATCHES" | wc -l)
 if [ "$COUNT" -eq 0 ]; then emit "SQ06" "PASS" "Every Liquibase SQL file reaches the classpath of the assembled webapp" 0
 else emit "SQ06" "FAIL" "SQL file Liquibase never sees: its name is not parsed" "$COUNT" "$SQ06_MATCHES"; fi
-COUNT=0; [ -n "$SQ13_MATCHES" ] && COUNT=$(echo "$SQ13_MATCHES" | wc -l)
-if [ "$COUNT" -eq 0 ]; then emit "SQ13" "PASS" "Every prerun_db script reaches the classpath of the assembled webapp" 0
-else emit "SQ13" "WARN" "prerun_db script left out of WEB-INF/classes/sql by the lutece-maven-plugin of this build: inactive until a release that copies it" "$COUNT" "$SQ13_MATCHES"; fi
 echo ""
 
 # ─── JPA ─────────────────────────────────────────────────

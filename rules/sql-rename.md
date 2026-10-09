@@ -63,8 +63,6 @@ Fix both ways:
 - a pre-execution script that records the installed version when the plugin is installed (one of its admin rights exists) and has none, the version the schema matches (a column an upgrade added tells which);
 - a real precondition on `create_db_*` and `init_*` (see `sql-liquibase.md`): an installed plugin is neither created nor initialised again, even where the pre-execution script does not run.
 
-lutece-maven-plugin 7.2.0 does not copy a pre-execution script to `WEB-INF/classes/sql` (`site_check.py` SI15 tells), and build-config 3.0.2 runs it as plain SQL in the Ant initialisation, preconditions ignored: **guard every statement with the condition of its precondition** (`INSERT … SELECT … WHERE`), so that it does nothing outside the case it is written for.
-
 ## Renaming a plugin: the data migration
 
 The plugin name is persisted outside the changelog, so no Liquibase mechanism can carry it: `core.plugins.status.<name>.installed`, `.pool`, `.version`, `.lastRunScriptType`, `plugins.uninstalled.<name>`, and the `plugin_name` columns of `core_admin_right`, `core_portlet_type`, `core_attribute`, `mylutece_attribute`, plus `genatt_entry_type.plugin`.
