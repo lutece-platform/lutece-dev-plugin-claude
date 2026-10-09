@@ -130,15 +130,6 @@ Policy and mechanism: `rules/web-bean.md` § CSRF Policy. Migration steps for a 
    }
    ```
    Forms never nest: a `<form>` inside another is dropped by the browser, and its fields post with the outer one.
-8. The core injects `_csrftoken` into a `<form` followed by **one** space and an attribute
-   (`SecurityTokenHandler.PATTERN_FORM`); `@cForm` and `@tform` without `class` render `<form  id=…` and get no token
-   (a core defect, fixed by a regex that accepts any whitespace). Until the core carrying that fix is the one you build
-   on, give such a form a `class`.
-9. The default view reached without `?view=` (the admin menu link, WB12) gets no token: `SecurityTokenHandler.handleToken`
-   generates the token of a view only when the request names it (`MVCUtils.getView( request ) != null`), although the
-   MVC observer passes it `DEFAULT_VIEW` (a core defect, fixed by generating it for any `@View` method). Until the core
-   carrying that fix is the one you build on, a default view that renders a form it posts itself leaves the bench red on
-   that form: report it as a core defect, do not redirect around it.
 
 Non-MVC beans (no `@Controller`, portlets): keep `getSecurityTokenService().getToken()/validate()` (inherited accessor), never `SecurityTokenService.getInstance()`.
 
@@ -167,11 +158,6 @@ target. The port is four moves:
 **1. Extend the core base class.** `PortletHtmlContent` forces the HTML path: it makes
 `getHtmlContent` abstract, neutralises `getXml`/`getXmlDocument` (both return `null`) and
 returns `false` from `isContentGeneratedByXmlAndXsl()`. Never override that method by hand.
-`createPortletModel( )` and `renderTemplate( )` below are in the core `tools/v8-floor.conf` names (`V8_FLOOR_CORE`),
-which `check-v8-floor.sh` proves the build resolves. They are on the core's `develop` only until a release carries
-them (DP06 says so): the lower bound of `lutece-core` is the first release that carries the API the plugin uses; while
-none does, keep `[8.0.0,)` and say in the hand-over that the plugin needs the next core (a site on the published core
-fails on the missing table).
 Build the model with `createPortletModel( )` (the portlet, its id, its device display classes, its
 name when the title is shown) and render with `renderTemplate( request, TEMPLATE_DEFAULT, model )`:
 it applies the template chosen for the portlet in the back office, and the default template of the

@@ -139,9 +139,6 @@ cover each one with a negative e2e scenario:
   the request names, so the write runs unvalidated, and a crawler or a link preview triggers it. A view with nothing
   to show (an entry type without creation screen, a workflow action without form) redirects to an
   `AdminMessage.TYPE_CONFIRMATION` (FO: `SiteMessage.TYPE_CONFIRMATION`) whose form posts the action with its token.
-- **The default view reached without `?view=` issues no token**: an entry point linked from elsewhere
-  (`admin_url`, another plugin) opens the default view bare, and its form then posts no valid token. Redirect the bare
-  default view to `?view=<name>`, or link the entry points with their view.
 - **One token per rendered view**: `@View.securityTokenAction` names a single action. A screen with several mutations
   (move, copy, enable per row) routes them through one dispatching action posted with an operation field, or through
   confirmation views, each carrying its own token.
