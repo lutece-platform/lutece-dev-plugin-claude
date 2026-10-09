@@ -1662,6 +1662,10 @@ def gate(war_dir, bom, offline, site_dir=None, m2=None, extra=()):
         if not group.startswith("fr.paris.lutece") or art in seen:
             continue
         seen.add(art)
+        if art in managed and managed[art][0].endswith("-SNAPSHOT"):
+            snapshots += 1
+            print(f"SNAPSHOT   {art:48} {ver:24} -> {managed[art][0]} (managed by lutece-bom as a snapshot: a site released on it moves under its feet; pin its last release)")
+            continue
         if art in managed:
             print(f"BOM        {art:48} {ver:24} -> {managed[art][0]}")
             continue

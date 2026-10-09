@@ -207,6 +207,12 @@ jar(gw / "WEB-INF/lib/plugin-old-1.0.0.jar", {"META-INF/maven/fr.paris.lutece.pl
     "groupId=fr.paris.lutece.plugins\nartifactId=plugin-old\nversion=1.0.0\n"})
 rc, out = run("gate", gw, "--bom", BOM, "--offline")
 expect("gate: a BOM-managed artefact is fine, another one blocks (exit 1)", rc == 1 and "BOM        plugin-forms" in out and "NO-V8      plugin-old" in out, out)
+write(ROOT / "bom-snapshot.pom", """<project xmlns="http://maven.apache.org/POM/4.0.0"><dependencyManagement><dependencies><dependency>
+<groupId>fr.paris.lutece.plugins</groupId><artifactId>plugin-forms</artifactId><version>4.0.1-SNAPSHOT</version><type>lutece-plugin</type>
+</dependency></dependencies></dependencyManagement></project>""")
+rc, out = run("gate", gw, "--bom", ROOT / "bom-snapshot.pom", "--offline")
+expect("gate: an artefact the BOM manages as a snapshot is counted as a snapshot",
+       "SNAPSHOT   plugin-forms" in out and "managed by lutece-bom as a snapshot" in out and "1 with a Lutece 8 snapshot only" in out, out)
 
 s3 = site("s3", files={"src/main/liberty/config/server.xml": '<server><variable name="a.base" value="x"/><library><fileset dir="lib" includes="mysql-connector-*.jar"/></library></server>',
                        "webapp/WEB-INF/plugins/plugins.dat": "forms.installed=1\nforms.pool=portal\n"})
