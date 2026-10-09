@@ -121,7 +121,7 @@ and the screen dies on load ("jQuery is not defined"). `scan-template-design.py`
 and as libraries vendored under `webapp/`. The replacement is `plugin-asynchronousupload` (Uppy, no jQuery). Adding
 `library-theme-jquery` to revive the old widget is not a migration.
 
-1. **pom**: `plugin-asynchronousupload`, `[2.0.0-SNAPSHOT,)`, type `lutece-plugin`.
+1. **pom**: `plugin-asynchronousupload`, `[2.0.0,)`, type `lutece-plugin`.
 2. **Bean**: when files only need to be collected per session and field, the plugin's own handler does it, no
    subclass to write:
    ```java
