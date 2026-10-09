@@ -11,6 +11,7 @@
 set -euo pipefail
 HARNESS="$(cd "$(dirname "$0")/../harness" && pwd)"
 FLOOR="$(cd "$(dirname "$0")/../../../tools" && pwd)/check-v8-floor.sh"
+LATEST="$(dirname "$FLOOR")/latest-lutece.py"
 HZ_VERSION="5.5.0"
 OUT="./e2e/.scalability-test"; LOCAL=""; PLUGIN=""; PTYPE="lutece-plugin"; ENABLE=""; BUILD=1
 
@@ -51,8 +52,10 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 cp -a "$HARNESS/." "$OUT/"
 rm -f "$OUT/pom.xml.tpl" "$OUT/webapp/WEB-INF/plugins/plugins.dat.tpl"
 
+SITE_POM_VERSION=$(python3 "$LATEST" release fr.paris.lutece.tools:lutece-site-pom | cut -d: -f3)
+[ -n "$SITE_POM_VERSION" ] || { echo "ERROR: no released lutece-site-pom 8.x found (repositories and local Maven repository)" >&2; exit 2; }
 sed -e "s#@@PUT_GROUPID@@#$G#" -e "s#@@PUT_ARTIFACTID@@#$A#" \
-    -e "s#@@PUT_VERSION@@#$V#" -e "s#@@PUT_TYPE@@#$PTYPE#" \
+    -e "s#@@PUT_VERSION@@#$V#" -e "s#@@PUT_TYPE@@#$PTYPE#" -e "s#@@SITE_POM_VERSION@@#$SITE_POM_VERSION#" \
     "$HARNESS/pom.xml.tpl" > "$OUT/pom.xml"
 
 ENABLED_LINES=$(echo "$ENABLE" | tr ',' '\n' | sed 's/[[:space:]]//g; s/$/.installed=1/' | sort -u)

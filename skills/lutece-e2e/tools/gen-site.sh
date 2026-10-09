@@ -83,8 +83,9 @@ for p in "${EXTRA[@]}"; do
         <dependency><groupId>$G</groupId><artifactId>$A</artifactId><version>$V</version><type>${T:-lutece-plugin}</type></dependency>"
 done
 LIQUIBASE_VERSION=${E2E_LIQUIBASE_VERSION:-$(latest fr.paris.lutece.plugins:plugin-liquibase)}; need plugin-liquibase "$LIQUIBASE_VERSION"
-echo ">> core $CORE_VERSION ; liquibase $LIQUIBASE_VERSION ; extra deps: ${E2E_PLUGINS:-none} ; enabled: ${E2E_ENABLE:-none}"
-awk -v core="$CORE_VERSION" -v deps="$DEPS" -v liquibase="$LIQUIBASE_VERSION" '{gsub(/@@CORE_VERSION@@/, core); gsub(/@@LIQUIBASE_VERSION@@/, liquibase); if ($0 ~ /^[[:space:]]*@@DEPENDENCIES@@[[:space:]]*$/) print deps; else print}' \
+SITE_POM_VERSION=${E2E_SITE_POM_VERSION:-$(python3 "$LATEST" release fr.paris.lutece.tools:lutece-site-pom | cut -d: -f3)}; need lutece-site-pom "$SITE_POM_VERSION"
+echo ">> site pom $SITE_POM_VERSION ; core $CORE_VERSION ; liquibase $LIQUIBASE_VERSION ; extra deps: ${E2E_PLUGINS:-none} ; enabled: ${E2E_ENABLE:-none}"
+awk -v core="$CORE_VERSION" -v deps="$DEPS" -v liquibase="$LIQUIBASE_VERSION" -v sitepom="$SITE_POM_VERSION" '{gsub(/@@CORE_VERSION@@/, core); gsub(/@@LIQUIBASE_VERSION@@/, liquibase); gsub(/@@SITE_POM_VERSION@@/, sitepom); if ($0 ~ /^[[:space:]]*@@DEPENDENCIES@@[[:space:]]*$/) print deps; else print}' \
     "$SITE/pom.xml.tpl" > "$SITE/pom.xml"
 # The snapshot builds the site was resolved against: a new build published since changes the pom, so the cached
 # assembled site is not reused and the assembly below fetches it (-U).

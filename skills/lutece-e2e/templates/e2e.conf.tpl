@@ -21,6 +21,7 @@ E2E_MYLUTECE=1
 # Pins, only to reproduce a case on a given version (empty: the latest Lutece 8 snapshot).
 #E2E_CORE_VERSION=
 #E2E_LIQUIBASE_VERSION=
+#E2E_SITE_POM_VERSION=
 #E2E_MYLUTECE_VERSION=
 #E2E_MYLUTECE_DATABASE_VERSION=
 # A site only — the Maven profile it is assembled with: one without the environments' remote configuration source

@@ -30,11 +30,12 @@ fail=0
 check() { if eval "$2"; then echo "PASS: $1"; else echo "FAIL: $1"; fail=1; fi; }
 check "init-e2e.sh writes the configuration and no bench code" "[ -f '$P/e2e/e2e.conf' ] && [ ! -e '$P/e2e/run.sh' ] && [ ! -e '$P/e2e/tools' ] && [ ! -e '$P/e2e/tests' ]"
 check "e2e/ is ignored by the project's git" "! [ -d '$P/.git' ] || grep -qx 'e2e/' '$P/.gitignore'"
-PIN=(E2E_CORE_VERSION=8.0.9-SNAPSHOT E2E_LIQUIBASE_VERSION=2.0.9-SNAPSHOT E2E_MYLUTECE_VERSION=5.0.9-SNAPSHOT E2E_MYLUTECE_DATABASE_VERSION=7.0.9-SNAPSHOT)
+PIN=(E2E_SITE_POM_VERSION=8.0.9 E2E_CORE_VERSION=8.0.9-SNAPSHOT E2E_LIQUIBASE_VERSION=2.0.9-SNAPSHOT E2E_MYLUTECE_VERSION=5.0.9-SNAPSHOT E2E_MYLUTECE_DATABASE_VERSION=7.0.9-SNAPSHOT)
 OUT=$(cd "$P" && env "${PIN[@]}" E2E_DIR="$P/e2e" E2E_SITE_BUILD="$B" MVN="$T/bin/mvn" bash "$SKILL/tools/gen-site.sh" --pom-only 2>&1)
 check "gen-site.sh writes plugins.dat in a build directory that had no WEB-INF/plugins" "[ -f '$DAT' ]"
 check "plugins.dat enables the plugin under test and mylutece" "grep -qx 'demo.installed=1' '$DAT' && grep -qx 'mylutece.installed=1' '$DAT'"
 check "the site pom carries the pinned versions" "grep -q '8.0.9-SNAPSHOT' '$B/pom.xml' && grep -q '<artifactId>plugin-mylutece</artifactId><version>5.0.9-SNAPSHOT' '$B/pom.xml'"
+check "the site pom has the pinned lutece-site-pom parent and no placeholder left" "grep -q '<version>8.0.9</version>' '$B/pom.xml' && ! grep -q '@@' '$B/pom.xml'"
 check "--pom-only stops before the assembly" "! echo \"\$OUT\" | grep -q 'assemble the site'"
 OUT=$(cd "$P" && env "${PIN[@]}" E2E_DIR="$P/e2e" E2E_SITE_BUILD="$B" MVN="$T/bin/mvn" bash "$SKILL/tools/gen-site.sh" --no-install 2>&1)
 check "without --pom-only gen-site.sh goes on to the assembly" "echo \"\$OUT\" | grep -q 'assemble the site'"

@@ -15,7 +15,7 @@ dependency into `pom.xml.tpl` and enables it in `plugins.dat.tpl`, fetches Hazel
 ```
 
 ## Versions
-- Parent `lutece-site-pom` **8.0.2**, whose parent is `lutece-global-pom` 8.0.2. Never a SNAPSHOT parent.
+- Parent `lutece-site-pom`: the latest released 8.x (`tools/latest-lutece.py`). Never a SNAPSHOT parent.
 - `lutece-core` `[8.0.0,)`, which resolves the latest core. `gen-test-site.sh` runs `check-v8-floor.sh` on the generated site and refuses a core below the level lutecepowers supports (`tools/v8-floor.conf`).
 - No BOM import: `lutece-bom` manages `lutece-core` below that level and would also force the versions of the plugin's own Lutece dependencies.
 - JDBC driver `mariadb-java-client` at `${mariadb.version}`, set by `lutece-global-pom`; never redeclared.
